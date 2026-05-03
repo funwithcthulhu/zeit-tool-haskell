@@ -12,6 +12,7 @@ module ZeitLingq.Ports
 import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.Text (Text)
+import Data.Time (UTCTime)
 import ZeitLingq.Domain.Types
 
 data ZeitPort m = ZeitPort
@@ -45,6 +46,8 @@ data LibraryPort m = LibraryPort
   , loadIgnoredUrls :: m [Text]
   , ignoreArticleUrl :: Text -> m ()
   , unignoreArticleUrl :: Text -> m ()
+  , deleteIgnoredArticles :: m Int
+  , deleteOlderArticles :: UTCTime -> Bool -> Bool -> m Int
   , replaceKnownWords :: Text -> Set Text -> m Int
   , computeKnownPercentages :: Text -> m (Either Text Int)
   , knownStemCount :: Text -> m Int

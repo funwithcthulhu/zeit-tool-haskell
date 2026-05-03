@@ -191,6 +191,10 @@ main = hspec $ do
         `shouldBe` [DownloadArticleAudio "audio" (ArticleId 15)]
       snd (update (KnownWordsSyncRequested "de") initialModel)
         `shouldBe` [SyncKnownWordsFromLingq "de"]
+      snd (update LibraryDeleteIgnoredRequested initialModel)
+        `shouldBe` [DeleteIgnoredArticles]
+      snd (update (LibraryDeleteOlderRequested (dayTime 3) True False) initialModel)
+        `shouldBe` [DeleteOlderArticles (dayTime 3) True False]
 
   describe "App command runtime" $ do
     it "turns refresh commands into loaded events" $ do
@@ -421,6 +425,32 @@ main = hspec $ do
         `shouldBe` [ Notify SuccessNotice "Synced 2 known stems and updated 1 articles."
                    , RefreshCurrentView
                    ]
+
+    it "deletes ignored and old articles through runtime ports" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 1)
+              , summaryUrl = "https://example.com/delete-old"
+              , summaryTitle = "Delete Old"
+              , summarySection = "Wissen"
+              , summaryWordCount = 4
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          basePorts = testPorts summary
+          ports =
+            basePorts
+              { libraryPort =
+                  (libraryPort basePorts)
+                    { deleteIgnoredArticles = Identity 2
+                    , deleteOlderArticles = \_ _ _ -> Identity 3
+                    }
+              }
+      runIdentity (Runtime.runCommand ports DeleteIgnoredArticles)
+        `shouldBe` [Notify SuccessNotice "Deleted 2 ignored article(s).", RefreshCurrentView]
+      runIdentity (Runtime.runCommand ports (DeleteOlderArticles (dayTime 3) True False))
+        `shouldBe` [Notify SuccessNotice "Deleted 3 old article(s).", RefreshCurrentView]
 
   describe "App event driver" $ do
     it "dispatches refresh commands and folds loaded events back into the model" $ do
@@ -987,6 +1017,8 @@ testPorts summary =
           , loadIgnoredUrls = Identity []
           , ignoreArticleUrl = \_ -> Identity ()
           , unignoreArticleUrl = \_ -> Identity ()
+          , deleteIgnoredArticles = Identity 0
+          , deleteOlderArticles = \_ _ _ -> Identity 0
           , replaceKnownWords = \_ stems -> Identity (Set.size stems)
           , computeKnownPercentages = \_ -> Identity (Right 0)
           , knownStemCount = \_ -> Identity 0

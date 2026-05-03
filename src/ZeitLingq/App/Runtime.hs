@@ -140,6 +140,18 @@ runCommand ports command =
         [ Notify SuccessNotice (knownWordsSyncMessage added computeResult)
         , RefreshCurrentView
         ]
+    DeleteIgnoredArticles -> do
+      deleted <- deleteIgnoredArticles library
+      pure
+        [ Notify SuccessNotice ("Deleted " <> tshow deleted <> " ignored article(s).")
+        , RefreshCurrentView
+        ]
+    DeleteOlderArticles cutoff onlyUploaded onlyUnuploaded -> do
+      deleted <- deleteOlderArticles library cutoff onlyUploaded onlyUnuploaded
+      pure
+        [ Notify SuccessNotice ("Deleted " <> tshow deleted <> " old article(s).")
+        , RefreshCurrentView
+        ]
   where
     zeit = zeitPort ports
     lingq = lingqPort ports

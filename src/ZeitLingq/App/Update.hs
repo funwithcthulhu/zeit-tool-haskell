@@ -9,7 +9,7 @@ module ZeitLingq.App.Update
 import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Time (Day)
+import Data.Time (Day, UTCTime)
 import ZeitLingq.App.Model (Model(..))
 import ZeitLingq.Domain.Types
 
@@ -45,6 +45,8 @@ data Event
   | LibraryOnlyIgnoredChanged Bool
   | LibraryOnlyNotUploadedChanged Bool
   | LibraryPageChanged Int
+  | LibraryDeleteIgnoredRequested
+  | LibraryDeleteOlderRequested UTCTime Bool Bool
   | LingqFilterChanged WordFilter
   | DatePrefixToggled Bool
   | SectionCollectionsChanged (Map Text Text)
@@ -69,6 +71,8 @@ data Command
   | UploadSavedArticles Day (Maybe Text) (Map Text Text) Bool [ArticleId]
   | DownloadArticleAudio FilePath ArticleId
   | SyncKnownWordsFromLingq Text
+  | DeleteIgnoredArticles
+  | DeleteOlderArticles UTCTime Bool Bool
   deriving (Eq, Show)
 
 update :: Event -> Model -> (Model, [Command])
@@ -244,6 +248,14 @@ update event model =
        in ( model {libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
+    LibraryDeleteIgnoredRequested ->
+      ( model
+      , [DeleteIgnoredArticles]
+      )
+    LibraryDeleteOlderRequested cutoff onlyUploaded onlyUnuploaded ->
+      ( model
+      , [DeleteOlderArticles cutoff onlyUploaded onlyUnuploaded]
+      )
     LingqFilterChanged filters ->
       ( model {lingqFilter = filters}
       , [RefreshLingqLibrary filters]

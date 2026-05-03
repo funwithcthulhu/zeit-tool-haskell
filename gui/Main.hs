@@ -5,7 +5,7 @@ module Main (main) where
 import Control.Exception (SomeException, displayException, try)
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Time (getCurrentTime, utctDay)
+import Data.Time (addUTCTime, getCurrentTime, utctDay)
 import Monomer hiding (Model)
 import Monomer qualified as M
 import System.Environment (lookupEnv)
@@ -51,6 +51,8 @@ data GuiEvent
   | GuiLibraryOnlyNotUploadedChanged Bool
   | GuiLibraryPreviousPage
   | GuiLibraryNextPage
+  | GuiDeleteIgnoredArticles
+  | GuiDeleteOldArticles Int Bool Bool
   | GuiDeleteArticle ArticleId
   | GuiCloseArticle
   | GuiClearNotice
@@ -142,6 +144,10 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (LibraryPageChanged (libraryOffset (libraryQuery model) - libraryLimit (libraryQuery model))))]
     GuiLibraryNextPage ->
       [Task (runAppEvent ports model (LibraryPageChanged (libraryOffset (libraryQuery model) + libraryLimit (libraryQuery model))))]
+    GuiDeleteIgnoredArticles ->
+      [Task (runAppEvent ports model LibraryDeleteIgnoredRequested)]
+    GuiDeleteOldArticles days onlyUploaded onlyUnuploaded ->
+      [Task (runDeleteOlderAppEvent ports model days onlyUploaded onlyUnuploaded)]
     GuiDeleteArticle ident ->
       [Task (runAppEvent ports model (ArticleDeleteRequested ident))]
     GuiCloseArticle ->
@@ -282,6 +288,12 @@ libraryControls model =
                 `styleBasic` [paddingH 12]
             , button "Next" GuiLibraryNextPage
             ]
+        , hstack
+            [ button "Delete ignored" GuiDeleteIgnoredArticles
+            , button "Delete old 30d" (GuiDeleteOldArticles 30 False False)
+            , button "Delete old uploaded 30d" (GuiDeleteOldArticles 30 True False)
+            ]
+            `styleBasic` [paddingT 8]
         ]
         `styleBasic` [paddingV 8]
     _ -> spacer
@@ -466,6 +478,13 @@ runUploadBatchAppEvent ports model articles =
     fallbackCollection <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
     dispatchEvent ports model (LingqBatchUploadRequested (utctDay now) fallbackCollection articles)
 
+runDeleteOlderAppEvent :: AppPorts IO -> Model -> Int -> Bool -> Bool -> IO GuiEvent
+runDeleteOlderAppEvent ports model days onlyUploaded onlyUnuploaded =
+  safeGuiTask $ do
+    now <- getCurrentTime
+    let cutoff = addUTCTime (negate (fromIntegral days * 86400)) now
+    dispatchEvent ports model (LibraryDeleteOlderRequested cutoff onlyUploaded onlyUnuploaded)
+
 safeGuiTask :: IO Model -> IO GuiEvent
 safeGuiTask action = do
   result <- try action
@@ -560,6 +579,10 @@ guiLibraryPort =
         withLibrary dbPath $ \db -> ignoreUrlSqlite db url
     , unignoreArticleUrl = \url ->
         withLibrary dbPath $ \db -> unignoreUrlSqlite db url
+    , deleteIgnoredArticles =
+        withLibrary dbPath deleteIgnoredSqlite
+    , deleteOlderArticles = \cutoff onlyUploaded onlyUnuploaded ->
+        withLibrary dbPath $ \db -> deleteOlderThanSqlite db cutoff onlyUploaded onlyUnuploaded
     , replaceKnownWords = \languageCode stems ->
         withLibrary dbPath $ \db -> saveKnownWordsSqlite db languageCode stems
     , computeKnownPercentages = \languageCode ->
