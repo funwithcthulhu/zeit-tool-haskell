@@ -23,7 +23,7 @@ The rewrite uses four layers:
 - `electron/services/zeit-scraper.js`
   - Future `ZeitLingq.Infrastructure.Zeit` adapter behind `ZeitPort`.
 - `electron/services/lingq-api.js`
-  - Future `ZeitLingq.Infrastructure.Lingq` adapter behind `LingqPort`.
+  - Partially ported into `ZeitLingq.Infrastructure.Lingq`.
 - `electron/services/database.js`
   - Partially ported into `ZeitLingq.Infrastructure.Sqlite` behind `LibraryPort`.
 - `electron/services/stemmer.js`

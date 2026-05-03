@@ -6,6 +6,8 @@ import Data.Set qualified as Set
 import Data.Time (fromGregorian)
 import Data.Map.Strict qualified as Map
 import Control.Monad (when)
+import Data.Aeson (Value, eitherDecode)
+import Data.ByteString.Lazy qualified as BL
 import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
 import Test.Hspec
@@ -16,6 +18,7 @@ import ZeitLingq.Domain.Article
 import ZeitLingq.Domain.Types
 import ZeitLingq.Infrastructure.Settings
 import ZeitLingq.Infrastructure.Sqlite
+import ZeitLingq.Infrastructure.Lingq
 import ZeitLingq.Ports (SettingsPort(..))
 import ZeitLingq.Text.German
 
@@ -107,6 +110,18 @@ main = hspec $ do
         loadDatePrefixEnabled port `shouldReturn` False
         loadSectionCollections port `shouldReturn` Map.fromList [("Wissen", "course-1")]
 
+  describe "LingQ adapter helpers" $ do
+    it "normalizes lesson text without flattening paragraphs" $ do
+      normalizeLessonText " eins   zwei\nnoch \n\n  drei\tvier " `shouldBe` "eins zwei noch\n\ndrei vier"
+
+    it "parses collection responses with numeric ids" $ do
+      let value = decodeValue "{\"results\":[{\"id\":12,\"title\":\"Wissen\",\"lessons_count\":3}]}"
+      parseCollectionsValue value `shouldBe` Right [LingqCollection "12" "Wissen" 3]
+
+    it "extracts known-word terms from paged responses" $ do
+      let value = decodeValue "{\"results\":[{\"term\":\"Haus\"},{\"word\":\"laufen\"},{\"text\":\"  Leer  \"}]}"
+      parseKnownWordTerms value `shouldBe` ["haus", "laufen", "leer"]
+
 demoArticle :: Article
 demoArticle =
   Article
@@ -136,3 +151,9 @@ withTempSettingsPath action = do
   stillExists <- doesFileExist path
   when stillExists (removeFile path)
   pure result
+
+decodeValue :: BL.ByteString -> Value
+decodeValue raw =
+  case eitherDecode raw of
+    Right value -> value
+    Left err -> error err

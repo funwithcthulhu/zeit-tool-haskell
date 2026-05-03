@@ -7,6 +7,8 @@ module ZeitLingq.Domain.Types
   , ArticleSummary(..)
   , AuthStatus(..)
   , LibraryStats(..)
+  , LingqCollection(..)
+  , LingqLanguage(..)
   , LingqLesson(..)
   , Notification(..)
   , NotificationLevel(..)
@@ -61,6 +63,17 @@ data WordFilter = WordFilter
 data LingqLesson = LingqLesson
   { lessonId :: Text
   , lessonUrl :: Text
+  } deriving (Eq, Show, Generic)
+
+data LingqLanguage = LingqLanguage
+  { languageCode :: Text
+  , languageTitle :: Text
+  } deriving (Eq, Show, Generic)
+
+data LingqCollection = LingqCollection
+  { collectionId :: Text
+  , collectionTitle :: Text
+  , collectionLessonsCount :: Int
   } deriving (Eq, Show, Generic)
 
 data ArticleSummary = ArticleSummary
