@@ -36,6 +36,7 @@ cabal run
 cabal run zeit-lingq-tool -- sections
 cabal run zeit-lingq-tool -- browse wissen 1
 cabal run zeit-lingq-tool -- fetch https://www.zeit.de/wissen/2026-05/example
+cabal run zeit-lingq-tool -- batch-fetch urls.txt zeit-tool.db 500 2000
 cabal run zeit-lingq-tool -- library
 cabal run zeit-lingq-tool -- known-import known-words.txt
 cabal run zeit-lingq-tool -- known-compute

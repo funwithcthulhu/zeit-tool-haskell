@@ -11,6 +11,7 @@ import System.Environment (getArgs, lookupEnv)
 import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.Update (Event(..), update)
 import ZeitLingq.Cli
+import ZeitLingq.Core.Batch
 import ZeitLingq.Core.KnownWords (estimateKnownPct, importKnownWordStems)
 import ZeitLingq.Core.Upload
 import ZeitLingq.Domain.Article (composeCleanText, lessonTitle, wordCount)
@@ -49,6 +50,14 @@ runCommand (FetchArticle url dbPath) = do
       withLibrary dbPath $ \db -> do
         savedId <- saveArticleSqlite db article
         putStrLn ("Saved article " <> show (unArticleId savedId) <> ": " <> T.unpack (articleTitle article))
+runCommand (BatchFetch sourcePath dbPath filters) = do
+  rawUrls <- TIO.readFile sourcePath
+  session <- sessionFromEnv
+  let urls = filter (not . T.null) (map T.strip (T.lines rawUrls))
+      fetcher url = firstTextZeit <$> fetchArticleContentZeit session url
+  withLibrary dbPath $ \db -> do
+    results <- batchFetchArticles fetcher (saveArticleSqlite db) filters urls
+    for_ results print
 runCommand (ShowLibrary dbPath) =
   withLibrary dbPath $ \db -> do
     articles <- getArticlesSqlite db (WordFilter Nothing Nothing)
@@ -119,6 +128,10 @@ showSummary article =
 firstText :: Either LingqError LingqLesson -> Either T.Text LingqLesson
 firstText (Right lesson) = Right lesson
 firstText (Left err) = Left (T.pack (show err))
+
+firstTextZeit :: Either ZeitError Article -> Either T.Text Article
+firstTextZeit (Right article) = Right article
+firstTextZeit (Left err) = Left (T.pack (show err))
 
 runDemo :: IO ()
 runDemo = do

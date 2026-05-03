@@ -9,12 +9,14 @@ module ZeitLingq.Cli
 
 import Data.Text (Text)
 import Data.Text qualified as T
+import ZeitLingq.Domain.Types (WordFilter(..))
 
 data CliCommand
   = ShowDemo
   | ListSections
   | BrowseZeit Text Int
   | FetchArticle Text FilePath
+  | BatchFetch FilePath FilePath WordFilter
   | ShowLibrary FilePath
   | ImportKnownWords FilePath FilePath
   | KnownWordsInfo FilePath
@@ -33,6 +35,13 @@ parseArgs ["browse", sectionId, pageValue] =
   BrowseZeit (T.pack sectionId) <$> parsePositiveInt "page" pageValue
 parseArgs ["fetch", url] = Right (FetchArticle (T.pack url) defaultDbPath)
 parseArgs ["fetch", url, dbPath] = Right (FetchArticle (T.pack url) dbPath)
+parseArgs ["batch-fetch", sourcePath] = Right (BatchFetch sourcePath defaultDbPath (WordFilter Nothing Nothing))
+parseArgs ["batch-fetch", sourcePath, dbPath] = Right (BatchFetch sourcePath dbPath (WordFilter Nothing Nothing))
+parseArgs ["batch-fetch", sourcePath, dbPath, minValue, maxValue] =
+  BatchFetch sourcePath dbPath
+    <$> (WordFilter
+          <$> fmap Just (parsePositiveInt "min-words" minValue)
+          <*> fmap Just (parsePositiveInt "max-words" maxValue))
 parseArgs ["library"] = Right (ShowLibrary defaultDbPath)
 parseArgs ["library", dbPath] = Right (ShowLibrary dbPath)
 parseArgs ["known-import", sourcePath] = Right (ImportKnownWords sourcePath defaultDbPath)
@@ -55,6 +64,8 @@ usageText =
     , "  zeit-lingq-tool sections"
     , "  zeit-lingq-tool browse <section-id> [page]"
     , "  zeit-lingq-tool fetch <article-url> [db-path]"
+    , "  zeit-lingq-tool batch-fetch <url-list.txt> [db-path]"
+    , "  zeit-lingq-tool batch-fetch <url-list.txt> <db-path> <min-words> <max-words>"
     , "  zeit-lingq-tool library [db-path]"
     , "  zeit-lingq-tool known-import <word-list.txt> [db-path]"
     , "  zeit-lingq-tool known-info [db-path]"

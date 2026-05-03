@@ -76,6 +76,7 @@ main = hspec $ do
     it "parses browse, fetch and library commands" $ do
       parseArgs ["browse", "wissen", "2"] `shouldBe` Right (BrowseZeit "wissen" 2)
       parseArgs ["fetch", "https://www.zeit.de/wissen/2026-05/beispiel"] `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
+      parseArgs ["batch-fetch", "urls.txt", "custom.db", "500", "2000"] `shouldBe` Right (BatchFetch "urls.txt" "custom.db" (WordFilter (Just 500) (Just 2000)))
       parseArgs ["library", "custom.db"] `shouldBe` Right (ShowLibrary "custom.db")
       parseArgs ["known-import", "words.txt", "custom.db"] `shouldBe` Right (ImportKnownWords "words.txt" "custom.db")
       parseArgs ["known-info"] `shouldBe` Right (KnownWordsInfo defaultDbPath)
