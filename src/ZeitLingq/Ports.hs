@@ -88,6 +88,8 @@ data SettingsPort m = SettingsPort
   , saveLingqFallbackCollection :: Maybe Text -> m ()
   , loadSectionCollections :: m (Map Text Text)
   , saveSectionCollections :: Map Text Text -> m ()
+  , loadRowDensity :: m RowDensity
+  , saveRowDensity :: RowDensity -> m ()
   }
 
 data AppPorts m = AppPorts

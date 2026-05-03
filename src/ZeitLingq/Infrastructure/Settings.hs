@@ -6,6 +6,8 @@ module ZeitLingq.Infrastructure.Settings
   , jsonSettingsPort
   , loadSettings
   , saveSettings
+  , rowDensityFromText
+  , rowDensityToText
   , viewFromText
   , viewToText
   ) where
@@ -20,7 +22,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.FilePath (takeDirectory)
-import ZeitLingq.Domain.Types (View(..), WordFilter(..))
+import ZeitLingq.Domain.Types (RowDensity(..), View(..), WordFilter(..))
 import ZeitLingq.Ports (SettingsPort(..))
 
 data Settings = Settings
@@ -36,6 +38,7 @@ data Settings = Settings
   , settingsDatePrefixEnabled :: Bool
   , settingsLingqFallbackCollection :: Maybe Text
   , settingsSectionCollections :: Map Text Text
+  , settingsRowDensity :: RowDensity
   } deriving (Eq, Show)
 
 defaultSettings :: Settings
@@ -53,6 +56,7 @@ defaultSettings =
     , settingsDatePrefixEnabled = True
     , settingsLingqFallbackCollection = Nothing
     , settingsSectionCollections = Map.empty
+    , settingsRowDensity = CompactRows
     }
 
 jsonSettingsPort :: FilePath -> SettingsPort IO
@@ -82,6 +86,8 @@ jsonSettingsPort path =
     , saveLingqFallbackCollection = updateSettings path . setLingqFallbackCollection
     , loadSectionCollections = settingsSectionCollections <$> loadSettings path
     , saveSectionCollections = updateSettings path . setSectionCollections
+    , loadRowDensity = settingsRowDensity <$> loadSettings path
+    , saveRowDensity = updateSettings path . setRowDensity
     }
 
 loadSettings :: FilePath -> IO Settings
@@ -139,6 +145,9 @@ setLingqFallbackCollection value settings = settings {settingsLingqFallbackColle
 setSectionCollections :: Map Text Text -> Settings -> Settings
 setSectionCollections value settings = settings {settingsSectionCollections = value}
 
+setRowDensity :: RowDensity -> Settings -> Settings
+setRowDensity value settings = settings {settingsRowDensity = value}
+
 instance ToJSON Settings where
   toJSON settings =
     object
@@ -154,6 +163,7 @@ instance ToJSON Settings where
       , "datePrefixEnabled" .= settingsDatePrefixEnabled settings
       , "lingqFallbackCollection" .= settingsLingqFallbackCollection settings
       , "sectionCollections" .= settingsSectionCollections settings
+      , "rowDensity" .= rowDensityToText (settingsRowDensity settings)
       ]
 
 instance FromJSON Settings where
@@ -172,10 +182,14 @@ instance FromJSON Settings where
         <*> obj .:? "datePrefixEnabled" .!= settingsDatePrefixEnabled defaultSettings
         <*> obj .:? "lingqFallbackCollection" .!= settingsLingqFallbackCollection defaultSettings
         <*> obj .:? "sectionCollections" .!= settingsSectionCollections defaultSettings
+        <*> parseRowDensity obj
     where
       parseView obj = do
         value <- obj .:? "currentView" .!= viewToText (settingsCurrentView defaultSettings)
         parseViewText value
+      parseRowDensity obj = do
+        value <- obj .:? "rowDensity" .!= rowDensityToText (settingsRowDensity defaultSettings)
+        parseRowDensityText value
 
 wordFilterToJson :: WordFilter -> Value
 wordFilterToJson filterValue =
@@ -211,6 +225,21 @@ viewFromText "lingq" = Just LingqView
 viewFromText "zeit-login" = Just ZeitLoginView
 viewFromText "article" = Just ArticleView
 viewFromText _ = Nothing
+
+rowDensityToText :: RowDensity -> Text
+rowDensityToText CompactRows = "compact"
+rowDensityToText ComfortableRows = "comfortable"
+
+rowDensityFromText :: Text -> Maybe RowDensity
+rowDensityFromText "compact" = Just CompactRows
+rowDensityFromText "comfortable" = Just ComfortableRows
+rowDensityFromText _ = Nothing
+
+parseRowDensityText :: Text -> Parser RowDensity
+parseRowDensityText value =
+  case rowDensityFromText value of
+    Just density -> pure density
+    Nothing -> fail ("Unknown row density: " <> T.unpack value)
 
 normalizeLingqLanguage :: Text -> Text
 normalizeLingqLanguage value

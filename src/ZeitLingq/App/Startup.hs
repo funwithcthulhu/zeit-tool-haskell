@@ -19,6 +19,7 @@ loadInitialModel settings = do
   datePrefix <- loadDatePrefixEnabled settings
   fallbackCollection <- loadLingqFallbackCollection settings
   collections <- loadSectionCollections settings
+  density <- loadRowDensity settings
   pure
     initialModel
       { currentView = view
@@ -33,4 +34,5 @@ loadInitialModel settings = do
       , datePrefixEnabled = datePrefix
       , lingqFallbackCollection = fallbackCollection
       , sectionCollections = collections
+      , rowDensity = density
       }

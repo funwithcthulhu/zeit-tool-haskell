@@ -62,6 +62,8 @@ runCommand ports command =
       [] <$ saveLingqFallbackCollection settings collectionId
     PersistSectionCollections mappings ->
       [] <$ saveSectionCollections settings mappings
+    PersistRowDensity density ->
+      [] <$ saveRowDensity settings density
     RefreshBrowse sectionId page showHidden -> do
       articles <- fetchArticleList zeit sectionId page
       ignoredUrls <- Set.fromList <$> loadIgnoredUrls library

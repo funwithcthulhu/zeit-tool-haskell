@@ -84,7 +84,7 @@ The Monomer GUI is the primary desktop entry point. It stays thin: user actions 
 The GUI currently supports:
 
 - Browsing Zeit sections with topic dropdown, search, hidden-url filtering, only-new filtering, paging, preview, original-link opening, single fetch, selected fetch, visible fetch, and retryable failed fetches.
-- Managing the local library with presets for common reading/upload workflows, search, section and word filters, ignored/not-uploaded filters, grouping, sorting, paging, article open/copy/original/audio actions, and configurable cleanup of ignored, old, uploaded, or unuploaded articles.
+- Managing the local library with presets for common reading/upload workflows, compact or comfortable row density, search, section and word filters, ignored/not-uploaded filters, grouping, sorting, paging, article open/copy/original/audio actions, and configurable cleanup of ignored, old, uploaded, or unuploaded articles.
 - Uploading saved articles to LingQ with API key or password login, language selection, collection refresh, fallback collection selection, per-section collection mapping, date-prefixed lesson titles, upload-status sync from an existing LingQ course, known-word sync/import/clear/recompute, selected/visible upload, and retryable failed uploads.
 - Opening the project data folder and the Zeit login page from the GUI.
 
@@ -93,7 +93,7 @@ The GUI currently supports:
 - The Haskell core covers Zeit browsing/fetching, SQLite persistence, library maintenance, known-word import/sync/estimation, article audio download/open, LingQ upload, and LingQ course status reconciliation.
 - The Monomer GUI is functional and launched by `run-zeit-tool.ps1` or the Windows desktop shortcut.
 - Batch fetch and batch upload show live progress and keep per-item failures retryable from the sidebar.
-- JSON settings persist the current view, Zeit cookie, LingQ API key, LingQ language, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
+- JSON settings persist the current view, row density, Zeit cookie, LingQ API key, LingQ language, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
 - The CLI harness remains available for quick verification and scripting.
 
 Known limits:

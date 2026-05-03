@@ -86,6 +86,7 @@ data GuiEvent
   | GuiRetryFailedUploads
   | GuiClearFailures
   | GuiProgress (Maybe ProgressStatus)
+  | GuiRowDensityChanged RowDensity
   | GuiSyncKnownWords
   | GuiKnownImportTextChanged Text
   | GuiImportKnownWords
@@ -166,7 +167,7 @@ buildUI _ model =
   hstack
     [ sidebarBlock model vm
     , vstack
-        [ titleBlock vm
+        [ titleBlock model vm
         , notificationBlock model
         , progressNoticeBlock model
         , contentBlock model vm
@@ -331,6 +332,8 @@ handleEvent ports _ _ model event =
     GuiProgress progress ->
       let (nextModel, _) = update (ProgressChanged progress) model
        in [M.Model nextModel]
+    GuiRowDensityChanged density ->
+      [Task (runAppEvent ports model (RowDensityChanged density))]
     GuiSyncKnownWords ->
       withPendingNotice model "Syncing known words from LingQ..." (runAppEvent ports model (KnownWordsSyncRequested (lingqLanguage model)))
     GuiKnownImportTextChanged text ->
@@ -418,13 +421,22 @@ withProgressProducer model labelText total producer =
   , Producer producer
   ]
 
-titleBlock :: AppViewModel -> WidgetNode Model GuiEvent
-titleBlock vm =
+titleBlock :: Model -> AppViewModel -> WidgetNode Model GuiEvent
+titleBlock model vm =
   hstack
     [ label (vmTitle vm)
         `styleBasic` [textSize 20, textColor mainTextColor, paddingR 14]
     , filler
     , statusBlock vm
+    , label "Density"
+        `styleBasic` [paddingL 12, paddingR 6, textColor mutedTextColor]
+    , textDropdownV_
+        (rowDensity model)
+        GuiRowDensityChanged
+        allRowDensities
+        rowDensityLabel
+        []
+        `styleBasic` (inputStyle <> [width 126])
     , secondaryButton "Refresh" GuiRefresh
     ]
     `styleBasic` [paddingB 6]
@@ -629,11 +641,11 @@ primaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 primaryButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 9
-      , paddingV 3
-      , height 30
-      , radius 8
-      , textSize 13
+      [ paddingH 8
+      , paddingV 2
+      , height 28
+      , radius 7
+      , textSize 12
       , textColor primaryTextColor
       , bgColor primaryColor
       , border 1 primaryColor
@@ -643,11 +655,11 @@ secondaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 secondaryButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 9
-      , paddingV 3
-      , height 30
-      , radius 8
-      , textSize 13
+      [ paddingH 8
+      , paddingV 2
+      , height 28
+      , radius 7
+      , textSize 12
       , textColor mainTextColor
       , bgColor panelAltColor
       , border 1 borderColor
@@ -657,11 +669,11 @@ dangerButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 dangerButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 9
-      , paddingV 3
-      , height 30
-      , radius 8
-      , textSize 13
+      [ paddingH 8
+      , paddingV 2
+      , height 28
+      , radius 7
+      , textSize 12
       , textColor mainTextColor
       , bgColor (rgbHex "#3a1f24")
       , border 1 dangerColor
@@ -671,11 +683,11 @@ rowPrimaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 rowPrimaryButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 6
+      [ paddingH 5
       , paddingV 1
-      , height 22
-      , radius 7
-      , textSize 11
+      , height 20
+      , radius 6
+      , textSize 10
       , textColor primaryTextColor
       , bgColor primaryColor
       , border 1 primaryColor
@@ -685,11 +697,11 @@ rowSecondaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 rowSecondaryButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 6
+      [ paddingH 5
       , paddingV 1
-      , height 22
-      , radius 7
-      , textSize 11
+      , height 20
+      , radius 6
+      , textSize 10
       , textColor mainTextColor
       , bgColor panelAltColor
       , border 1 borderColor
@@ -699,11 +711,11 @@ rowDangerButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 rowDangerButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 6
+      [ paddingH 5
       , paddingV 1
-      , height 22
-      , radius 7
-      , textSize 11
+      , height 20
+      , radius 6
+      , textSize 10
       , textColor mainTextColor
       , bgColor (rgbHex "#3a1f24")
       , border 1 dangerColor
@@ -712,10 +724,10 @@ rowDangerButton caption event =
 inputStyle :: [StyleState]
 inputStyle =
   [ paddingH 8
-  , paddingV 3
-  , height 30
-  , radius 8
-  , textSize 13
+  , paddingV 2
+  , height 28
+  , radius 7
+  , textSize 12
   , textColor mainTextColor
   , bgColor panelAltColor
   , border 1 borderColor
@@ -723,7 +735,7 @@ inputStyle =
 
 panelStyle :: [StyleState]
 panelStyle =
-  [ padding 10
+  [ padding 8
   , radius 12
   , bgColor panelBgColor
   , border 1 borderColor
@@ -1004,6 +1016,13 @@ libraryPresetLabel preset =
     LibraryPresetLongReads -> "Long reads"
     LibraryPresetNotUploaded -> "Not uploaded"
     LibraryPresetCustom -> "Custom"
+
+allRowDensities :: [RowDensity]
+allRowDensities = [CompactRows, ComfortableRows]
+
+rowDensityLabel :: RowDensity -> Text
+rowDensityLabel CompactRows = "Compact"
+rowDensityLabel ComfortableRows = "Comfort"
 
 toggle :: Text -> Bool -> (Bool -> GuiEvent) -> WidgetNode Model GuiEvent
 toggle text value handler =
@@ -1315,16 +1334,52 @@ articleRowBlock model article =
     [ rowSelectionCheckbox model article
     , vstack
         [ label_ (rowTitle row) [ellipsis]
-            `styleBasic` [textSize 13, textColor mainTextColor]
+            `styleBasic` [textSize (rowTitleSize model), textColor mainTextColor]
         , label_ (rowMeta row <> " | " <> rowKnownPct row <> " | " <> rowUploadStatus row) [ellipsis]
-            `styleBasic` [textSize 10, textColor mutedTextColor]
+            `styleBasic` [textSize (rowMetaSize model), textColor mutedTextColor]
         , hstack (rowActions (currentView model) article)
-            `styleBasic` [paddingT 3]
+            `styleBasic` [paddingT (rowActionPadding model)]
         ]
     ]
-    `styleBasic` [height 58, padding 6, radius 9, bgColor panelAltColor, border 1 borderColor]
+    `styleBasic`
+      [ height (rowHeight model)
+      , padding (rowPadding model)
+      , radius 8
+      , bgColor panelAltColor
+      , border 1 borderColor
+      ]
   where
     row = articleRowView article
+
+rowHeight :: Model -> Double
+rowHeight model =
+  case rowDensity model of
+    CompactRows -> 46
+    ComfortableRows -> 58
+
+rowPadding :: Model -> Double
+rowPadding model =
+  case rowDensity model of
+    CompactRows -> 4
+    ComfortableRows -> 6
+
+rowTitleSize :: Model -> Double
+rowTitleSize model =
+  case rowDensity model of
+    CompactRows -> 12
+    ComfortableRows -> 13
+
+rowMetaSize :: Model -> Double
+rowMetaSize model =
+  case rowDensity model of
+    CompactRows -> 9
+    ComfortableRows -> 10
+
+rowActionPadding :: Model -> Double
+rowActionPadding model =
+  case rowDensity model of
+    CompactRows -> 1
+    ComfortableRows -> 3
 
 rowSelectionCheckbox :: Model -> ArticleSummary -> WidgetNode Model GuiEvent
 rowSelectionCheckbox model article =

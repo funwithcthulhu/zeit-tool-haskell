@@ -18,6 +18,7 @@ module ZeitLingq.Domain.Types
   , Notification(..)
   , NotificationLevel(..)
   , ProgressStatus(..)
+  , RowDensity(..)
   , Section(..)
   , View(..)
   , WordFilter(..)
@@ -101,6 +102,11 @@ data LibraryPreset
   | LibraryPresetLongReads
   | LibraryPresetNotUploaded
   | LibraryPresetCustom
+  deriving (Eq, Show, Enum, Bounded, Generic)
+
+data RowDensity
+  = CompactRows
+  | ComfortableRows
   deriving (Eq, Show, Enum, Bounded, Generic)
 
 data LibraryPage = LibraryPage

@@ -115,6 +115,8 @@ main = hspec $ do
               , saveLingqFallbackCollection = \_ -> Identity ()
               , loadSectionCollections = Identity (Map.fromList [("Wissen", "course-1")])
               , saveSectionCollections = \_ -> Identity ()
+              , loadRowDensity = Identity ComfortableRows
+              , saveRowDensity = \_ -> Identity ()
               }
           model = runIdentity (loadInitialModel port)
       currentView model `shouldBe` LingqView
@@ -126,6 +128,7 @@ main = hspec $ do
       browseFilter model `shouldBe` WordFilter (Just 300) (Just 2000)
       browseOnlyNew model `shouldBe` False
       lingqFilter model `shouldBe` WordFilter (Just 500) Nothing
+      rowDensity model `shouldBe` ComfortableRows
       lingqOnlyNotUploaded model `shouldBe` False
       datePrefixEnabled model `shouldBe` False
       lingqFallbackCollection model `shouldBe` Just "fallback-course"
@@ -1118,6 +1121,7 @@ main = hspec $ do
         saveDatePrefixEnabled port False
         saveLingqFallbackCollection port (Just "fallback")
         saveSectionCollections port (Map.fromList [("Wissen", "course-1")])
+        saveRowDensity port ComfortableRows
 
         loadCurrentView port `shouldReturn` LingqView
         loadZeitCookie port `shouldReturn` "cookie=value"
@@ -1131,6 +1135,7 @@ main = hspec $ do
         loadDatePrefixEnabled port `shouldReturn` False
         loadLingqFallbackCollection port `shouldReturn` Just "fallback"
         loadSectionCollections port `shouldReturn` Map.fromList [("Wissen", "course-1")]
+        loadRowDensity port `shouldReturn` ComfortableRows
 
   describe "LingQ adapter helpers" $ do
     it "normalizes lesson text without flattening paragraphs" $ do
@@ -1324,5 +1329,7 @@ testPorts summary =
           , saveLingqFallbackCollection = \_ -> Identity ()
           , loadSectionCollections = Identity Map.empty
           , saveSectionCollections = \_ -> Identity ()
+          , loadRowDensity = Identity CompactRows
+          , saveRowDensity = \_ -> Identity ()
           }
     }

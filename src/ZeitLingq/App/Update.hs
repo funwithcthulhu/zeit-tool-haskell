@@ -75,6 +75,7 @@ data Event
   | BatchUploadFinished [(ArticleId, Text)]
   | FailureListsCleared
   | ProgressChanged (Maybe ProgressStatus)
+  | RowDensityChanged RowDensity
   | RefreshCurrentView
   | Notify NotificationLevel Text
   | NotificationCleared
@@ -115,6 +116,7 @@ data Command
   | PersistDatePrefix Bool
   | PersistLingqFallbackCollection (Maybe Text)
   | PersistSectionCollections (Map Text Text)
+  | PersistRowDensity RowDensity
   | RefreshBrowse Text Int Bool
   | RefreshLibrary WordFilter
   | RefreshLibraryPage LibraryQuery
@@ -425,6 +427,10 @@ update event model =
     ProgressChanged progress ->
       ( model {activeProgress = progress}
       , []
+      )
+    RowDensityChanged density ->
+      ( model {rowDensity = density}
+      , [PersistRowDensity density]
       )
     RefreshCurrentView ->
       ( model

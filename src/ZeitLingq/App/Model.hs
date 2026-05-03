@@ -50,6 +50,7 @@ data Model = Model
   , activeProgress :: Maybe ProgressStatus
   , failedFetches :: [(Text, Text)]
   , failedUploads :: [(ArticleId, Text)]
+  , rowDensity :: RowDensity
   , browseSectionId :: Text
   , browsePage :: Int
   , browseFilter :: WordFilter
@@ -102,6 +103,7 @@ initialModel =
     , activeProgress = Nothing
     , failedFetches = []
     , failedUploads = []
+    , rowDensity = CompactRows
     , browseSectionId = "index"
     , browsePage = 1
     , browseFilter = WordFilter Nothing Nothing
