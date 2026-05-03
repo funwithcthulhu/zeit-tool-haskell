@@ -3,22 +3,34 @@
 
 module ZeitLingq.Infrastructure.Sqlite
   ( LibraryDb
+  , addKnownWordsSqlite
   , closeLibrary
   , deleteArticleSqlite
   , getArticleSqlite
   , getArticlesSqlite
+  , getKnownStemCountSqlite
+  , getKnownStemsSqlite
+  , getKnownWordsSyncedAtSqlite
   , getStatsSqlite
+  , clearKnownWordsSqlite
+  , clearAllKnownPctSqlite
+  , computeKnownPctSqlite
+  , saveKnownWordsSqlite
   , markUploadedSqlite
   , openLibrary
   , saveArticleSqlite
   , setIgnoredSqlite
   , sqliteLibraryPort
+  , updateKnownPctSqlite
   , withLibrary
   ) where
 
 import Control.Exception (bracket)
+import Data.Foldable (traverse_)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (UTCTime, getCurrentTime)
@@ -30,6 +42,7 @@ import ZeitLingq.Domain.Article
   , wordCount
   )
 import ZeitLingq.Domain.Types
+import ZeitLingq.Core.KnownWords (estimateKnownPct)
 import ZeitLingq.Ports (LibraryPort(..))
 
 newtype LibraryDb = LibraryDb Connection
@@ -84,6 +97,14 @@ migrate conn = do
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_word_count ON articles(word_count)"
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_date ON articles(date)"
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_ignored ON articles(ignored)"
+  execute_
+    conn
+    "CREATE TABLE IF NOT EXISTS known_words\
+    \ (lang TEXT NOT NULL,\
+    \  stem TEXT NOT NULL,\
+    \  synced_at TIMESTAMP NOT NULL,\
+    \  PRIMARY KEY (lang, stem))"
+  execute_ conn "CREATE INDEX IF NOT EXISTS idx_known_words_lang ON known_words(lang)"
 
 saveArticleSqlite :: LibraryDb -> Article -> IO ArticleId
 saveArticleSqlite (LibraryDb conn) article = do
@@ -186,6 +207,59 @@ getStatsSqlite (LibraryDb conn) = do
       , sectionCounts = Map.fromList sectionRows
       }
 
+saveKnownWordsSqlite :: LibraryDb -> Text -> Set Text -> IO Int
+saveKnownWordsSqlite (LibraryDb conn) languageCode stems = do
+  now <- getCurrentTime
+  withTransaction conn $ do
+    execute conn "DELETE FROM known_words WHERE lang = ?" (Only languageCode)
+    executeMany conn "INSERT OR IGNORE INTO known_words (lang, stem, synced_at) VALUES (?, ?, ?)" (knownWordRows languageCode now stems)
+  pure (Set.size stems)
+
+addKnownWordsSqlite :: LibraryDb -> Text -> Set Text -> IO Int
+addKnownWordsSqlite (LibraryDb conn) languageCode stems = do
+  now <- getCurrentTime
+  executeMany conn "INSERT OR IGNORE INTO known_words (lang, stem, synced_at) VALUES (?, ?, ?)" (knownWordRows languageCode now stems)
+  pure (Set.size stems)
+
+clearKnownWordsSqlite :: LibraryDb -> Text -> IO ()
+clearKnownWordsSqlite (LibraryDb conn) languageCode =
+  execute conn "DELETE FROM known_words WHERE lang = ?" (Only languageCode)
+
+getKnownStemCountSqlite :: LibraryDb -> Text -> IO Int
+getKnownStemCountSqlite (LibraryDb conn) languageCode = do
+  [Only total] <- query conn "SELECT COUNT(*) FROM known_words WHERE lang = ?" (Only languageCode)
+  pure total
+
+getKnownStemsSqlite :: LibraryDb -> Text -> IO (Set Text)
+getKnownStemsSqlite (LibraryDb conn) languageCode = do
+  rows <- query conn "SELECT stem FROM known_words WHERE lang = ?" (Only languageCode)
+  pure (Set.fromList [stem | Only stem <- rows])
+
+getKnownWordsSyncedAtSqlite :: LibraryDb -> Text -> IO (Maybe UTCTime)
+getKnownWordsSyncedAtSqlite (LibraryDb conn) languageCode = do
+  [Only syncedAt] <- query conn "SELECT MAX(synced_at) FROM known_words WHERE lang = ?" (Only languageCode)
+  pure syncedAt
+
+updateKnownPctSqlite :: LibraryDb -> ArticleId -> Maybe Int -> IO ()
+updateKnownPctSqlite (LibraryDb conn) (ArticleId ident) pct =
+  execute conn "UPDATE articles SET known_pct = ? WHERE id = ?" (pct, ident)
+
+clearAllKnownPctSqlite :: LibraryDb -> IO ()
+clearAllKnownPctSqlite (LibraryDb conn) =
+  execute_ conn "UPDATE articles SET known_pct = NULL"
+
+computeKnownPctSqlite :: LibraryDb -> Text -> IO (Either Text Int)
+computeKnownPctSqlite db@(LibraryDb conn) languageCode = do
+  stems <- getKnownStemsSqlite db languageCode
+  if Set.null stems
+    then pure (Left "No known words in database. Sync or import first.")
+    else do
+      rows <- query_ conn "SELECT id, body_text FROM articles"
+      let computeOne (ArticleTextRow ident body) =
+            updateKnownPctSqlite db (ArticleId ident) (estimateKnownPct stems body)
+      traverse_ computeOne rows
+      pure (Right (length rows))
+
 data PreservedFields = PreservedFields
   { preservedId :: ArticleId
   , preservedLesson :: Maybe LingqLesson
@@ -193,6 +267,12 @@ data PreservedFields = PreservedFields
   , preservedAudioPath :: Maybe FilePath
   , preservedKnownPct :: Maybe Int
   }
+
+knownWordRows :: Text -> UTCTime -> Set Text -> [(Text, Text, UTCTime)]
+knownWordRows languageCode now =
+  map (\stem -> (languageCode, stem, now))
+    . filter (not . T.null)
+    . Set.toList
 
 data ArticleWrite = ArticleWrite
   { writeId :: Maybe Int
@@ -352,6 +432,11 @@ summaryFromRow (SummaryRow ident url title section totalWords ignored uploaded k
     , summaryUploaded = uploadedIntToBool uploaded
     , summaryKnownPct = knownPct
     }
+
+data ArticleTextRow = ArticleTextRow Int Text
+
+instance FromRow ArticleTextRow where
+  fromRow = ArticleTextRow <$> field <*> field
 
 splitParagraphs :: Text -> [Text]
 splitParagraphs =

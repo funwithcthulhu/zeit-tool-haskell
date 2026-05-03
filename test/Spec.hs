@@ -120,6 +120,25 @@ main = hspec $ do
         fmap articleIgnored loaded `shouldBe` Just True
         fmap articleUploadedLesson loaded `shouldBe` Just (Just (LingqLesson "lesson-1" "https://lingq.example/lesson-1"))
 
+    it "stores known-word stems and computes cached known percentages" $ do
+      withLibrary ":memory:" $ \db -> do
+        savedId <- saveArticleSqlite db demoArticle
+        added <- saveKnownWordsSqlite db "de" (importKnownWordStems "eins\ndrei")
+        added `shouldBe` 2
+
+        getKnownStemCountSqlite db "de" `shouldReturn` 2
+        computeKnownPctSqlite db "de" `shouldReturn` Right 1
+
+        loaded <- getArticleSqlite db savedId
+        fmap articleKnownPct loaded `shouldBe` Just (Just 50)
+
+        clearAllKnownPctSqlite db
+        reloaded <- getArticleSqlite db savedId
+        fmap articleKnownPct reloaded `shouldBe` Just Nothing
+
+        clearKnownWordsSqlite db "de"
+        getKnownStemCountSqlite db "de" `shouldReturn` 0
+
   describe "JSON settings adapter" $ do
     it "returns defaults when the settings file does not exist" $ do
       withTempSettingsPath $ \path -> do

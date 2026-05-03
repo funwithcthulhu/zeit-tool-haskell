@@ -28,6 +28,8 @@ The rewrite uses four layers:
   - Partially ported into `ZeitLingq.Infrastructure.Lingq`.
 - `electron/services/database.js`
   - Partially ported into `ZeitLingq.Infrastructure.Sqlite` behind `LibraryPort`.
+- `electron/main.js` known-word import and percentage computation
+  - Ported into `ZeitLingq.Core.KnownWords` plus SQLite cache helpers.
 - `electron/services/stemmer.js`
   - Ported into `ZeitLingq.Text.German`.
 - `src/App.jsx` and component state

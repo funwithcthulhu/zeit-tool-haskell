@@ -55,6 +55,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - Pure article, known-word, and app-update logic is in place.
 - Batch fetch/save behavior is available as a pure use case over effectful callbacks.
 - SQLite article persistence is available through `LibraryPort`.
+- SQLite known-word storage and article `known_pct` recomputation are available.
 - JSON user settings are available through `SettingsPort`.
 - LingQ login, collection fetch, lesson upload, and known-word fetch helpers are scaffolded in Haskell.
 - Zeit article-list and article-content extraction is scaffolded in Haskell.
