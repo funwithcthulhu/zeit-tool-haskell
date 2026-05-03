@@ -23,7 +23,18 @@ $env:PKG_CONFIG_DONT_DEFINE_PREFIX = '1'
 if ($Cli) {
   cabal run zeit-lingq-tool -- @ToolArgs
 } else {
-  cabal run -fgui zeit-lingq-tool-gui -- @ToolArgs
+  $guiExe = (& cabal list-bin -fgui zeit-lingq-tool-gui).Trim()
+  if (-not (Test-Path -LiteralPath $guiExe)) {
+    cabal build -fgui zeit-lingq-tool-gui
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $guiExe = (& cabal list-bin -fgui zeit-lingq-tool-gui).Trim()
+  }
+  if ($ToolArgs.Count -gt 0) {
+    Start-Process -FilePath $guiExe -WorkingDirectory $PSScriptRoot -ArgumentList $ToolArgs -WindowStyle Normal
+  } else {
+    Start-Process -FilePath $guiExe -WorkingDirectory $PSScriptRoot -WindowStyle Normal
+  }
+  exit 0
 }
 
 exit $LASTEXITCODE
