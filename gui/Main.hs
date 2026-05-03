@@ -38,6 +38,7 @@ data GuiEvent
   | GuiNavigate View
   | GuiRefresh
   | GuiZeitCookieChanged Text
+  | GuiOpenZeitLoginPage
   | GuiZeitCookieLogin
   | GuiZeitLogout
   | GuiLingqApiKeyChanged Text
@@ -117,6 +118,9 @@ dbPath = "zeit-tool.db"
 settingsPath :: FilePath
 settingsPath = "settings.json"
 
+zeitLoginUrl :: Text
+zeitLoginUrl = "https://meine.zeit.de/anmelden?url=https%3A%2F%2Fwww.zeit.de%2Findex&entry_service=sonstige"
+
 appBgColor :: Color
 appBgColor = rgbHex "#0f151b"
 
@@ -183,6 +187,8 @@ handleEvent ports _ _ model event =
       withPendingNotice model "Refreshing current view..." (runAppEvent ports model RefreshCurrentView)
     GuiZeitCookieChanged cookie ->
       [Task (runAppEvent ports model (ZeitCookieChanged cookie))]
+    GuiOpenZeitLoginPage ->
+      [Task (runSideEffect model (openExternalUrl zeitLoginUrl) "Opened Zeit login page in your browser.")]
     GuiZeitCookieLogin ->
       [Task (runAppEvent ports model (ZeitCookieLoginRequested (zeitCookieText model)))]
     GuiZeitLogout ->
@@ -673,7 +679,8 @@ zeitControls model =
             [maxLines 5]
             `styleBasic` (inputStyle <> [height 110])
         , hstack
-            [ primaryButton "Save cookie session" GuiZeitCookieLogin
+            [ secondaryButton "Open Zeit login page" GuiOpenZeitLoginPage
+            , primaryButton "Save cookie session" GuiZeitCookieLogin
             , secondaryButton "Disconnect Zeit" GuiZeitLogout
             ]
             `styleBasic` [paddingT 6]
