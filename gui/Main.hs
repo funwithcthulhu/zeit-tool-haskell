@@ -38,6 +38,7 @@ data GuiEvent
   | GuiUploadArticle ArticleId
   | GuiUploadVisible [ArticleSummary]
   | GuiDownloadAudio ArticleId
+  | GuiSyncKnownWords
   | GuiDeleteArticle ArticleId
   | GuiCloseArticle
   | GuiClearNotice
@@ -103,6 +104,8 @@ handleEvent ports _ _ model event =
       [Task (runUploadBatchAppEvent ports model articles)]
     GuiDownloadAudio ident ->
       [Task (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))]
+    GuiSyncKnownWords ->
+      [Task (runAppEvent ports model (KnownWordsSyncRequested "de"))]
     GuiDeleteArticle ident ->
       [Task (runAppEvent ports model (ArticleDeleteRequested ident))]
     GuiCloseArticle ->
@@ -200,6 +203,7 @@ lingqControls model =
     LingqView ->
       hstack
         [ button ("Upload visible (" <> T.pack (show (length uploadable)) <> ")") (GuiUploadVisible (lingqArticles model))
+        , button "Sync known words" GuiSyncKnownWords
         ]
         `styleBasic` [paddingV 8]
     _ -> spacer
@@ -441,6 +445,12 @@ guiLibraryPort =
         withLibrary dbPath $ \db -> ignoreUrlSqlite db url
     , unignoreArticleUrl = \url ->
         withLibrary dbPath $ \db -> unignoreUrlSqlite db url
+    , replaceKnownWords = \languageCode stems ->
+        withLibrary dbPath $ \db -> saveKnownWordsSqlite db languageCode stems
+    , computeKnownPercentages = \languageCode ->
+        withLibrary dbPath $ \db -> computeKnownPctSqlite db languageCode
+    , knownStemCount = \languageCode ->
+        withLibrary dbPath $ \db -> getKnownStemCountSqlite db languageCode
     , loadStats =
         withLibrary dbPath getStatsSqlite
     }

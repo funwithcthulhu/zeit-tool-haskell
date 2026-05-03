@@ -82,6 +82,9 @@ sqliteLibraryPort db =
     , loadIgnoredUrls = getIgnoredUrlsSqlite db
     , ignoreArticleUrl = ignoreUrlSqlite db
     , unignoreArticleUrl = unignoreUrlSqlite db
+    , replaceKnownWords = saveKnownWordsSqlite db
+    , computeKnownPercentages = computeKnownPctSqlite db
+    , knownStemCount = getKnownStemCountSqlite db
     , loadStats = getStatsSqlite db
     }
 

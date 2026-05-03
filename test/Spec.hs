@@ -166,6 +166,8 @@ main = hspec $ do
         `shouldBe` [UploadSavedArticles (fromGregorian 2026 5 2) Nothing Map.empty True [ArticleId 15]]
       snd (update (ArticleAudioDownloadRequested "audio" (ArticleId 15)) initialModel)
         `shouldBe` [DownloadArticleAudio "audio" (ArticleId 15)]
+      snd (update (KnownWordsSyncRequested "de") initialModel)
+        `shouldBe` [SyncKnownWordsFromLingq "de"]
 
   describe "App command runtime" $ do
     it "turns refresh commands into loaded events" $ do
@@ -362,6 +364,36 @@ main = hspec $ do
               }
       runIdentity (Runtime.runCommand ports (DownloadArticleAudio "audio" (ArticleId 1)))
         `shouldBe` [ Notify SuccessNotice "Saved audio: audio\\demo.mp3"
+                   , RefreshCurrentView
+                   ]
+
+    it "syncs known words and refreshes cached percentages" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 1)
+              , summaryUrl = "https://example.com/known"
+              , summaryTitle = "Known"
+              , summarySection = "Wissen"
+              , summaryWordCount = 4
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          basePorts = testPorts summary
+          ports =
+            basePorts
+              { lingqPort =
+                  (lingqPort basePorts)
+                    { fetchKnownWords = \_ -> Identity ["eins", "drei"]
+                    }
+              , libraryPort =
+                  (libraryPort basePorts)
+                    { replaceKnownWords = \_ stems -> Identity (Set.size stems)
+                    , computeKnownPercentages = \_ -> Identity (Right 1)
+                    }
+              }
+      runIdentity (Runtime.runCommand ports (SyncKnownWordsFromLingq "de"))
+        `shouldBe` [ Notify SuccessNotice "Synced 2 known stems and updated 1 articles."
                    , RefreshCurrentView
                    ]
 
@@ -929,6 +961,9 @@ testPorts summary =
           , loadIgnoredUrls = Identity []
           , ignoreArticleUrl = \_ -> Identity ()
           , unignoreArticleUrl = \_ -> Identity ()
+          , replaceKnownWords = \_ stems -> Identity (Set.size stems)
+          , computeKnownPercentages = \_ -> Identity (Right 0)
+          , knownStemCount = \_ -> Identity 0
           , loadStats =
               Identity
                 ( LibraryStats

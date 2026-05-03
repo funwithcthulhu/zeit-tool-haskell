@@ -10,6 +10,7 @@ module ZeitLingq.Ports
   ) where
 
 import Data.Map.Strict (Map)
+import Data.Set (Set)
 import Data.Text (Text)
 import ZeitLingq.Domain.Types
 
@@ -43,6 +44,9 @@ data LibraryPort m = LibraryPort
   , loadIgnoredUrls :: m [Text]
   , ignoreArticleUrl :: Text -> m ()
   , unignoreArticleUrl :: Text -> m ()
+  , replaceKnownWords :: Text -> Set Text -> m Int
+  , computeKnownPercentages :: Text -> m (Either Text Int)
+  , knownStemCount :: Text -> m Int
   , loadStats :: m LibraryStats
   }
 

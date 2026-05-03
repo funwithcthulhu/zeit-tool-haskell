@@ -27,6 +27,7 @@ data Event
   | BrowseArticleHidden Text
   | BrowseBatchFetchRequested [ArticleSummary]
   | LingqBatchUploadRequested Day (Maybe Text) [ArticleSummary]
+  | KnownWordsSyncRequested Text
   | BrowseArticlesLoaded [ArticleSummary]
   | LibraryArticlesLoaded [ArticleSummary]
   | LingqArticlesLoaded [ArticleSummary]
@@ -58,6 +59,7 @@ data Command
   | FetchAndSaveArticles WordFilter [ArticleSummary]
   | UploadSavedArticles Day (Maybe Text) (Map Text Text) Bool [ArticleId]
   | DownloadArticleAudio FilePath ArticleId
+  | SyncKnownWordsFromLingq Text
   deriving (Eq, Show)
 
 update :: Event -> Model -> (Model, [Command])
@@ -129,6 +131,10 @@ update event model =
     LingqBatchUploadRequested day fallbackCollection articles ->
       ( model
       , [UploadSavedArticles day fallbackCollection (sectionCollections model) (datePrefixEnabled model) (uploadableIds articles)]
+      )
+    KnownWordsSyncRequested languageCode ->
+      ( model
+      , [SyncKnownWordsFromLingq languageCode]
       )
     BrowseArticlesLoaded articles ->
       ( model {browseArticles = articles}

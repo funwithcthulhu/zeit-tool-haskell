@@ -12,6 +12,7 @@ import ZeitLingq.App.Update (Command(..), Event(..))
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.Core.Batch (BatchFetchResult(..), batchFetchArticles)
 import ZeitLingq.Core.Browse (hideIgnoredSummaries)
+import ZeitLingq.Core.KnownWords (importKnownWordStems)
 import ZeitLingq.Core.Upload (BatchUploadResult(..), batchUploadArticles)
 import ZeitLingq.Domain.Article (wordCount)
 import ZeitLingq.Domain.Types
@@ -128,6 +129,14 @@ runCommand ports command =
             [ Notify SuccessNotice ("Saved audio: " <> T.pack path)
             , RefreshCurrentView
             ]
+    SyncKnownWordsFromLingq languageCode -> do
+      terms <- fetchKnownWords lingq languageCode
+      added <- replaceKnownWords library languageCode (importKnownWordStems (T.unlines terms))
+      computeResult <- computeKnownPercentages library languageCode
+      pure
+        [ Notify SuccessNotice (knownWordsSyncMessage added computeResult)
+        , RefreshCurrentView
+        ]
   where
     zeit = zeitPort ports
     lingq = lingqPort ports
@@ -178,3 +187,15 @@ batchFetchSummary results =
 
 tshow :: Show a => a -> Text
 tshow = T.pack . show
+
+knownWordsSyncMessage :: Int -> Either Text Int -> Text
+knownWordsSyncMessage added computeResult =
+  case computeResult of
+    Right articleCount ->
+      "Synced "
+        <> tshow added
+        <> " known stems and updated "
+        <> tshow articleCount
+        <> " articles."
+    Left err ->
+      "Synced " <> tshow added <> " known stems. " <> err
