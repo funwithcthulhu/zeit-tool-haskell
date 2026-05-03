@@ -49,6 +49,8 @@ runCommand ports command =
       [] <$ saveBrowseFilter settings filters
     PersistBrowseOnlyNew enabled ->
       [] <$ saveBrowseOnlyNew settings enabled
+    PersistLingqLanguage languageCode ->
+      [] <$ saveLingqLanguage settings languageCode
     PersistLingqFilter filters ->
       [] <$ saveLingqFilter settings filters
     PersistLingqOnlyNotUploaded enabled ->
@@ -125,7 +127,7 @@ runCommand ports command =
         [ Notify SuccessNotice (if ignored then "Article ignored." else "Article unignored.")
         , RefreshCurrentView
         ]
-    UploadSavedArticle day fallbackCollection sectionCollections datePrefix ident -> do
+    UploadSavedArticle day languageCode fallbackCollection sectionCollections datePrefix ident -> do
       maybeArticle <- loadArticle library ident
       case maybeArticle of
         Nothing ->
@@ -133,23 +135,23 @@ runCommand ports command =
         Just article -> do
           results <-
             batchUploadArticles
-              (\languageCode collectionId titledArticle ->
-                Right <$> uploadLessonToLingq lingq languageCode collectionId titledArticle)
+              (\uploadLanguageCode collectionId titledArticle ->
+                Right <$> uploadLessonToLingq lingq uploadLanguageCode collectionId titledArticle)
               (markArticleUploaded library)
-              (uploadConfigFromPreferences day fallbackCollection datePrefix sectionCollections)
+              (uploadConfigFromPreferences day languageCode fallbackCollection datePrefix sectionCollections)
               [article]
           pure (concatMap uploadResultEvents results <> [RefreshCurrentView])
-    UploadSavedArticles day fallbackCollection sectionCollections datePrefix idents -> do
+    UploadSavedArticles day languageCode fallbackCollection sectionCollections datePrefix idents -> do
       articles <- catMaybes <$> traverse (loadArticle library) idents
       if null articles
         then pure [Notify ErrorNotice "No uploadable articles selected."]
         else do
           results <-
             batchUploadArticles
-              (\languageCode collectionId titledArticle ->
-                Right <$> uploadLessonToLingq lingq languageCode collectionId titledArticle)
+              (\uploadLanguageCode collectionId titledArticle ->
+                Right <$> uploadLessonToLingq lingq uploadLanguageCode collectionId titledArticle)
               (markArticleUploaded library)
-              (uploadConfigFromPreferences day fallbackCollection datePrefix sectionCollections)
+              (uploadConfigFromPreferences day languageCode fallbackCollection datePrefix sectionCollections)
               articles
           pure (BatchUploadFinished (batchUploadFailures results) : batchUploadResultEvents results <> [RefreshCurrentView])
     SetBrowseUrlIgnored url -> do
@@ -236,6 +238,9 @@ runCommand ports command =
     LoadKnownWordsInfo languageCode -> do
       total <- knownStemCount library languageCode
       pure [KnownWordsInfoLoaded total]
+    RefreshLingqLanguages -> do
+      languages <- fetchLanguages lingq
+      pure [LingqLanguagesLoaded languages]
     RefreshLingqCollections languageCode -> do
       collections <- fetchCollections lingq languageCode
       pure [LingqCollectionsLoaded collections]

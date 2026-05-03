@@ -48,6 +48,7 @@ data GuiEvent
   | GuiLingqApiKeyChanged Text
   | GuiLingqUsernameChanged Text
   | GuiLingqPasswordChanged Text
+  | GuiLingqLanguageChanged Text
   | GuiLingqApiKeyLogin
   | GuiLingqPasswordLogin
   | GuiLingqLogout
@@ -88,6 +89,7 @@ data GuiEvent
   | GuiImportKnownWords
   | GuiComputeKnownWords
   | GuiClearKnownWords
+  | GuiRefreshLanguages
   | GuiRefreshCollections
   | GuiFallbackCollectionChanged Text
   | GuiLingqMinWordsChanged Text
@@ -204,6 +206,8 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (LingqUsernameChanged username))]
     GuiLingqPasswordChanged password ->
       [Task (runAppEvent ports model (LingqPasswordChanged password))]
+    GuiLingqLanguageChanged languageCode ->
+      withPendingNotice model "Switching LingQ language..." (runAppEvent ports model (LingqLanguageChanged languageCode))
     GuiLingqApiKeyLogin ->
       [Task (runAppEvent ports model (LingqApiKeyLoginRequested (lingqApiKeyText model)))]
     GuiLingqPasswordLogin ->
@@ -307,17 +311,19 @@ handleEvent ports _ _ model event =
     GuiClearFailures ->
       [Task (runAppEvent ports model FailureListsCleared)]
     GuiSyncKnownWords ->
-      withPendingNotice model "Syncing known words from LingQ..." (runAppEvent ports model (KnownWordsSyncRequested "de"))
+      withPendingNotice model "Syncing known words from LingQ..." (runAppEvent ports model (KnownWordsSyncRequested (lingqLanguage model)))
     GuiKnownImportTextChanged text ->
       [Task (runAppEvent ports model (KnownWordsImportTextChanged text))]
     GuiImportKnownWords ->
-      withPendingNotice model "Importing known words and updating estimates..." (runAppEvent ports model (KnownWordsImportRequested "de" (knownImportText model) False))
+      withPendingNotice model "Importing known words and updating estimates..." (runAppEvent ports model (KnownWordsImportRequested (lingqLanguage model) (knownImportText model) False))
     GuiComputeKnownWords ->
-      withPendingNotice model "Refreshing known-word percentages..." (runAppEvent ports model (KnownWordsComputeRequested "de"))
+      withPendingNotice model "Refreshing known-word percentages..." (runAppEvent ports model (KnownWordsComputeRequested (lingqLanguage model)))
     GuiClearKnownWords ->
-      withPendingNotice model "Clearing known words..." (runAppEvent ports model (KnownWordsClearRequested "de"))
+      withPendingNotice model "Clearing known words..." (runAppEvent ports model (KnownWordsClearRequested (lingqLanguage model)))
+    GuiRefreshLanguages ->
+      withPendingNotice model "Refreshing LingQ languages..." (runAppEvent ports model LingqLanguagesRefreshRequested)
     GuiRefreshCollections ->
-      withPendingNotice model "Refreshing LingQ collections..." (runAppEvent ports model (LingqCollectionsRefreshRequested "de"))
+      withPendingNotice model "Refreshing LingQ collections..." (runAppEvent ports model (LingqCollectionsRefreshRequested (lingqLanguage model)))
     GuiFallbackCollectionChanged collectionId ->
       [Task (runAppEvent ports model (LingqFallbackCollectionChanged collectionId))]
     GuiLingqMinWordsChanged raw ->
@@ -902,7 +908,7 @@ lingqControls model =
       vstack
         [ lingqLoginControls model
         , lingqFilterControls model
-        , collectionPicker model
+        , lingqTargetControls model
         , hstack
             [ secondaryButton ("Select not uploaded (" <> tshow (length uploadable) <> ")") (GuiLingqSelectNotUploaded (lingqArticles model))
             , secondaryButton "Deselect" GuiLingqClearSelection
@@ -918,7 +924,7 @@ lingqControls model =
             , secondaryButton "Refresh collections" GuiRefreshCollections
             , toggle "Auto-date lesson titles" (datePrefixEnabled model) GuiDatePrefixChanged
             ]
-        , label ("Known German stems: " <> tshow (knownStemTotal model))
+        , label ("Known stems (" <> lingqLanguage model <> "): " <> tshow (knownStemTotal model))
             `styleBasic` [paddingT 8, textColor mutedTextColor]
         , hstack
             [ secondaryButton
@@ -959,27 +965,63 @@ lingqFilterControls model =
     ]
     `styleBasic` [paddingB 8]
 
-collectionPicker :: Model -> WidgetNode Model GuiEvent
-collectionPicker model =
+lingqTargetControls :: Model -> WidgetNode Model GuiEvent
+lingqTargetControls model =
   hstack
-    [ label "Course"
+    [ label "Language"
         `styleBasic` [paddingR 8, textColor mutedTextColor]
-    , if null (lingqCollections model)
-        then textFieldV_
-              (maybe "" id (lingqFallbackCollection model))
-              GuiFallbackCollectionChanged
-              [placeholder "collection id or blank"]
-              `styleBasic` (inputStyle <> [width 260])
-        else textDropdownV_
-              (maybe "" id (lingqFallbackCollection model))
-              GuiFallbackCollectionChanged
-              ("" : map collectionId (lingqCollections model))
-              (collectionLabelFor model)
-              [maxHeight 320]
-              `styleBasic` (inputStyle <> [width 340])
+    , textDropdownV_
+        (lingqLanguage model)
+        GuiLingqLanguageChanged
+        (languageOptions model)
+        (languageLabelFor model)
+        [maxHeight 320]
+        `styleBasic` (inputStyle <> [width 210])
+    , secondaryButton "Refresh languages" GuiRefreshLanguages
+    , label "Course"
+        `styleBasic` [paddingL 16, paddingR 8, textColor mutedTextColor]
+    , collectionPicker model
     , mutedLabel (if null (lingqCollections model) then "Refresh collections to use names." else "Blank keeps lessons standalone.")
     ]
     `styleBasic` [paddingB 8]
+
+collectionPicker :: Model -> WidgetNode Model GuiEvent
+collectionPicker model =
+  if null (lingqCollections model)
+    then textFieldV_
+          (maybe "" id (lingqFallbackCollection model))
+          GuiFallbackCollectionChanged
+          [placeholder "collection id or blank"]
+          `styleBasic` (inputStyle <> [width 230])
+    else textDropdownV_
+          (maybe "" id (lingqFallbackCollection model))
+          GuiFallbackCollectionChanged
+          ("" : map collectionId (lingqCollections model))
+          (collectionLabelFor model)
+          [maxHeight 320]
+          `styleBasic` (inputStyle <> [width 320])
+
+languageOptions :: Model -> [Text]
+languageOptions model =
+  uniqueTexts (lingqLanguage model : map languageCode (lingqLanguages model) <> commonLingqLanguages)
+
+commonLingqLanguages :: [Text]
+commonLingqLanguages =
+  ["de", "en", "es", "fr", "it", "pt", "nl", "sv", "pl", "ru", "ja", "zh"]
+
+languageLabelFor :: Model -> Text -> Text
+languageLabelFor model code =
+  case filter ((== code) . languageCode) (lingqLanguages model) of
+    language : _ -> languageTitle language <> " (" <> languageCode language <> ")"
+    [] -> code
+
+uniqueTexts :: [Text] -> [Text]
+uniqueTexts =
+  reverse . snd . foldl addUnique (Set.empty, [])
+  where
+    addUnique (seen, values) value
+      | T.null value || Set.member value seen = (seen, values)
+      | otherwise = (Set.insert value seen, value : values)
 
 collectionLabelFor :: Model -> Text -> Text
 collectionLabelFor _ "" = "Standalone lesson"
@@ -1305,6 +1347,7 @@ runUploadBatchAppEvent ports model articles =
         config =
           uploadConfigFromPreferences
             (utctDay now)
+            (lingqLanguage model)
             fallbackCollection
             (datePrefixEnabled model)
             (sectionCollections model)
@@ -1514,6 +1557,9 @@ guiLingqPort path =
     , uploadLessonToLingq = \languageCode collectionId article -> do
         token <- loadLingqToken path
         either failWithShow pure =<< uploadLessonLingq token languageCode collectionId article
+    , fetchLanguages = do
+        token <- loadLingqToken path
+        either failWithShow pure =<< fetchLanguagesLingq token
     , fetchCollections = \languageCode -> do
         token <- loadLingqToken path
         either failWithShow pure =<< fetchCollectionsLingq token languageCode

@@ -29,6 +29,7 @@ data LingqPort m = LingqPort
   , loginToLingqWithApiKey :: Text -> m AuthStatus
   , logoutFromLingq :: m ()
   , uploadLessonToLingq :: Text -> Maybe Text -> Article -> m LingqLesson
+  , fetchLanguages :: m [LingqLanguage]
   , fetchCollections :: Text -> m [LingqCollection]
   , fetchKnownWords :: Text -> m [Text]
   }
@@ -68,6 +69,8 @@ data SettingsPort m = SettingsPort
   , saveZeitCookie :: Text -> m ()
   , loadLingqApiKey :: m Text
   , saveLingqApiKey :: Text -> m ()
+  , loadLingqLanguage :: m Text
+  , saveLingqLanguage :: Text -> m ()
   , loadBrowseSection :: m Text
   , saveBrowseSection :: Text -> m ()
   , loadBrowseFilter :: m WordFilter

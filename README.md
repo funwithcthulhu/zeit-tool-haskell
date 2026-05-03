@@ -85,7 +85,7 @@ The GUI currently supports:
 
 - Browsing Zeit sections with topic dropdown, search, hidden-url filtering, only-new filtering, paging, preview, original-link opening, single fetch, selected fetch, visible fetch, and retryable failed fetches.
 - Managing the local library with search, section and word filters, ignored/not-uploaded filters, grouping, sorting, paging, article open/copy/original/audio actions, and configurable cleanup of ignored, old, uploaded, or unuploaded articles.
-- Uploading saved articles to LingQ with API key or password login, collection refresh, fallback collection selection, per-section collection mapping, date-prefixed lesson titles, known-word sync/import/clear/recompute, selected/visible upload, and retryable failed uploads.
+- Uploading saved articles to LingQ with API key or password login, language selection, collection refresh, fallback collection selection, per-section collection mapping, date-prefixed lesson titles, known-word sync/import/clear/recompute, selected/visible upload, and retryable failed uploads.
 - Opening the project data folder and the Zeit login page from the GUI.
 
 ## Current Status
@@ -93,7 +93,7 @@ The GUI currently supports:
 - The Haskell core covers Zeit browsing/fetching, SQLite persistence, library maintenance, known-word import/sync/estimation, article audio download/open, and LingQ upload.
 - The Monomer GUI is functional and launched by `run-zeit-tool.ps1` or the Windows desktop shortcut.
 - Batch fetch and batch upload keep per-item failures retryable from the sidebar.
-- JSON settings persist the current view, Zeit cookie, LingQ API key, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
+- JSON settings persist the current view, Zeit cookie, LingQ API key, LingQ language, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
 - The CLI harness remains available for quick verification and scripting.
 
 Known limits:

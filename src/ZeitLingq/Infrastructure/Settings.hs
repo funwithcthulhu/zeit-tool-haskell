@@ -27,6 +27,7 @@ data Settings = Settings
   { settingsCurrentView :: View
   , settingsZeitCookie :: Text
   , settingsLingqApiKey :: Text
+  , settingsLingqLanguage :: Text
   , settingsBrowseSection :: Text
   , settingsBrowseFilter :: WordFilter
   , settingsBrowseOnlyNew :: Bool
@@ -43,6 +44,7 @@ defaultSettings =
     { settingsCurrentView = BrowseView
     , settingsZeitCookie = ""
     , settingsLingqApiKey = ""
+    , settingsLingqLanguage = "de"
     , settingsBrowseSection = "index"
     , settingsBrowseFilter = WordFilter Nothing Nothing
     , settingsBrowseOnlyNew = True
@@ -62,6 +64,8 @@ jsonSettingsPort path =
     , saveZeitCookie = updateSettings path . setZeitCookie
     , loadLingqApiKey = settingsLingqApiKey <$> loadSettings path
     , saveLingqApiKey = updateSettings path . setLingqApiKey
+    , loadLingqLanguage = settingsLingqLanguage <$> loadSettings path
+    , saveLingqLanguage = updateSettings path . setLingqLanguage
     , loadBrowseSection = settingsBrowseSection <$> loadSettings path
     , saveBrowseSection = updateSettings path . setBrowseSection
     , loadBrowseFilter = settingsBrowseFilter <$> loadSettings path
@@ -108,6 +112,9 @@ setZeitCookie value settings = settings {settingsZeitCookie = T.strip value}
 setLingqApiKey :: Text -> Settings -> Settings
 setLingqApiKey value settings = settings {settingsLingqApiKey = T.strip value}
 
+setLingqLanguage :: Text -> Settings -> Settings
+setLingqLanguage value settings = settings {settingsLingqLanguage = normalizeLingqLanguage value}
+
 setBrowseSection :: Text -> Settings -> Settings
 setBrowseSection value settings = settings {settingsBrowseSection = value}
 
@@ -138,6 +145,7 @@ instance ToJSON Settings where
       [ "currentView" .= viewToText (settingsCurrentView settings)
       , "zeitCookie" .= settingsZeitCookie settings
       , "lingqApiKey" .= settingsLingqApiKey settings
+      , "lingqLanguage" .= settingsLingqLanguage settings
       , "browseSection" .= settingsBrowseSection settings
       , "browseFilter" .= wordFilterToJson (settingsBrowseFilter settings)
       , "browseOnlyNew" .= settingsBrowseOnlyNew settings
@@ -155,6 +163,7 @@ instance FromJSON Settings where
         <$> parseView obj
         <*> obj .:? "zeitCookie" .!= settingsZeitCookie defaultSettings
         <*> obj .:? "lingqApiKey" .!= settingsLingqApiKey defaultSettings
+        <*> (normalizeLingqLanguage <$> (obj .:? "lingqLanguage" .!= settingsLingqLanguage defaultSettings))
         <*> obj .:? "browseSection" .!= settingsBrowseSection defaultSettings
         <*> (obj .:? "browseFilter" >>= maybe (pure (settingsBrowseFilter defaultSettings)) parseWordFilter)
         <*> obj .:? "browseOnlyNew" .!= settingsBrowseOnlyNew defaultSettings
@@ -202,3 +211,10 @@ viewFromText "lingq" = Just LingqView
 viewFromText "zeit-login" = Just ZeitLoginView
 viewFromText "article" = Just ArticleView
 viewFromText _ = Nothing
+
+normalizeLingqLanguage :: Text -> Text
+normalizeLingqLanguage value
+  | T.null stripped = settingsLingqLanguage defaultSettings
+  | otherwise = stripped
+  where
+    stripped = T.toLower (T.strip value)

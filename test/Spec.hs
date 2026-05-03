@@ -97,6 +97,8 @@ main = hspec $ do
               , saveZeitCookie = \_ -> Identity ()
               , loadLingqApiKey = Identity "lingq-key"
               , saveLingqApiKey = \_ -> Identity ()
+              , loadLingqLanguage = Identity "es"
+              , saveLingqLanguage = \_ -> Identity ()
               , loadBrowseSection = Identity "wissen"
               , saveBrowseSection = \_ -> Identity ()
               , loadBrowseFilter = Identity (WordFilter (Just 300) (Just 2000))
@@ -118,6 +120,7 @@ main = hspec $ do
       currentView model `shouldBe` LingqView
       zeitCookieText model `shouldBe` "cookie=value"
       lingqApiKeyText model `shouldBe` "lingq-key"
+      lingqLanguage model `shouldBe` "es"
       browseSectionId model `shouldBe` "wissen"
       browsePage model `shouldBe` 1
       browseFilter model `shouldBe` WordFilter (Just 300) (Just 2000)
@@ -223,13 +226,13 @@ main = hspec $ do
       snd (update (ArticleIgnoredChanged (ArticleId 15) True) initialModel)
         `shouldBe` [SetArticleIgnored (ArticleId 15) True]
       snd (update (ArticleUploadRequested (fromGregorian 2026 5 2) (Just "fallback") (ArticleId 15)) initialModel)
-        `shouldBe` [UploadSavedArticle (fromGregorian 2026 5 2) (Just "fallback") Map.empty True (ArticleId 15)]
+        `shouldBe` [UploadSavedArticle (fromGregorian 2026 5 2) "de" (Just "fallback") Map.empty True (ArticleId 15)]
       snd (update (BrowseArticleHidden "https://example.com/fetch") initialModel)
         `shouldBe` [SetBrowseUrlIgnored "https://example.com/fetch"]
       snd (update (BrowseBatchFetchRequested [summary]) initialModel)
         `shouldBe` [FetchAndSaveArticles (WordFilter Nothing Nothing) [summary]]
       snd (update (LingqBatchUploadRequested (fromGregorian 2026 5 2) Nothing [summary]) initialModel)
-        `shouldBe` [UploadSavedArticles (fromGregorian 2026 5 2) Nothing Map.empty True [ArticleId 15]]
+        `shouldBe` [UploadSavedArticles (fromGregorian 2026 5 2) "de" Nothing Map.empty True [ArticleId 15]]
       lingqSelectedIds (fst (update (LingqSelectionToggled (ArticleId 15)) initialModel))
         `shouldBe` Set.singleton (ArticleId 15)
       lingqSelectedIds (fst (update (LingqSelectionChanged (Set.singleton (ArticleId 15))) initialModel))
@@ -248,6 +251,16 @@ main = hspec $ do
         `shouldBe` [ClearKnownWords "de"]
       snd (update (LingqCollectionsRefreshRequested "de") initialModel)
         `shouldBe` [RefreshLingqCollections "de"]
+      snd (update LingqLanguagesRefreshRequested initialModel)
+        `shouldBe` [RefreshLingqLanguages]
+      let (languageModel, languageCommands) = update (LingqLanguageChanged "es") initialModel
+      lingqLanguage languageModel `shouldBe` "es"
+      languageCommands
+        `shouldBe` [ PersistLingqLanguage "es"
+                   , LoadKnownWordsInfo "es"
+                   , PersistLingqFallbackCollection Nothing
+                   , PersistSectionCollections Map.empty
+                   ]
       snd (update (LingqFallbackCollectionChanged "course-1") initialModel)
         `shouldBe` [PersistLingqFallbackCollection (Just "course-1")]
       snd (update LibraryDeleteIgnoredRequested initialModel)
@@ -385,7 +398,7 @@ main = hspec $ do
                     { loadArticle = \_ -> Identity (Just (demoArticle {articleId = Just (ArticleId 1)}))
                     }
               }
-      runIdentity (Runtime.runCommand ports (UploadSavedArticle (fromGregorian 2026 5 2) Nothing Map.empty True (ArticleId 1)))
+      runIdentity (Runtime.runCommand ports (UploadSavedArticle (fromGregorian 2026 5 2) "de" Nothing Map.empty True (ArticleId 1)))
         `shouldBe` [ Notify SuccessNotice "Uploaded 2026-05-02 - Demo to LingQ."
                    , RefreshCurrentView
                    ]
@@ -410,7 +423,7 @@ main = hspec $ do
                     { loadArticle = \_ -> Identity (Just (demoArticle {articleId = Just (ArticleId 1)}))
                     }
               }
-      runIdentity (Runtime.runCommand ports (UploadSavedArticles (fromGregorian 2026 5 2) Nothing Map.empty True [ArticleId 1, ArticleId 2]))
+      runIdentity (Runtime.runCommand ports (UploadSavedArticles (fromGregorian 2026 5 2) "de" Nothing Map.empty True [ArticleId 1, ArticleId 2]))
         `shouldBe` [ BatchUploadFinished []
                    , Notify SuccessNotice "Batch upload: uploaded 2, failed 0."
                    , RefreshCurrentView
@@ -576,6 +589,8 @@ main = hspec $ do
               }
       runIdentity (Runtime.runCommand ports (RefreshLingqCollections "de"))
         `shouldBe` [LingqCollectionsLoaded [LingqCollection "12" "Wissen" 3]]
+      runIdentity (Runtime.runCommand ports RefreshLingqLanguages)
+        `shouldBe` [LingqLanguagesLoaded [LingqLanguage "de" "German"]]
 
     it "deletes ignored and old articles through runtime ports" $ do
       let summary =
@@ -786,12 +801,13 @@ main = hspec $ do
           config =
             uploadConfigFromPreferences
               day
+              "es"
               (Just "fallback-course")
               False
               (Map.fromList [("Wissen", "wissen-course")])
       config
         `shouldBe` BatchUploadConfig
-          { uploadLanguageCode = "de"
+          { uploadLanguageCode = "es"
           , uploadFallbackCollection = Just "fallback-course"
           , uploadSectionCollections = Map.fromList [("Wissen", "wissen-course")]
           , uploadDatePrefixEnabled = False
@@ -1050,6 +1066,7 @@ main = hspec $ do
         saveCurrentView port LingqView
         saveZeitCookie port " cookie=value "
         saveLingqApiKey port " api-key "
+        saveLingqLanguage port " ES "
         saveBrowseSection port "wissen"
         saveBrowseFilter port (WordFilter (Just 250) (Just 1500))
         saveBrowseOnlyNew port False
@@ -1062,6 +1079,7 @@ main = hspec $ do
         loadCurrentView port `shouldReturn` LingqView
         loadZeitCookie port `shouldReturn` "cookie=value"
         loadLingqApiKey port `shouldReturn` "api-key"
+        loadLingqLanguage port `shouldReturn` "es"
         loadBrowseSection port `shouldReturn` "wissen"
         loadBrowseFilter port `shouldReturn` WordFilter (Just 250) (Just 1500)
         loadBrowseOnlyNew port `shouldReturn` False
@@ -1078,6 +1096,10 @@ main = hspec $ do
     it "parses collection responses with numeric ids" $ do
       let value = decodeValue "{\"results\":[{\"id\":12,\"title\":\"Wissen\",\"lessons_count\":3}]}"
       parseCollectionsValue value `shouldBe` Right [LingqCollection "12" "Wissen" 3]
+
+    it "parses LingQ language responses" $ do
+      let value = decodeValue "{\"results\":[{\"code\":\"DE\",\"title\":\"German\"},{\"code\":\"es\",\"title\":\"Spanish\"}]}"
+      parseLanguagesValue value `shouldBe` Right [LingqLanguage "de" "German", LingqLanguage "es" "Spanish"]
 
     it "extracts known-word terms from paged responses" $ do
       let value = decodeValue "{\"results\":[{\"term\":\"Haus\"},{\"word\":\"laufen\"},{\"text\":\"  Leer  \"}]}"
@@ -1181,6 +1203,7 @@ testPorts summary =
           , loginToLingqWithApiKey = \_ -> Identity (AuthStatus True (Just "API key"))
           , logoutFromLingq = Identity ()
           , uploadLessonToLingq = \_ _ _ -> Identity (LingqLesson "lesson" "https://lingq.example/lesson")
+          , fetchLanguages = Identity [LingqLanguage "de" "German"]
           , fetchCollections = \_ -> Identity []
           , fetchKnownWords = \_ -> Identity []
           }
@@ -1228,6 +1251,8 @@ testPorts summary =
           , saveZeitCookie = \_ -> Identity ()
           , loadLingqApiKey = Identity ""
           , saveLingqApiKey = \_ -> Identity ()
+          , loadLingqLanguage = Identity "de"
+          , saveLingqLanguage = \_ -> Identity ()
           , loadBrowseSection = Identity "index"
           , saveBrowseSection = \_ -> Identity ()
           , loadBrowseFilter = Identity (WordFilter Nothing Nothing)

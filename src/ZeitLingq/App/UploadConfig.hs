@@ -9,10 +9,10 @@ import Data.Text (Text)
 import Data.Time (Day)
 import ZeitLingq.Core.Upload (BatchUploadConfig(..))
 
-uploadConfigFromPreferences :: Day -> Maybe Text -> Bool -> Map Text Text -> BatchUploadConfig
-uploadConfigFromPreferences day fallbackCollection datePrefixEnabled sectionCollections =
+uploadConfigFromPreferences :: Day -> Text -> Maybe Text -> Bool -> Map Text Text -> BatchUploadConfig
+uploadConfigFromPreferences day languageCode fallbackCollection datePrefixEnabled sectionCollections =
   BatchUploadConfig
-    { uploadLanguageCode = "de"
+    { uploadLanguageCode = languageCode
     , uploadFallbackCollection = fallbackCollection
     , uploadSectionCollections = sectionCollections
     , uploadDatePrefixEnabled = datePrefixEnabled

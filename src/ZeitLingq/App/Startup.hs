@@ -10,6 +10,7 @@ loadInitialModel settings = do
   view <- loadCurrentView settings
   zeitCookie <- loadZeitCookie settings
   lingqApiKey <- loadLingqApiKey settings
+  languageCode <- loadLingqLanguage settings
   sectionId <- loadBrowseSection settings
   browseWords <- loadBrowseFilter settings
   browseOnlyNewSetting <- loadBrowseOnlyNew settings
@@ -23,6 +24,7 @@ loadInitialModel settings = do
       { currentView = view
       , zeitCookieText = zeitCookie
       , lingqApiKeyText = lingqApiKey
+      , lingqLanguage = languageCode
       , browseSectionId = sectionId
       , browseFilter = browseWords
       , browseOnlyNew = browseOnlyNewSetting

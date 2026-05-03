@@ -7,6 +7,7 @@ module ZeitLingq.App.Update
   ) where
 
 import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -25,6 +26,7 @@ data Event
   | LingqApiKeyChanged Text
   | LingqUsernameChanged Text
   | LingqPasswordChanged Text
+  | LingqLanguageChanged Text
   | LingqApiKeyLoginRequested Text
   | LingqPasswordLoginRequested Text Text
   | LingqLogoutRequested
@@ -55,6 +57,8 @@ data Event
   | KnownWordsComputeRequested Text
   | KnownWordsClearRequested Text
   | KnownWordsInfoLoaded Int
+  | LingqLanguagesRefreshRequested
+  | LingqLanguagesLoaded [LingqLanguage]
   | LingqCollectionsRefreshRequested Text
   | LingqCollectionsLoaded [LingqCollection]
   | LingqFallbackCollectionChanged Text
@@ -102,6 +106,7 @@ data Command
   | PersistBrowseSection Text
   | PersistBrowseFilter WordFilter
   | PersistBrowseOnlyNew Bool
+  | PersistLingqLanguage Text
   | PersistLingqFilter WordFilter
   | PersistLingqOnlyNotUploaded Bool
   | PersistDatePrefix Bool
@@ -117,11 +122,11 @@ data Command
   | FetchAndSaveArticle ArticleSummary
   | DeleteSavedArticle ArticleId
   | SetArticleIgnored ArticleId Bool
-  | UploadSavedArticle Day (Maybe Text) (Map Text Text) Bool ArticleId
+  | UploadSavedArticle Day Text (Maybe Text) (Map Text Text) Bool ArticleId
   | SetBrowseUrlIgnored Text
   | SetBrowseUrlUnignored Text
   | FetchAndSaveArticles WordFilter [ArticleSummary]
-  | UploadSavedArticles Day (Maybe Text) (Map Text Text) Bool [ArticleId]
+  | UploadSavedArticles Day Text (Maybe Text) (Map Text Text) Bool [ArticleId]
   | DownloadArticleAudio FilePath ArticleId
   | OpenArticleAudio ArticleId
   | SyncKnownWordsFromLingq Text
@@ -129,6 +134,7 @@ data Command
   | ComputeKnownPercentagesFor Text
   | ClearKnownWords Text
   | LoadKnownWordsInfo Text
+  | RefreshLingqLanguages
   | RefreshLingqCollections Text
   | DeleteIgnoredArticles
   | DeleteOlderArticles UTCTime Bool Bool
@@ -174,6 +180,26 @@ update event model =
       ( model {lingqPasswordText = password}
       , []
       )
+    LingqLanguageChanged languageCode ->
+      let nextLanguage = normalizeLanguageCode languageCode
+          changed = nextLanguage /= lingqLanguage model
+          nextModel =
+            model
+              { lingqLanguage = nextLanguage
+              , lingqCollections = if changed then [] else lingqCollections model
+              , lingqFallbackCollection = if changed then Nothing else lingqFallbackCollection model
+              , sectionCollections = if changed then Map.empty else sectionCollections model
+              , knownStemTotal = if changed then 0 else knownStemTotal model
+              }
+          resetCommands =
+            if changed
+              then [PersistLingqFallbackCollection Nothing, PersistSectionCollections Map.empty]
+              else []
+       in ( nextModel
+          , [PersistLingqLanguage nextLanguage, LoadKnownWordsInfo nextLanguage]
+              <> resetCommands
+              <> [RefreshLingqCollections nextLanguage | authLoggedIn (lingqStatus model)]
+          )
     LingqApiKeyLoginRequested apiKey ->
       ( model {lingqApiKeyText = apiKey}
       , [LoginLingqWithApiKey apiKey]
@@ -235,7 +261,7 @@ update event model =
       )
     ArticleUploadRequested day fallbackCollection ident ->
       ( model
-      , [UploadSavedArticle day fallbackCollection (sectionCollections model) (datePrefixEnabled model) ident]
+      , [UploadSavedArticle day (lingqLanguage model) fallbackCollection (sectionCollections model) (datePrefixEnabled model) ident]
       )
     ArticleAudioDownloadRequested audioDir ident ->
       ( model
@@ -280,7 +306,7 @@ update event model =
       )
     LingqBatchUploadRequested day fallbackCollection articles ->
       ( model
-      , [UploadSavedArticles day fallbackCollection (sectionCollections model) (datePrefixEnabled model) (uploadableIds articles)]
+      , [UploadSavedArticles day (lingqLanguage model) fallbackCollection (sectionCollections model) (datePrefixEnabled model) (uploadableIds articles)]
       )
     LingqSelectionToggled ident ->
       ( model {lingqSelectedIds = toggleSetMember ident (lingqSelectedIds model)}
@@ -312,6 +338,14 @@ update event model =
       )
     KnownWordsInfoLoaded total ->
       ( model {knownStemTotal = total}
+      , []
+      )
+    LingqLanguagesRefreshRequested ->
+      ( model
+      , [RefreshLingqLanguages]
+      )
+    LingqLanguagesLoaded languages ->
+      ( model {lingqLanguages = languagesWithCurrent (lingqLanguage model) languages}
       , []
       )
     LingqCollectionsRefreshRequested languageCode ->
@@ -521,8 +555,10 @@ refreshCommands model =
     BrowseView -> [RefreshBrowse (browseSectionId model) (browsePage model) (browseShowHidden model)]
     LibraryView -> [RefreshLibraryPage (libraryQuery model), LoadLibraryStats]
     LingqView ->
-      [RefreshLingqLibrary (lingqFilter model) (lingqOnlyNotUploaded model), LoadKnownWordsInfo "de"]
-        <> [RefreshLingqCollections "de" | authLoggedIn (lingqStatus model)]
+      [RefreshLingqLibrary (lingqFilter model) (lingqOnlyNotUploaded model), LoadKnownWordsInfo (lingqLanguage model)]
+        <> if authLoggedIn (lingqStatus model)
+          then [RefreshLingqLanguages, RefreshLingqCollections (lingqLanguage model)]
+          else []
     ZeitLoginView -> []
     ArticleView -> maybe [] (maybe [] (pure . LoadArticle) . summaryId) (selectedArticle model)
 
@@ -544,6 +580,18 @@ nonEmptyText value
 
 stripText :: Text -> Text
 stripText = T.strip
+
+normalizeLanguageCode :: Text -> Text
+normalizeLanguageCode value
+  | T.null stripped = "de"
+  | otherwise = stripped
+  where
+    stripped = T.toLower (T.strip value)
+
+languagesWithCurrent :: Text -> [LingqLanguage] -> [LingqLanguage]
+languagesWithCurrent current languages
+  | any ((== current) . languageCode) languages = languages
+  | otherwise = LingqLanguage current current : languages
 
 toggleSetMember :: Ord a => a -> Set a -> Set a
 toggleSetMember value values

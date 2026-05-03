@@ -22,6 +22,8 @@ data Model = Model
   , lingqApiKeyText :: Text
   , lingqUsernameText :: Text
   , lingqPasswordText :: Text
+  , lingqLanguage :: Text
+  , lingqLanguages :: [LingqLanguage]
   , selectedArticle :: Maybe ArticleSummary
   , selectedArticleContent :: Maybe Article
   , browseArticles :: [ArticleSummary]
@@ -70,6 +72,8 @@ initialModel =
     , lingqApiKeyText = ""
     , lingqUsernameText = ""
     , lingqPasswordText = ""
+    , lingqLanguage = "de"
+    , lingqLanguages = [LingqLanguage "de" "German"]
     , selectedArticle = Nothing
     , selectedArticleContent = Nothing
     , browseArticles = []

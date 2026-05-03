@@ -4,11 +4,13 @@ module ZeitLingq.Infrastructure.Lingq
   ( LingqError(..)
   , LingqToken(..)
   , fetchCollectionsLingq
+  , fetchLanguagesLingq
   , fetchKnownWordsLingq
   , loginWithApiKeyLingq
   , loginWithPasswordLingq
   , normalizeLessonText
   , parseCollectionsValue
+  , parseLanguagesValue
   , parseKnownWordTerms
   , uploadLessonLingq
   ) where
@@ -67,6 +69,11 @@ fetchCollectionsLingq :: LingqToken -> Text -> IO (Either LingqError [LingqColle
 fetchCollectionsLingq token languageCode = do
   request <- authorized token =<< parseRequest (lingqBase <> "/" <> T.unpack languageCode <> "/collections/my/")
   fmap (>>= parseCollectionsValue) (httpJsonValue request)
+
+fetchLanguagesLingq :: LingqToken -> IO (Either LingqError [LingqLanguage])
+fetchLanguagesLingq token = do
+  request <- authorized token =<< parseRequest (lingqBase <> "/languages/")
+  fmap (>>= parseLanguagesValue) (httpJsonValue request)
 
 uploadLessonLingq :: LingqToken -> Text -> Maybe Text -> Article -> IO (Either LingqError LingqLesson)
 uploadLessonLingq token languageCode maybeCollection article = do
@@ -135,6 +142,11 @@ parseCollectionsValue =
   either (Left . LingqJsonError . T.pack) Right
     . parseEither collectionsParser
 
+parseLanguagesValue :: Value -> Either LingqError [LingqLanguage]
+parseLanguagesValue =
+  either (Left . LingqJsonError . T.pack) (Right . filter (not . T.null . languageCode))
+    . parseEither languagesParser
+
 collectionsParser :: Value -> Parser [LingqCollection]
 collectionsParser value =
   parseArray value <|> parseObjectResults value
@@ -156,6 +168,24 @@ parseCollection = withObject "LingqCollection" $ \obj -> do
 parseCollectionId :: Object -> Parser Text
 parseCollectionId obj =
   parseTextOrInt obj "id" <|> parseTextOrInt obj "pk"
+
+languagesParser :: Value -> Parser [LingqLanguage]
+languagesParser value =
+  parseArray value <|> parseObjectResults value
+  where
+    parseArray = withArray "languages" (traverse parseLanguage . toList)
+    parseObjectResults = withObject "languages response" $ \obj -> do
+      maybeResults <- obj .:? "results"
+      maybeLanguages <- obj .:? "languages"
+      case maybeResults <|> maybeLanguages of
+        Just languages -> parseArray languages
+        Nothing -> fail "Expected languages array, results, or languages field."
+
+parseLanguage :: Value -> Parser LingqLanguage
+parseLanguage = withObject "LingqLanguage" $ \obj -> do
+  code <- T.toLower . T.strip <$> obj .: "code"
+  title <- obj .:? "title" .!= code
+  pure (LingqLanguage code title)
 
 parseKnownWordTerms :: Value -> [Text]
 parseKnownWordTerms value =
