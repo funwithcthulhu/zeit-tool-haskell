@@ -54,7 +54,7 @@ The desktop shortcut uses `launch-zeit-tool-gui.vbs` so the GUI opens without le
 
 The repository includes an Inno Setup packaging script for a per-user Windows install. It installs the GUI, CLI harness, runtime DLLs, browser-login helper, and docs under `%LOCALAPPDATA%\Zeit Tool Haskell`, so the app can write `settings.json`, `zeit-tool.db`, logs, audio, and support bundles without administrator rights.
 
-To build the installer from an existing GUI/CLI build:
+To rebuild the installer from existing optimized GUI/CLI binaries:
 
 ```powershell
 .\scripts\build-installer.ps1 -SkipBuild

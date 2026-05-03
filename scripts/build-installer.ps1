@@ -180,13 +180,14 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 }
 
 Initialize-BuildEnvironment -RepoRoot $repoRoot
+$releaseProfileArgs = @('--enable-optimization=2')
 
 if (-not $SkipBuild) {
-  Invoke-Cabal -RepoRoot $repoRoot -Arguments @('build', '-fgui', '--enable-optimization=2', 'exe:zeit-lingq-tool', 'exe:zeit-lingq-tool-gui')
+  Invoke-Cabal -RepoRoot $repoRoot -Arguments (@('build', '-fgui') + $releaseProfileArgs + @('exe:zeit-lingq-tool', 'exe:zeit-lingq-tool-gui'))
 }
 
-$guiExe = Get-CabalBin -RepoRoot $repoRoot -Arguments @('list-bin', '-fgui', 'zeit-lingq-tool-gui')
-$cliExe = Get-CabalBin -RepoRoot $repoRoot -Arguments @('list-bin', 'exe:zeit-lingq-tool')
+$guiExe = Get-CabalBin -RepoRoot $repoRoot -Arguments (@('list-bin', '-fgui') + $releaseProfileArgs + @('exe:zeit-lingq-tool-gui'))
+$cliExe = Get-CabalBin -RepoRoot $repoRoot -Arguments (@('list-bin') + $releaseProfileArgs + @('exe:zeit-lingq-tool'))
 
 if (Test-Path -LiteralPath $stageDir) {
   Remove-Item -LiteralPath $stageDir -Recurse -Force
