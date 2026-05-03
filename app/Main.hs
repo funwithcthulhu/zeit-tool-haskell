@@ -87,6 +87,24 @@ runCommand (UnignoreArticle ident dbPath) =
     withExistingArticle db ident $ \articleIdValue -> do
       setIgnoredSqlite db articleIdValue False
       putStrLn ("Unignored article " <> show ident)
+runCommand (SyncKnownWords dbPath) = do
+  maybeApiKey <- lookupEnv "LINGQ_API_KEY"
+  case maybeApiKey of
+    Nothing -> putStrLn "Set LINGQ_API_KEY before syncing known words from LingQ."
+    Just apiKey -> do
+      result <- fetchKnownWordsLingq (LingqToken (T.pack apiKey)) "de"
+      case result of
+        Left err -> print err
+        Right terms ->
+          withLibrary dbPath $ \db -> do
+            let stems = importKnownWordStems (T.unlines terms)
+            count <- saveKnownWordsSqlite db "de" stems
+            computeResult <- computeKnownPctSqlite db "de"
+            putStrLn ("Synced " <> show count <> " known German stems from LingQ.")
+            case computeResult of
+              Left err -> putStrLn (T.unpack err)
+              Right articleCount ->
+                putStrLn ("Updated known-word estimates for " <> show articleCount <> " articles.")
 runCommand (ImportKnownWords sourcePath dbPath) = do
   rawWords <- TIO.readFile sourcePath
   let stems = importKnownWordStems rawWords

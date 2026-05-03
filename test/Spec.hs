@@ -85,6 +85,7 @@ main = hspec $ do
       parseArgs ["delete-article", "42", "custom.db"] `shouldBe` Right (DeleteArticle 42 "custom.db")
       parseArgs ["ignore-article", "42"] `shouldBe` Right (IgnoreArticle 42 defaultDbPath)
       parseArgs ["unignore-article", "42", "custom.db"] `shouldBe` Right (UnignoreArticle 42 "custom.db")
+      parseArgs ["known-sync", "custom.db"] `shouldBe` Right (SyncKnownWords "custom.db")
       parseArgs ["known-import", "words.txt", "custom.db"] `shouldBe` Right (ImportKnownWords "words.txt" "custom.db")
       parseArgs ["known-info"] `shouldBe` Right (KnownWordsInfo defaultDbPath)
       parseArgs ["known-compute", "custom.db"] `shouldBe` Right (ComputeKnownPct "custom.db")

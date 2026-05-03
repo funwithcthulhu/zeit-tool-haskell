@@ -23,6 +23,7 @@ data CliCommand
   | DeleteArticle Int FilePath
   | IgnoreArticle Int FilePath
   | UnignoreArticle Int FilePath
+  | SyncKnownWords FilePath
   | ImportKnownWords FilePath FilePath
   | KnownWordsInfo FilePath
   | ComputeKnownPct FilePath
@@ -76,6 +77,8 @@ parseArgs ["unignore-article", articleId] =
   UnignoreArticle <$> parsePositiveInt "article-id" articleId <*> pure defaultDbPath
 parseArgs ["unignore-article", articleId, dbPath] =
   UnignoreArticle <$> parsePositiveInt "article-id" articleId <*> pure dbPath
+parseArgs ["known-sync"] = Right (SyncKnownWords defaultDbPath)
+parseArgs ["known-sync", dbPath] = Right (SyncKnownWords dbPath)
 parseArgs ["known-import", sourcePath] = Right (ImportKnownWords sourcePath defaultDbPath)
 parseArgs ["known-import", sourcePath, dbPath] = Right (ImportKnownWords sourcePath dbPath)
 parseArgs ["known-info"] = Right (KnownWordsInfo defaultDbPath)
@@ -148,6 +151,7 @@ usageText =
     , "  zeit-lingq-tool delete-article <article-id> [db-path]"
     , "  zeit-lingq-tool ignore-article <article-id> [db-path]"
     , "  zeit-lingq-tool unignore-article <article-id> [db-path]"
+    , "  zeit-lingq-tool known-sync [db-path]"
     , "  zeit-lingq-tool known-import <word-list.txt> [db-path]"
     , "  zeit-lingq-tool known-info [db-path]"
     , "  zeit-lingq-tool known-compute [db-path]"

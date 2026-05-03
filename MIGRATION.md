@@ -34,6 +34,7 @@ The rewrite uses four layers:
   - CLI library maintenance now covers stats, delete, and saved-article ignore/unignore actions.
 - `electron/main.js` known-word import and percentage computation
   - Ported into `ZeitLingq.Core.KnownWords` plus SQLite cache helpers.
+  - CLI known-word sync now fetches LingQ terms, persists stems, and recomputes article coverage.
 - `electron/main.js` audio download path
   - Partially ported into `ZeitLingq.Infrastructure.Audio` plus SQLite audio metadata helpers.
 - `electron/services/database.js` ignored URL table
