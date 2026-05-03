@@ -19,6 +19,7 @@ import ZeitLingq.Domain.Types
 import ZeitLingq.Infrastructure.Settings
 import ZeitLingq.Infrastructure.Sqlite
 import ZeitLingq.Infrastructure.Lingq
+import ZeitLingq.Infrastructure.Zeit
 import ZeitLingq.Ports (SettingsPort(..))
 import ZeitLingq.Text.German
 
@@ -121,6 +122,26 @@ main = hspec $ do
     it "extracts known-word terms from paged responses" $ do
       let value = decodeValue "{\"results\":[{\"term\":\"Haus\"},{\"word\":\"laufen\"},{\"text\":\"  Leer  \"}]}"
       parseKnownWordTerms value `shouldBe` ["haus", "laufen", "leer"]
+
+  describe "Zeit HTML extraction" $ do
+    it "extracts article links from index markup" $ do
+      let articles =
+            extractArticleList
+              "Wissen"
+              "<main><a href=\"/wissen/2026-05/beispiel\">Ein ziemlich langer Titel</a><a href=\"/wissen/2026-05/beispiel?utm=x\">Ein ziemlich langer Titel</a><a href=\"/abo\">Abo</a></main>"
+      map summaryUrl articles `shouldBe` ["https://www.zeit.de/wissen/2026-05/beispiel"]
+      map summaryTitle articles `shouldBe` ["Ein ziemlich langer Titel"]
+
+    it "extracts article content from article markup" $ do
+      let html =
+            "<html><head><title>Fallback | ZEIT ONLINE</title><meta name=\"author\" content=\"Ada\"><meta property=\"article:published_time\" content=\"2026-05-02\"><meta property=\"article:section\" content=\"Wissen\"></head><body><article><h1>Der Haskell-Test</h1><h2>Abschnitt</h2><p>Das ist ein Absatz mit genug Worten fuer den Parser.</p><p>Noch ein Absatz mit sauberem Text und Inhalt.</p></article></body></html>"
+      case extractArticleContent "https://www.zeit.de/wissen/2026-05/haskell-test" html of
+        Left err -> expectationFailure (show err)
+        Right article -> do
+          articleTitle article `shouldBe` "Der Haskell-Test"
+          articleAuthor article `shouldBe` "Ada"
+          articleSection article `shouldBe` "Wissen"
+          articleParagraphs article `shouldBe` ["## Abschnitt", "Das ist ein Absatz mit genug Worten fuer den Parser.", "Noch ein Absatz mit sauberem Text und Inhalt."]
 
 demoArticle :: Article
 demoArticle =

@@ -21,7 +21,7 @@ The rewrite uses four layers:
 ## Legacy to Haskell mapping
 
 - `electron/services/zeit-scraper.js`
-  - Future `ZeitLingq.Infrastructure.Zeit` adapter behind `ZeitPort`.
+  - Partially ported into `ZeitLingq.Infrastructure.Zeit`.
 - `electron/services/lingq-api.js`
   - Partially ported into `ZeitLingq.Infrastructure.Lingq`.
 - `electron/services/database.js`

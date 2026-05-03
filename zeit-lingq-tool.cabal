@@ -23,6 +23,7 @@ common core-deps
         filepath ^>=1.4.300.1,
         http-conduit ^>=2.3.9,
         sqlite-simple ^>=0.4.19.0,
+        tagsoup ^>=0.14.8,
         text ^>=2.0.2,
         time ^>=1.12.2
     default-language: GHC2021
@@ -40,6 +41,7 @@ library
         ZeitLingq.Infrastructure.Settings
         ZeitLingq.Infrastructure.Lingq
         ZeitLingq.Infrastructure.Sqlite
+        ZeitLingq.Infrastructure.Zeit
         ZeitLingq.Ports
         ZeitLingq.Text.German
 

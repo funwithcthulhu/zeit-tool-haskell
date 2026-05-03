@@ -17,6 +17,7 @@ This repository is the Haskell-first rewrite of the original Electron Zeit/LingQ
 - `src/ZeitLingq/Infrastructure/Lingq.hs`: LingQ HTTP adapter and response parsing helpers.
 - `src/ZeitLingq/Infrastructure/Settings.hs`: JSON-backed user settings adapter.
 - `src/ZeitLingq/Infrastructure/Sqlite.hs`: SQLite-backed article library adapter.
+- `src/ZeitLingq/Infrastructure/Zeit.hs`: Zeit HTTP adapter and HTML extraction helpers.
 - `src/ZeitLingq/Ports.hs`: effect boundaries for Zeit scraping, LingQ, settings, and persistence.
 
 ## Build
@@ -43,4 +44,5 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - SQLite article persistence is available through `LibraryPort`.
 - JSON user settings are available through `SettingsPort`.
 - LingQ login, collection fetch, lesson upload, and known-word fetch helpers are scaffolded in Haskell.
-- Next infrastructure target is the Zeit article fetching adapter.
+- Zeit article-list and article-content extraction is scaffolded in Haskell.
+- Next target is wiring these adapters into a small CLI flow, then the first GUI shell.
