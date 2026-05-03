@@ -23,6 +23,7 @@ data Event
   | ArticleDeleteRequested ArticleId
   | ArticleIgnoredChanged ArticleId Bool
   | ArticleUploadRequested Day (Maybe Text) ArticleId
+  | ArticleAudioDownloadRequested FilePath ArticleId
   | BrowseArticleHidden Text
   | BrowseBatchFetchRequested [ArticleSummary]
   | LingqBatchUploadRequested Day (Maybe Text) [ArticleSummary]
@@ -56,6 +57,7 @@ data Command
   | SetBrowseUrlIgnored Text
   | FetchAndSaveArticles WordFilter [ArticleSummary]
   | UploadSavedArticles Day (Maybe Text) (Map Text Text) Bool [ArticleId]
+  | DownloadArticleAudio FilePath ArticleId
   deriving (Eq, Show)
 
 update :: Event -> Model -> (Model, [Command])
@@ -111,6 +113,10 @@ update event model =
     ArticleUploadRequested day fallbackCollection ident ->
       ( model
       , [UploadSavedArticle day fallbackCollection (sectionCollections model) (datePrefixEnabled model) ident]
+      )
+    ArticleAudioDownloadRequested audioDir ident ->
+      ( model
+      , [DownloadArticleAudio audioDir ident]
       )
     BrowseArticleHidden url ->
       ( model

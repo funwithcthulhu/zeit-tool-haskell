@@ -16,6 +16,7 @@ import ZeitLingq.App.Update (Event(..))
 import ZeitLingq.App.ViewModel
 import ZeitLingq.Domain.Section (allSections)
 import ZeitLingq.Domain.Types
+import ZeitLingq.Infrastructure.Audio
 import ZeitLingq.Infrastructure.Lingq
 import ZeitLingq.Infrastructure.Settings
 import ZeitLingq.Infrastructure.Sqlite
@@ -36,6 +37,7 @@ data GuiEvent
   | GuiToggleIgnored ArticleSummary
   | GuiUploadArticle ArticleId
   | GuiUploadVisible [ArticleSummary]
+  | GuiDownloadAudio ArticleId
   | GuiDeleteArticle ArticleId
   | GuiCloseArticle
   | GuiClearNotice
@@ -99,6 +101,8 @@ handleEvent ports _ _ model event =
       [Task (runUploadAppEvent ports model ident)]
     GuiUploadVisible articles ->
       [Task (runUploadBatchAppEvent ports model articles)]
+    GuiDownloadAudio ident ->
+      [Task (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))]
     GuiDeleteArticle ident ->
       [Task (runAppEvent ports model (ArticleDeleteRequested ident))]
     GuiCloseArticle ->
@@ -218,16 +222,23 @@ selectedArticleBlock model (Just row) =
         `styleBasic` [textSize 20, paddingT 12]
     , label (rowMeta row)
     , label (rowKnownPct row <> " | " <> rowUploadStatus row)
-    , hstack (articleButtons (selectedArticle model))
+    , hstack (articleButtons (selectedArticle model) (selectedArticleContent model))
         `styleBasic` [paddingT 6]
     ]
 
-articleButtons :: Maybe ArticleSummary -> [WidgetNode Model GuiEvent]
-articleButtons Nothing = [button "Back to library" GuiCloseArticle]
-articleButtons (Just article) =
+articleButtons :: Maybe ArticleSummary -> Maybe Article -> [WidgetNode Model GuiEvent]
+articleButtons Nothing _ = [button "Back to library" GuiCloseArticle]
+articleButtons (Just article) maybeContent =
   [ button "Back to library" GuiCloseArticle
   ]
+    <> audioButtons article maybeContent
     <> maybe [] (\ident -> [button "Delete" (GuiDeleteArticle ident)]) (summaryId article)
+
+audioButtons :: ArticleSummary -> Maybe Article -> [WidgetNode Model GuiEvent]
+audioButtons summary maybeContent =
+  case (summaryId summary, maybeContent >>= articleAudioUrl) of
+    (Just ident, Just _) -> [button "Download audio" (GuiDownloadAudio ident)]
+    _ -> []
 
 articleParagraphsBlock :: [Text] -> WidgetNode Model GuiEvent
 articleParagraphsBlock [] =
@@ -354,6 +365,7 @@ makePorts = do
     AppPorts
       { zeitPort = guiZeitPort session
       , lingqPort = guiLingqPort lingqToken
+      , audioPort = guiAudioPort
       , libraryPort = guiLibraryPort
       , settingsPort = jsonSettingsPort settingsPath
       }
@@ -397,6 +409,13 @@ guiLingqPort maybeToken =
         , authLabel = maybe (Just "set LINGQ_API_KEY") (const (Just "API key")) maybeToken
         }
 
+guiAudioPort :: AudioPort IO
+guiAudioPort =
+  AudioPort
+    { downloadArticleAudioFile = \audioDir article ->
+        either failWithShow pure =<< downloadArticleAudio audioDir article
+    }
+
 guiLibraryPort :: LibraryPort IO
 guiLibraryPort =
   LibraryPort
@@ -412,6 +431,8 @@ guiLibraryPort =
         withLibrary dbPath $ \db -> setIgnoredSqlite db ident ignored
     , markArticleUploaded = \ident lesson ->
         withLibrary dbPath $ \db -> markUploadedSqlite db ident lesson
+    , setArticleAudioPath = \ident path ->
+        withLibrary dbPath $ \db -> setAudioPathSqlite db ident path
     , loadIgnoredUrls =
         withLibrary dbPath getIgnoredUrlsSqlite
     , ignoreArticleUrl = \url ->

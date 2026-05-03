@@ -2,6 +2,7 @@
 
 module ZeitLingq.Ports
   ( AppPorts(..)
+  , AudioPort(..)
   , LibraryPort(..)
   , LingqPort(..)
   , SettingsPort(..)
@@ -27,6 +28,10 @@ data LingqPort m = LingqPort
   , fetchKnownWords :: Text -> m [Text]
   }
 
+data AudioPort m = AudioPort
+  { downloadArticleAudioFile :: FilePath -> Article -> m FilePath
+  }
+
 data LibraryPort m = LibraryPort
   { loadLibrary :: WordFilter -> m [ArticleSummary]
   , loadArticle :: ArticleId -> m (Maybe Article)
@@ -34,6 +39,7 @@ data LibraryPort m = LibraryPort
   , deleteArticle :: ArticleId -> m ()
   , setArticleIgnored :: ArticleId -> Bool -> m ()
   , markArticleUploaded :: ArticleId -> LingqLesson -> m ()
+  , setArticleAudioPath :: ArticleId -> Maybe FilePath -> m ()
   , loadIgnoredUrls :: m [Text]
   , ignoreArticleUrl :: Text -> m ()
   , unignoreArticleUrl :: Text -> m ()
@@ -54,6 +60,7 @@ data SettingsPort m = SettingsPort
 data AppPorts m = AppPorts
   { zeitPort :: ZeitPort m
   , lingqPort :: LingqPort m
+  , audioPort :: AudioPort m
   , libraryPort :: LibraryPort m
   , settingsPort :: SettingsPort m
   }

@@ -78,6 +78,7 @@ sqliteLibraryPort db =
     , deleteArticle = deleteArticleSqlite db
     , setArticleIgnored = setIgnoredSqlite db
     , markArticleUploaded = markUploadedSqlite db
+    , setArticleAudioPath = setAudioPathSqlite db
     , loadIgnoredUrls = getIgnoredUrlsSqlite db
     , ignoreArticleUrl = ignoreUrlSqlite db
     , unignoreArticleUrl = unignoreUrlSqlite db

@@ -116,9 +116,22 @@ runCommand ports command =
         [ Notify SuccessNotice (batchFetchSummary results)
         , RefreshCurrentView
         ]
+    DownloadArticleAudio audioDir ident -> do
+      maybeArticle <- loadArticle library ident
+      case maybeArticle of
+        Nothing ->
+          pure [Notify ErrorNotice "Article not found."]
+        Just article -> do
+          path <- downloadArticleAudioFile audio audioDir article
+          setArticleAudioPath library ident (Just path)
+          pure
+            [ Notify SuccessNotice ("Saved audio: " <> T.pack path)
+            , RefreshCurrentView
+            ]
   where
     zeit = zeitPort ports
     lingq = lingqPort ports
+    audio = audioPort ports
     library = libraryPort ports
     settings = settingsPort ports
 

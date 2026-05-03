@@ -32,7 +32,7 @@ import ZeitLingq.Infrastructure.Audio
 import ZeitLingq.Infrastructure.Sqlite
 import ZeitLingq.Infrastructure.Lingq
 import ZeitLingq.Infrastructure.Zeit
-import ZeitLingq.Ports (AppPorts(..), LibraryPort(..), LingqPort(..), SettingsPort(..), ZeitPort(..))
+import ZeitLingq.Ports (AppPorts(..), AudioPort(..), LibraryPort(..), LingqPort(..), SettingsPort(..), ZeitPort(..))
 import ZeitLingq.Text.German
 
 main :: IO ()
@@ -164,6 +164,8 @@ main = hspec $ do
         `shouldBe` [FetchAndSaveArticles (WordFilter Nothing Nothing) [summary]]
       snd (update (LingqBatchUploadRequested (fromGregorian 2026 5 2) Nothing [summary]) initialModel)
         `shouldBe` [UploadSavedArticles (fromGregorian 2026 5 2) Nothing Map.empty True [ArticleId 15]]
+      snd (update (ArticleAudioDownloadRequested "audio" (ArticleId 15)) initialModel)
+        `shouldBe` [DownloadArticleAudio "audio" (ArticleId 15)]
 
   describe "App command runtime" $ do
     it "turns refresh commands into loaded events" $ do
@@ -331,6 +333,35 @@ main = hspec $ do
           ports = testPorts first
       runIdentity (Runtime.runCommand ports (FetchAndSaveArticles (WordFilter Nothing Nothing) [first, second]))
         `shouldBe` [ Notify SuccessNotice "Batch fetch: saved 2, skipped 0, failed 0."
+                   , RefreshCurrentView
+                   ]
+
+    it "downloads article audio and reloads the article" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 1)
+              , summaryUrl = "https://example.com/audio"
+              , summaryTitle = "Audio"
+              , summarySection = "Wissen"
+              , summaryWordCount = 4
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          basePorts = testPorts summary
+          ports =
+            basePorts
+              { audioPort =
+                  AudioPort
+                    { downloadArticleAudioFile = \audioDir _ -> Identity (audioDir <> "\\demo.mp3")
+                    }
+              , libraryPort =
+                  (libraryPort basePorts)
+                    { loadArticle = \_ -> Identity (Just (demoArticle {articleId = Just (ArticleId 1), articleAudioUrl = Just "https://cdn.example/demo.mp3"}))
+                    }
+              }
+      runIdentity (Runtime.runCommand ports (DownloadArticleAudio "audio" (ArticleId 1)))
+        `shouldBe` [ Notify SuccessNotice "Saved audio: audio\\demo.mp3"
                    , RefreshCurrentView
                    ]
 
@@ -882,6 +913,10 @@ testPorts summary =
           , uploadLessonToLingq = \_ _ _ -> Identity (LingqLesson "lesson" "https://lingq.example/lesson")
           , fetchKnownWords = \_ -> Identity []
           }
+    , audioPort =
+        AudioPort
+          { downloadArticleAudioFile = \audioDir _ -> Identity (audioDir <> "\\article.mp3")
+          }
     , libraryPort =
         LibraryPort
           { loadLibrary = \_ -> Identity [summary]
@@ -890,6 +925,7 @@ testPorts summary =
           , deleteArticle = \_ -> Identity ()
           , setArticleIgnored = \_ _ -> Identity ()
           , markArticleUploaded = \_ _ -> Identity ()
+          , setArticleAudioPath = \_ _ -> Identity ()
           , loadIgnoredUrls = Identity []
           , ignoreArticleUrl = \_ -> Identity ()
           , unignoreArticleUrl = \_ -> Identity ()
