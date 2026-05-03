@@ -28,7 +28,7 @@ import ZeitLingq.Core.Batch (BatchFetchResult(..))
 import ZeitLingq.Core.Upload (BatchUploadConfig(..), BatchUploadResult(..), targetCollectionFor)
 import ZeitLingq.Domain.Article (BatchDecision(..), applyWordFilter, lessonTitle)
 import ZeitLingq.App.Driver (dispatchEvent, dispatchEvents)
-import ZeitLingq.App.Model (Model(..))
+import ZeitLingq.App.Model (Model(..), PendingConfirmation(..))
 import ZeitLingq.App.Startup (loadInitialModel)
 import ZeitLingq.App.Update (Event(..), update)
 import ZeitLingq.App.ViewModel
@@ -104,6 +104,7 @@ data GuiEvent
   | GuiSyncLingqStatus
   | GuiDownloadAudio ArticleId
   | GuiOpenAudio ArticleId
+  | GuiOpenAudioSource Text
   | GuiOpenExternal Text
   | GuiCopyText Text
   | GuiRetryFailedFetches
@@ -144,6 +145,7 @@ data GuiEvent
   | GuiLibrarySortChanged LibrarySort
   | GuiLibraryPresetChanged LibraryPreset
   | GuiLibraryGroupBySectionChanged Bool
+  | GuiLibraryToggleSection Text
   | GuiLibraryDeleteDaysChanged Text
   | GuiLibraryPreviousPage
   | GuiLibraryNextPage
@@ -381,6 +383,8 @@ handleEvent runtime _ _ model event =
       withPendingNotice model "Downloading article audio..." (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))
     GuiOpenAudio ident ->
       [Task (runAppEvent ports model (ArticleAudioOpenRequested ident))]
+    GuiOpenAudioSource url ->
+      [Task (runSideEffect model (openExternalUrl url) "Opened article audio source.")]
     GuiOpenExternal url ->
       [Task (runSideEffect model (openExternalUrl url) "Opened original article.")]
     GuiCopyText text ->
@@ -434,7 +438,11 @@ handleEvent runtime _ _ model event =
     GuiComputeKnownWords ->
       withPendingNotice model "Refreshing known-word percentages..." (runAppEvent ports model (KnownWordsComputeRequested (lingqLanguage model)))
     GuiClearKnownWords ->
-      withPendingNotice model "Clearing known words..." (runAppEvent ports model (KnownWordsClearRequested (lingqLanguage model)))
+      confirmOrRun
+        model
+        ConfirmClearKnownWords
+        "Click Clear known words again to remove the local known-word database."
+        (\confirmedModel -> runAppEvent ports confirmedModel (KnownWordsClearRequested (lingqLanguage confirmedModel)))
     GuiRefreshLanguages ->
       withPendingNotice model "Refreshing LingQ languages..." (runAppEvent ports model LingqLanguagesRefreshRequested)
     GuiRefreshCollections ->
@@ -475,6 +483,8 @@ handleEvent runtime _ _ model event =
       [Task (runAppEvent ports model (LibraryPresetChanged preset))]
     GuiLibraryGroupBySectionChanged enabled ->
       [Task (runAppEvent ports model (LibraryGroupBySectionChanged enabled))]
+    GuiLibraryToggleSection sectionName ->
+      [Task (runAppEvent ports model (LibrarySectionCollapseToggled sectionName))]
     GuiLibraryDeleteDaysChanged daysText ->
       [Task (runAppEvent ports model (LibraryDeleteDaysChanged daysText))]
     GuiLibraryPreviousPage ->
@@ -482,13 +492,26 @@ handleEvent runtime _ _ model event =
     GuiLibraryNextPage ->
       [Task (runAppEvent ports model (LibraryPageChanged (libraryOffset (libraryQuery model) + libraryLimit (libraryQuery model))))]
     GuiDeleteIgnoredArticles ->
-      [Task (runAppEvent ports model LibraryDeleteIgnoredRequested)]
+      confirmOrRun
+        model
+        ConfirmDeleteIgnoredArticles
+        "Click Delete ignored again to permanently remove ignored articles."
+        (\confirmedModel -> runAppEvent ports confirmedModel LibraryDeleteIgnoredRequested)
     GuiDeleteOldArticles onlyUploaded onlyUnuploaded ->
       case parsePositiveInt (libraryDeleteDaysText model) of
         Nothing -> [Task (runAppEvent ports model (Notify ErrorNotice "Enter a positive day count before deleting old articles."))]
-        Just days -> [Task (runDeleteOlderAppEvent ports model days onlyUploaded onlyUnuploaded)]
+        Just days ->
+          confirmOrRun
+            model
+            (ConfirmDeleteOldArticles days onlyUploaded onlyUnuploaded)
+            ("Click this delete action again to remove matching articles older than " <> tshow days <> " day(s).")
+            (\confirmedModel -> runDeleteOlderAppEvent ports confirmedModel days onlyUploaded onlyUnuploaded)
     GuiDeleteArticle ident ->
-      [Task (runAppEvent ports model (ArticleDeleteRequested ident))]
+      confirmOrRun
+        model
+        (ConfirmDeleteArticle ident)
+        "Click Delete again to permanently remove this article."
+        (\confirmedModel -> runAppEvent ports confirmedModel (ArticleDeleteRequested ident))
     GuiOpenDataFolder ->
       [Task (runSideEffect model (getCurrentDirectory >>= openExternalPath) "Opened project data folder.")]
     GuiOpenLogs ->
@@ -509,6 +532,21 @@ withPendingNotice model message task =
   , Task task
   ]
 
+confirmOrRun :: Model -> PendingConfirmation -> Text -> (Model -> IO GuiEvent) -> [AppEventResponse Model GuiEvent]
+confirmOrRun model confirmation message task
+  | pendingConfirmation model == Just confirmation =
+      let confirmedModel = model {pendingConfirmation = Nothing}
+       in [ M.Model confirmedModel
+          , Task (task confirmedModel)
+          ]
+  | otherwise =
+      [ M.Model
+          model
+            { pendingConfirmation = Just confirmation
+            , notification = Just (Notification InfoNotice message)
+            }
+      ]
+
 modelBusy :: Model -> Bool
 modelBusy model =
   activeProgress model /= Nothing
@@ -524,6 +562,7 @@ mergeLoadedModel current loaded =
     , jobQueuePaused = jobQueuePaused current
     , nextJobId = max (nextJobId current) (nextJobId loaded)
     , completedJobs = mergeCompletedJobs (completedJobs loaded) (completedJobs current)
+    , pendingConfirmation = pendingConfirmation loaded
     }
 
 mergeCompletedJobs :: [CompletedJob] -> [CompletedJob] -> [CompletedJob]
@@ -1639,7 +1678,8 @@ audioButtons model summary maybeContent =
       let maybeAudioUrl = maybeContent >>= articleAudioUrl
           maybeAudioPath = maybeContent >>= articleAudioPath
        in maybe [] (const [secondaryButton model "Download audio" (GuiDownloadAudio ident)]) maybeAudioUrl
-            <> maybe [] (const [secondaryButton model "Open audio" (GuiOpenAudio ident)]) maybeAudioPath
+            <> maybe [] (\audioUrl -> [secondaryButton model "Open audio source" (GuiOpenAudioSource audioUrl)]) maybeAudioUrl
+            <> maybe [] (const [secondaryButton model "Open downloaded audio" (GuiOpenAudio ident)]) maybeAudioPath
 
 articleParagraphsBlock :: Model -> [Text] -> WidgetNode Model GuiEvent
 articleParagraphsBlock _ [] =
@@ -1666,10 +1706,17 @@ articleRowsBlock model rows =
         LibraryView | libraryGroupBySection model -> concatMap groupedRows (groupArticlesBySection rows)
         _ -> map (articleRowBlock model) rows
     groupedRows (sectionName, articles) =
-      ( label (sectionName <> " (" <> tshow (length articles) <> ")")
-          `styleBasic` [textSize 15, textColor (primaryColor model), paddingT 8, paddingB 4]
-      )
-        : map (articleRowBlock model) articles
+      let collapsed = Set.member sectionName (libraryCollapsedSections model)
+          heading =
+            hstack
+              [ rowSecondaryButton model (if collapsed then "Show" else "Hide") (GuiLibraryToggleSection sectionName)
+              , label (sectionName <> " (" <> tshow (length articles) <> ")")
+                  `styleBasic` [textSize 15, textColor (primaryColor model), paddingL 8]
+              ]
+              `styleBasic` [paddingT 8, paddingB 4]
+       in if collapsed
+            then [heading]
+            else heading : map (articleRowBlock model) articles
 
 groupArticlesBySection :: [ArticleSummary] -> [(Text, [ArticleSummary])]
 groupArticlesBySection =

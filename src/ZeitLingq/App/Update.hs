@@ -101,6 +101,7 @@ data Event
   | LibrarySortChanged LibrarySort
   | LibraryPresetChanged LibraryPreset
   | LibraryGroupBySectionChanged Bool
+  | LibrarySectionCollapseToggled Text
   | LibraryDeleteDaysChanged Text
   | LibraryPageChanged Int
   | LibraryDeleteIgnoredRequested
@@ -624,6 +625,10 @@ update event model =
        in ( model {libraryGroupBySection = enabled, libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
+    LibrarySectionCollapseToggled sectionName ->
+      ( model {libraryCollapsedSections = toggleSetMember sectionName (libraryCollapsedSections model)}
+      , []
+      )
     LibraryDeleteDaysChanged daysText ->
       ( model {libraryDeleteDaysText = daysText}
       , []

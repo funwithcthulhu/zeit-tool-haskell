@@ -34,6 +34,7 @@ module ZeitLingq.Infrastructure.Sqlite
   ) where
 
 import Control.Exception (bracket)
+import Control.Monad (unless)
 import Data.Int (Int64)
 import Data.Foldable (traverse_)
 import Data.Map.Strict qualified as Map
@@ -44,6 +45,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (UTCTime, getCurrentTime)
 import Database.SQLite.Simple
+import Database.SQLite.Simple.FromRow (RowParser)
 import Database.SQLite.Simple.ToField (toField)
 import ZeitLingq.Domain.Article
   ( articleBodyText
@@ -117,6 +119,7 @@ migrate conn = do
     \  audio_url TEXT,\
     \  audio_path TEXT,\
     \  known_pct INTEGER)"
+  ensureArticleColumns conn
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_section ON articles(section)"
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_word_count ON articles(word_count)"
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_date ON articles(date)"
@@ -134,6 +137,50 @@ migrate conn = do
     "CREATE TABLE IF NOT EXISTS ignored_urls\
     \ (url TEXT PRIMARY KEY,\
     \  ignored_at TIMESTAMP NOT NULL)"
+
+ensureArticleColumns :: Connection -> IO ()
+ensureArticleColumns conn =
+  traverse_
+    (uncurry (ensureArticleColumn conn))
+    [ ("subtitle", "TEXT NOT NULL DEFAULT ''")
+    , ("author", "TEXT NOT NULL DEFAULT ''")
+    , ("date", "TEXT")
+    , ("section", "TEXT NOT NULL DEFAULT ''")
+    , ("body_text", "TEXT NOT NULL DEFAULT ''")
+    , ("clean_text", "TEXT NOT NULL DEFAULT ''")
+    , ("word_count", "INTEGER NOT NULL DEFAULT 0")
+    , ("fetched_at", "TIMESTAMP")
+    , ("uploaded_to_lingq", "INTEGER NOT NULL DEFAULT 0")
+    , ("lingq_lesson_id", "TEXT NOT NULL DEFAULT ''")
+    , ("lingq_lesson_url", "TEXT NOT NULL DEFAULT ''")
+    , ("ignored", "INTEGER NOT NULL DEFAULT 0")
+    , ("audio_url", "TEXT")
+    , ("audio_path", "TEXT")
+    , ("known_pct", "INTEGER")
+    ]
+
+ensureArticleColumn :: Connection -> Text -> Text -> IO ()
+ensureArticleColumn conn articleColumn definition = do
+  columns <- articleColumnNames conn
+  unless (articleColumn `elem` columns) $
+    execute_ conn (Query ("ALTER TABLE articles ADD COLUMN " <> articleColumn <> " " <> definition))
+
+articleColumnNames :: Connection -> IO [Text]
+articleColumnNames conn = do
+  columns <- query_ conn "PRAGMA table_info(articles)"
+  pure [name | ArticleColumnInfo name <- columns]
+
+newtype ArticleColumnInfo = ArticleColumnInfo Text
+
+instance FromRow ArticleColumnInfo where
+  fromRow = do
+    _cid <- field :: RowParser Int
+    name <- field
+    _typ <- field :: RowParser Text
+    _notNull <- field :: RowParser Int
+    _defaultValue <- field :: RowParser (Maybe Text)
+    _pk <- field :: RowParser Int
+    pure (ArticleColumnInfo name)
 
 saveArticleSqlite :: LibraryDb -> Article -> IO ArticleId
 saveArticleSqlite (LibraryDb conn) article = do

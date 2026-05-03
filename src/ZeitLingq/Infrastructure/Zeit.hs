@@ -6,6 +6,7 @@ module ZeitLingq.Infrastructure.Zeit
   , absoluteZeitUrl
   , defaultZeitUserAgent
   , extractArticleContent
+  , extractAdditionalArticlePageUrls
   , extractArticleList
   , fetchArticleContentZeit
   , fetchArticleListZeit
@@ -14,9 +15,11 @@ module ZeitLingq.Infrastructure.Zeit
   ) where
 
 import Control.Applicative ((<|>), asum)
+import Control.Concurrent (threadDelay)
 import Data.Aeson (Value(..), eitherDecodeStrict')
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString (ByteString)
+import Data.Either (rights)
 import Data.ByteString.Lazy qualified as BL
 import Data.Foldable (toList)
 import Data.List (find)
@@ -57,10 +60,30 @@ fetchArticleContentZeit :: ZeitSession -> Text -> IO (Either ZeitError Article)
 fetchArticleContentZeit session url = do
   result <- fetchHtml session (completeViewUrl url)
   case result of
-    Right html -> pure (extractArticleContent url html)
-    Left _ -> do
-      fallback <- fetchHtml session url
-      pure (fallback >>= extractArticleContent url)
+    Right html ->
+      case extractArticleContent url html of
+        Right article -> pure (Right article)
+        Left _ -> fetchArticleContentWithPages session url
+    Left _ ->
+      fetchArticleContentWithPages session url
+
+fetchArticleContentWithPages :: ZeitSession -> Text -> IO (Either ZeitError Article)
+fetchArticleContentWithPages session url = do
+  fallback <- fetchHtml session url
+  case fallback of
+    Left err -> pure (Left err)
+    Right html ->
+      case extractArticleContent url html of
+        Left err -> pure (Left err)
+        Right article -> do
+          let pageUrls = extractAdditionalArticlePageUrls url html
+          pageResults <- traverse fetchAdditionalPage pageUrls
+          pure (Right (mergeArticlePages article (rights pageResults)))
+  where
+    fetchAdditionalPage pageUrl = do
+      threadDelay 500000
+      pageHtml <- fetchHtml session pageUrl
+      pure (pageHtml >>= extractArticleContent pageUrl)
 
 fetchHtml :: ZeitSession -> Text -> IO (Either ZeitError Text)
 fetchHtml session url = do
@@ -119,13 +142,79 @@ extractArticleContent url html
     title = cleanTitle (fromMaybe "" (firstBlockText "h1" tags <|> firstBlockText "title" tags))
     paragraphs = extractBodyBlocks tags
 
+extractAdditionalArticlePageUrls :: Text -> Text -> [Text]
+extractAdditionalArticlePageUrls articleUrl html =
+  dedupeTexts
+    [ pageUrl
+    | Anchor href title <- collectAnchors (parseTagsText html)
+    , let pageUrl = absoluteZeitUrl href
+    , pageUrl /= cleanArticleUrl
+    , not ("/komplettansicht" `T.isSuffixOf` pageUrl)
+    , sameArticlePage cleanArticleUrl pageUrl
+    , looksLikePagination title pageUrl
+    ]
+  where
+    cleanArticleUrl = normalizeArticleBase articleUrl
+
+mergeArticlePages :: Article -> [Article] -> Article
+mergeArticlePages article pages =
+  article
+    { articleParagraphs = dedupeTexts (concatMap articleParagraphs (article : pages))
+    , articleAudioUrl = articleAudioUrl article <|> asum (map articleAudioUrl pages)
+    }
+
+looksLikePagination :: Text -> Text -> Bool
+looksLikePagination title url =
+  any (`T.isInfixOf` lowerTitle) ["seite", "weiter", "nächste", "naechste", "auf einer seite"]
+    || "/seite-" `T.isInfixOf` lowerUrl
+    || maybe False (T.all isDigitText) (lastMaybe (T.splitOn "/" lowerUrl))
+  where
+    lowerTitle = T.toLower title
+    lowerUrl = T.toLower url
+
+sameArticlePage :: Text -> Text -> Bool
+sameArticlePage cleanArticleUrl candidate =
+  candidateBase == cleanArticleUrl
+    || (cleanArticleUrl <> "/") `T.isPrefixOf` candidateBase
+  where
+    candidateBase = normalizeArticleBase candidate
+
+normalizeArticleBase :: Text -> Text
+normalizeArticleBase =
+  T.dropWhileEnd (== '/') . stripQueryNoise
+
+dedupeTexts :: [Text] -> [Text]
+dedupeTexts = go Set.empty
+  where
+    go _ [] = []
+    go seen (value:rest)
+      | key `Set.member` seen = go seen rest
+      | otherwise = value : go (Set.insert key seen) rest
+      where
+        key = T.take 100 value
+
+lastMaybe :: [a] -> Maybe a
+lastMaybe [] = Nothing
+lastMaybe values = Just (last values)
+
+isDigitText :: Char -> Bool
+isDigitText ch = ch >= '0' && ch <= '9'
+
 extractAudioUrl :: [Tag String] -> Maybe Text
 extractAudioUrl tags =
-  firstAttr "audio" "src" tags
-    <|> firstAttr "source" "src" tags
-    <|> metaProperty "og:audio" tags
-    <|> metaProperty "og:audio:secure_url" tags
-    <|> jsonLdAudioUrl tags
+  absoluteMediaUrl
+    <$> ( firstAttr "audio" "src" tags
+            <|> firstAttr "source" "src" tags
+            <|> metaProperty "og:audio" tags
+            <|> metaProperty "og:audio:secure_url" tags
+            <|> jsonLdAudioUrl tags
+        )
+
+absoluteMediaUrl :: Text -> Text
+absoluteMediaUrl value
+  | "https://" `T.isPrefixOf` value || "http://" `T.isPrefixOf` value = value
+  | "/" `T.isPrefixOf` value = baseUrl <> value
+  | otherwise = value
 
 looksLikeArticleUrl :: Text -> Bool
 looksLikeArticleUrl url =

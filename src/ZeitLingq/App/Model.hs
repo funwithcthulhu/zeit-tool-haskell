@@ -2,6 +2,7 @@
 
 module ZeitLingq.App.Model
   ( Model(..)
+  , PendingConfirmation(..)
   , emptyAuth
   , initialModel
   ) where
@@ -12,6 +13,13 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import ZeitLingq.Domain.Types
+
+data PendingConfirmation
+  = ConfirmDeleteArticle ArticleId
+  | ConfirmDeleteIgnoredArticles
+  | ConfirmDeleteOldArticles Int Bool Bool
+  | ConfirmClearKnownWords
+  deriving (Eq, Show)
 
 data Model = Model
   { currentView :: View
@@ -36,6 +44,7 @@ data Model = Model
   , libraryTotal :: Int
   , libraryStats :: Maybe LibraryStats
   , libraryGroupBySection :: Bool
+  , libraryCollapsedSections :: Set Text
   , libraryPreset :: LibraryPreset
   , libraryDeleteDaysText :: Text
   , lingqArticles :: [ArticleSummary]
@@ -55,6 +64,7 @@ data Model = Model
   , nextJobId :: Int
   , failedFetches :: [(Text, Text)]
   , failedUploads :: [(ArticleId, Text)]
+  , pendingConfirmation :: Maybe PendingConfirmation
   , rowDensity :: RowDensity
   , uiTheme :: UiTheme
   , browseSectionId :: Text
@@ -95,6 +105,7 @@ initialModel =
     , libraryTotal = 0
     , libraryStats = Nothing
     , libraryGroupBySection = False
+    , libraryCollapsedSections = Set.empty
     , libraryPreset = LibraryPresetAll
     , libraryDeleteDaysText = "30"
     , lingqArticles = []
@@ -114,6 +125,7 @@ initialModel =
     , nextJobId = 1
     , failedFetches = []
     , failedUploads = []
+    , pendingConfirmation = Nothing
     , rowDensity = CompactRows
     , uiTheme = DarkUiTheme
     , browseSectionId = "index"

@@ -10,6 +10,7 @@ import Data.Aeson (Value, eitherDecode)
 import Data.ByteString.Lazy qualified as BL
 import Data.Either (isLeft)
 import Data.Functor.Identity (Identity(..), runIdentity)
+import Database.SQLite.Simple qualified as SQL
 import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
 import Test.Hspec
@@ -187,6 +188,8 @@ main = hspec $ do
           (presetModel, presetCommands) = update (LibraryPresetChanged LibraryPresetStandardReads) baseModel
           (duplicatePresetModel, duplicatePresetCommands) = update (LibraryPresetChanged LibraryPresetDuplicateReview) baseModel
           (groupModel, groupCommands) = update (LibraryGroupBySectionChanged True) baseModel
+          (collapsedModel, collapsedCommands) = update (LibrarySectionCollapseToggled "Wissen") initialModel
+          (expandedModel, expandedCommands) = update (LibrarySectionCollapseToggled "Wissen") collapsedModel
           (pageModel, pageCommands) = update (LibraryPageChanged 60) baseModel
       libraryQuery searchModel `shouldBe` baseQuery {librarySearch = Just "Alpha", libraryOffset = 0}
       libraryPreset searchModel `shouldBe` LibraryPresetCustom
@@ -218,6 +221,10 @@ main = hspec $ do
       libraryGroupBySection groupModel `shouldBe` True
       libraryQuery groupModel `shouldBe` baseQuery {libraryLimit = 5000, libraryOffset = 0}
       groupCommands `shouldBe` [RefreshLibraryPage (libraryQuery groupModel)]
+      libraryCollapsedSections collapsedModel `shouldBe` Set.singleton "Wissen"
+      collapsedCommands `shouldBe` []
+      libraryCollapsedSections expandedModel `shouldBe` Set.empty
+      expandedCommands `shouldBe` []
       libraryQuery pageModel `shouldBe` baseQuery {libraryOffset = 60}
       pageCommands `shouldBe` [RefreshLibraryPage (libraryQuery pageModel)]
 
@@ -1166,6 +1173,17 @@ main = hspec $ do
         unignoreUrlSqlite db "https://www.zeit.de/wissen/2026-05/a"
         getIgnoredUrlsSqlite db `shouldReturn` ["https://www.zeit.de/wissen/2026-05/b"]
 
+    it "migrates older article tables before saving new records" $ do
+      withTempDbPath $ \path -> do
+        conn <- SQL.open path
+        SQL.execute_ conn "CREATE TABLE articles (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT UNIQUE NOT NULL, title TEXT NOT NULL)"
+        SQL.close conn
+
+        withLibrary path $ \db -> do
+          savedId <- saveArticleSqlite db demoArticle
+          loaded <- getArticleSqlite db savedId
+          fmap articleTitle loaded `shouldBe` Just "Demo"
+
     it "bulk-deletes ignored and older articles" $ do
       withLibrary ":memory:" $ \db -> do
         oldUploaded <-
@@ -1312,10 +1330,29 @@ main = hspec $ do
             "<html><head><title>Audio | ZEIT ONLINE</title></head><body><article><h1>Audio</h1><p>Das ist ein Absatz mit genug Worten fuer den Parser.</p><p>Noch ein Absatz mit sauberem Text und Inhalt.</p><audio><source src=\"https://cdn.example/audio.m4a\"></audio></article></body></html>"
           jsonHtml =
             "<html><head><title>Audio JSON | ZEIT ONLINE</title><script type=\"application/ld+json\">{\"@type\":\"NewsArticle\",\"audio\":{\"@type\":\"AudioObject\",\"contentUrl\":\"https://cdn.example/audio.mp3\"}}</script></head><body><article><h1>Audio JSON</h1><p>Das ist ein Absatz mit genug Worten fuer den Parser.</p><p>Noch ein Absatz mit sauberem Text und Inhalt.</p></article></body></html>"
+          relativeHtml =
+            "<html><head><title>Audio relative | ZEIT ONLINE</title></head><body><article><h1>Audio relative</h1><p>Das ist ein Absatz mit genug Worten fuer den Parser.</p><p>Noch ein Absatz mit sauberem Text und Inhalt.</p><audio src=\"/audio/demo.mp3\"></audio></article></body></html>"
       fmap articleAudioUrl (extractArticleContent "https://www.zeit.de/wissen/2026-05/audio" sourceHtml)
         `shouldBe` Right (Just "https://cdn.example/audio.m4a")
       fmap articleAudioUrl (extractArticleContent "https://www.zeit.de/wissen/2026-05/audio-json" jsonHtml)
         `shouldBe` Right (Just "https://cdn.example/audio.mp3")
+      fmap articleAudioUrl (extractArticleContent "https://www.zeit.de/wissen/2026-05/audio-relative" relativeHtml)
+        `shouldBe` Right (Just "https://www.zeit.de/audio/demo.mp3")
+
+    it "discovers additional article page links for paginated stories" $ do
+      let html =
+            "<article>\
+            \<a href=\"/wissen/2026-05/haskell-test\">same article</a>\
+            \<a href=\"/wissen/2026-05/haskell-test/2\">Seite 2</a>\
+            \<a href=\"/wissen/2026-05/haskell-test/seite-3\">Nächste Seite</a>\
+            \<a href=\"/wissen/2026-05/haskell-test-extra/2\">Seite 2</a>\
+            \<a href=\"/wissen/2026-05/other/2\">Seite 2</a>\
+            \</article>"
+      extractAdditionalArticlePageUrls "https://www.zeit.de/wissen/2026-05/haskell-test" html
+        `shouldBe`
+          [ "https://www.zeit.de/wissen/2026-05/haskell-test/2"
+          , "https://www.zeit.de/wissen/2026-05/haskell-test/seite-3"
+          ]
 
 demoArticle :: Article
 demoArticle =
@@ -1344,6 +1381,17 @@ withTempSettingsPath :: (FilePath -> IO a) -> IO a
 withTempSettingsPath action = do
   tmp <- getTemporaryDirectory
   let path = tmp </> "zeit-tool-settings-test.json"
+  existsBefore <- doesFileExist path
+  when existsBefore (removeFile path)
+  result <- action path
+  stillExists <- doesFileExist path
+  when stillExists (removeFile path)
+  pure result
+
+withTempDbPath :: (FilePath -> IO a) -> IO a
+withTempDbPath action = do
+  tmp <- getTemporaryDirectory
+  let path = tmp </> "zeit-tool-sqlite-test.db"
   existsBefore <- doesFileExist path
   when existsBefore (removeFile path)
   result <- action path
