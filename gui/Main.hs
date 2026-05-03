@@ -98,18 +98,44 @@ dbPath = "zeit-tool.db"
 settingsPath :: FilePath
 settingsPath = "settings.json"
 
+appBgColor :: Color
+appBgColor = rgbHex "#0f151b"
+
+panelBgColor :: Color
+panelBgColor = rgbHex "#17212b"
+
+panelAltColor :: Color
+panelAltColor = rgbHex "#101923"
+
+borderColor :: Color
+borderColor = rgbHex "#263746"
+
+primaryColor :: Color
+primaryColor = rgbHex "#16d9c5"
+
+primaryTextColor :: Color
+primaryTextColor = rgbHex "#071113"
+
+mainTextColor :: Color
+mainTextColor = rgbHex "#f3f7f8"
+
+mutedTextColor :: Color
+mutedTextColor = rgbHex "#9eadba"
+
+warningColor :: Color
+warningColor = rgbHex "#f5a524"
+
+dangerColor :: Color
+dangerColor = rgbHex "#ff6b6b"
+
 buildUI :: WidgetEnv Model GuiEvent -> Model -> WidgetNode Model GuiEvent
 buildUI _ model =
   vstack
     [ titleBlock vm
-    , spacer
-    , navBlock vm
-    , statusBlock vm
     , notificationBlock model
-    , spacer
     , contentBlock model vm
     ]
-    `styleBasic` [padding 24]
+    `styleBasic` [padding 12, bgColor appBgColor]
   where
     vm = appViewModel model
 
@@ -258,61 +284,192 @@ handleEvent ports _ _ model event =
 titleBlock :: AppViewModel -> WidgetNode Model GuiEvent
 titleBlock vm =
   hstack
-    [ vstack
-        [ label (vmTitle vm)
-            `styleBasic` [textSize 28]
-        , label "Haskell-native Zeit to LingQ workflow"
-            `styleBasic` [textSize 14]
-        ]
+    [ label (vmTitle vm)
+        `styleBasic` [textSize 22, textColor mainTextColor, paddingR 16]
+    , navBlock vm
     , filler
-    , button "Refresh" GuiRefresh
+    , statusBlock vm
+    , secondaryButton "Refresh" GuiRefresh
     ]
+    `styleBasic` [paddingB 8]
 
 navBlock :: AppViewModel -> WidgetNode Model GuiEvent
 navBlock vm =
   hstack (map navButton (vmNavItems vm))
-    `styleBasic` [paddingV 8]
 
 navButton :: NavItem -> WidgetNode Model GuiEvent
 navButton item =
   button (navLabel item) (GuiNavigate (navView item))
     `styleBasic`
-      [ paddingH 4
-      , textColor (if navActive item then cyan else white)
+      [ paddingH 12
+      , paddingV 4
+      , height 34
+      , radius 14
+      , textSize 14
+      , textColor (if navActive item then primaryTextColor else mainTextColor)
+      , bgColor (if navActive item then primaryColor else panelAltColor)
+      , border 1 (if navActive item then primaryColor else borderColor)
       ]
 
 statusBlock :: AppViewModel -> WidgetNode Model GuiEvent
 statusBlock vm =
   hstack (map statusLabel (vmStatusBadges vm))
-    `styleBasic` [paddingV 8]
 
 statusLabel :: StatusBadge -> WidgetNode Model GuiEvent
 statusLabel badge =
   label (statusName badge <> ": " <> statusText badge)
     `styleBasic`
-      [ paddingR 16
-      , textColor (if statusConnected badge then lightGreen else orange)
+      [ paddingH 10
+      , paddingV 5
+      , paddingR 12
+      , radius 12
+      , textSize 13
+      , textColor (if statusConnected badge then primaryColor else warningColor)
+      , bgColor panelAltColor
       ]
 
 notificationBlock :: Model -> WidgetNode Model GuiEvent
 notificationBlock model =
   case notification model of
-    Nothing -> spacer
+    Nothing -> emptyBlock
     Just notice ->
       hstack
         [ label (noticeText notice)
             `styleBasic` [textColor (noticeColor notice)]
         , filler
-        , button "Clear" GuiClearNotice
+        , secondaryButton "Clear" GuiClearNotice
         ]
-        `styleBasic` [padding 10, bgColor (rgbHex "#1d2733"), radius 8]
+        `styleBasic` [padding 10, bgColor panelBgColor, radius 10, border 1 borderColor, paddingB 8]
+
+primaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
+primaryButton caption event =
+  button caption event
+    `styleBasic`
+      [ paddingH 10
+      , paddingV 4
+      , height 34
+      , radius 9
+      , textSize 14
+      , textColor primaryTextColor
+      , bgColor primaryColor
+      , border 1 primaryColor
+      ]
+
+secondaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
+secondaryButton caption event =
+  button caption event
+    `styleBasic`
+      [ paddingH 10
+      , paddingV 4
+      , height 34
+      , radius 9
+      , textSize 14
+      , textColor mainTextColor
+      , bgColor panelAltColor
+      , border 1 borderColor
+      ]
+
+dangerButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
+dangerButton caption event =
+  button caption event
+    `styleBasic`
+      [ paddingH 10
+      , paddingV 4
+      , height 34
+      , radius 9
+      , textSize 14
+      , textColor mainTextColor
+      , bgColor (rgbHex "#3a1f24")
+      , border 1 dangerColor
+      ]
+
+rowPrimaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
+rowPrimaryButton caption event =
+  button caption event
+    `styleBasic`
+      [ paddingH 8
+      , paddingV 2
+      , height 26
+      , radius 8
+      , textSize 12
+      , textColor primaryTextColor
+      , bgColor primaryColor
+      , border 1 primaryColor
+      ]
+
+rowSecondaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
+rowSecondaryButton caption event =
+  button caption event
+    `styleBasic`
+      [ paddingH 8
+      , paddingV 2
+      , height 26
+      , radius 8
+      , textSize 12
+      , textColor mainTextColor
+      , bgColor panelAltColor
+      , border 1 borderColor
+      ]
+
+rowDangerButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
+rowDangerButton caption event =
+  button caption event
+    `styleBasic`
+      [ paddingH 8
+      , paddingV 2
+      , height 26
+      , radius 8
+      , textSize 12
+      , textColor mainTextColor
+      , bgColor (rgbHex "#3a1f24")
+      , border 1 dangerColor
+      ]
+
+inputStyle :: [StyleState]
+inputStyle =
+  [ paddingH 8
+  , paddingV 4
+  , height 34
+  , radius 8
+  , textColor mainTextColor
+  , bgColor panelAltColor
+  , border 1 borderColor
+  ]
+
+panelStyle :: [StyleState]
+panelStyle =
+  [ padding 12
+  , radius 14
+  , bgColor panelBgColor
+  , border 1 borderColor
+  ]
+
+mutedLabel :: Text -> WidgetNode Model GuiEvent
+mutedLabel caption =
+  label caption
+    `styleBasic` [textSize 13, textColor mutedTextColor]
+
+emptyBlock :: WidgetNode Model GuiEvent
+emptyBlock =
+  spacer_ [width 0]
+
+sectionLabelForId :: Text -> Text
+sectionLabelForId ident =
+  maybe ident sectionLabel (findSection ident)
+
+findSection :: Text -> Maybe Section
+findSection ident =
+  go allSections
+  where
+    go [] = Nothing
+    go (section : rest)
+      | sectionId section == ident = Just section
+      | otherwise = go rest
 
 contentBlock :: Model -> AppViewModel -> WidgetNode Model GuiEvent
 contentBlock model vm =
   vstack
-    [ label ("Browse section: " <> vmBrowseSection vm)
-    , label ("Filter: " <> vmActiveFilter vm)
-    , label (vmDatePrefix vm)
+    [ screenSummary vm
     , zeitControls model
     , browseControls model
     , libraryControls model
@@ -321,7 +478,18 @@ contentBlock model vm =
     , articleParagraphsBlock (vmSelectedArticleParagraphs vm)
     , articleRowsBlock model (rowsForCurrentView model)
     ]
-    `styleBasic` [padding 16]
+    `styleBasic` panelStyle
+
+screenSummary :: AppViewModel -> WidgetNode Model GuiEvent
+screenSummary vm =
+  hstack
+    [ mutedLabel ("Section: " <> vmBrowseSection vm)
+    , mutedLabel ("Filter: " <> vmActiveFilter vm)
+        `styleBasic` [paddingL 16]
+    , mutedLabel (vmDatePrefix vm)
+        `styleBasic` [paddingL 16]
+    ]
+    `styleBasic` [paddingB 8]
 
 zeitControls :: Model -> WidgetNode Model GuiEvent
 zeitControls model =
@@ -336,60 +504,57 @@ zeitControls model =
             (zeitCookieText model)
             GuiZeitCookieChanged
             [maxLines 5]
-            `styleBasic` [height 110]
+            `styleBasic` (inputStyle <> [height 110])
         , hstack
-            [ button "Save cookie session" GuiZeitCookieLogin
-            , button "Disconnect Zeit" GuiZeitLogout
+            [ primaryButton "Save cookie session" GuiZeitCookieLogin
+            , secondaryButton "Disconnect Zeit" GuiZeitLogout
             ]
             `styleBasic` [paddingT 6]
         ]
-    _ -> spacer
+    _ -> emptyBlock
 
 browseControls :: Model -> WidgetNode Model GuiEvent
 browseControls model =
   case currentView model of
     BrowseView ->
       vstack
-        [ label "Quick sections"
-            `styleBasic` [textSize 14, paddingT 8]
-        , vstack (map (hstack . map sectionButton) sectionRows)
-            `styleBasic` [paddingV 6]
-        , hstack
-            [ button "Previous page" GuiBrowsePreviousPage
+        [ hstack
+            [ label "Topic"
+                `styleBasic` [paddingR 8, textColor mutedTextColor]
+            , textDropdownV_
+                (browseSectionId model)
+                GuiSectionSelected
+                (map sectionId allSections)
+                sectionLabelForId
+                [maxHeight 360]
+                `styleBasic` (inputStyle <> [width 280])
+            , secondaryButton "Previous" GuiBrowsePreviousPage
             , label ("Page " <> tshow (browsePage model))
-                `styleBasic` [paddingH 12]
-            , button "Next page" GuiBrowseNextPage
-            ]
-        , hstack
-            [ label "Fetch min"
-                `styleBasic` [paddingR 6]
+                `styleBasic` [paddingH 10, textColor mainTextColor]
+            , secondaryButton "Next" GuiBrowseNextPage
+            , label "Fetch min"
+                `styleBasic` [paddingL 14, paddingR 6, textColor mutedTextColor]
             , textFieldV (maybe "" tshow (minWords (browseFilter model))) GuiBrowseMinWordsChanged
-                `styleBasic` [width 70]
-            , label "Fetch max"
-                `styleBasic` [paddingL 12, paddingR 6]
+                `styleBasic` (inputStyle <> [width 72])
+            , label "max"
+                `styleBasic` [paddingL 10, paddingR 6, textColor mutedTextColor]
             , textFieldV (maybe "" tshow (maxWords (browseFilter model))) GuiBrowseMaxWordsChanged
-                `styleBasic` [width 70]
+                `styleBasic` (inputStyle <> [width 72])
             ]
-            `styleBasic` [paddingV 6]
+            `styleBasic` [paddingB 8]
         , hstack
-            [ button "Select all shown" (GuiBrowseSelectVisible (browseArticles model))
-            , button "Deselect" GuiBrowseClearSelection
+            [ secondaryButton "Select all shown" (GuiBrowseSelectVisible (browseArticles model))
+            , secondaryButton "Deselect" GuiBrowseClearSelection
             , toggle "Show hidden" (browseShowHidden model) GuiBrowseShowHiddenChanged
             , label (tshow (Set.size (browseSelectedUrls model)) <> " selected")
-                `styleBasic` [paddingL 8]
+                `styleBasic` [paddingL 8, paddingR 12, textColor mutedTextColor]
+            , primaryButton ("Fetch selected (" <> tshow (Set.size (browseSelectedUrls model)) <> ")") (GuiFetchSelected (browseArticles model))
+            , secondaryButton ("Fetch visible (" <> T.pack (show (length (browseArticles model))) <> ")") (GuiFetchVisible (browseArticles model))
             ]
-            `styleBasic` [paddingV 6]
-        , hstack
-            [ button ("Fetch selected (" <> tshow (Set.size (browseSelectedUrls model)) <> ")") (GuiFetchSelected (browseArticles model))
-            , button ("Fetch visible (" <> T.pack (show (length (browseArticles model))) <> ")") (GuiFetchVisible (browseArticles model))
-            ]
+            `styleBasic` [paddingB 8]
         ]
-    _ -> spacer
-  where
-    sectionRows = chunksOf 8 allSections
-    sectionButton section =
-      button (sectionLabel section) (GuiSectionSelected (sectionId section))
-        `styleBasic` [paddingR 4]
+        `styleBasic` [paddingB 8]
+    _ -> emptyBlock
 
 libraryControls :: Model -> WidgetNode Model GuiEvent
 libraryControls model =
@@ -399,17 +564,17 @@ libraryControls model =
         [ libraryStatsBlock model
         , hstack
             [ label "Search"
-                `styleBasic` [paddingR 8]
+                `styleBasic` [paddingR 8, textColor mutedTextColor]
             , textFieldV_ (maybe "" id (librarySearch query)) GuiLibrarySearchChanged [placeholder "Title or article text"]
-                `styleBasic` [width 300]
+                `styleBasic` (inputStyle <> [width 300])
             , label "Min"
-                `styleBasic` [paddingL 12, paddingR 6]
+                `styleBasic` [paddingL 12, paddingR 6, textColor mutedTextColor]
             , textFieldV (maybe "" tshow (minWords (libraryWordFilter query))) GuiLibraryMinWordsChanged
-                `styleBasic` [width 70]
+                `styleBasic` (inputStyle <> [width 70])
             , label "Max"
-                `styleBasic` [paddingL 12, paddingR 6]
+                `styleBasic` [paddingL 12, paddingR 6, textColor mutedTextColor]
             , textFieldV (maybe "" tshow (maxWords (libraryWordFilter query))) GuiLibraryMaxWordsChanged
-                `styleBasic` [width 70]
+                `styleBasic` (inputStyle <> [width 70])
             ]
         , librarySectionControls model
         , hstack
@@ -420,27 +585,27 @@ libraryControls model =
             ]
             `styleBasic` [paddingV 8]
         , hstack
-            [ button "Previous" GuiLibraryPreviousPage
+            [ secondaryButton "Previous" GuiLibraryPreviousPage
             , label (libraryPageLabel model)
-                `styleBasic` [paddingH 12]
-            , button "Next" GuiLibraryNextPage
+                `styleBasic` [paddingH 12, textColor mainTextColor]
+            , secondaryButton "Next" GuiLibraryNextPage
             ]
         , hstack
-            [ button "Delete ignored" GuiDeleteIgnoredArticles
-            , button "Delete old 30d" (GuiDeleteOldArticles 30 False False)
-            , button "Delete old uploaded 30d" (GuiDeleteOldArticles 30 True False)
+            [ dangerButton "Delete ignored" GuiDeleteIgnoredArticles
+            , dangerButton "Delete old 30d" (GuiDeleteOldArticles 30 False False)
+            , dangerButton "Delete old uploaded 30d" (GuiDeleteOldArticles 30 True False)
             ]
             `styleBasic` [paddingT 8]
         ]
         `styleBasic` [paddingV 8]
-    _ -> spacer
+    _ -> emptyBlock
   where
     query = libraryQuery model
 
 libraryStatsBlock :: Model -> WidgetNode Model GuiEvent
 libraryStatsBlock model =
   case libraryStats model of
-    Nothing -> spacer
+    Nothing -> emptyBlock
     Just stats ->
       hstack
         [ statLabel "Articles" (totalArticles stats)
@@ -453,40 +618,43 @@ statLabel :: Text -> Int -> WidgetNode Model GuiEvent
 statLabel name value =
   vstack
     [ label (tshow value)
-        `styleBasic` [textSize 18, textColor lightGreen]
+        `styleBasic` [textSize 18, textColor primaryColor]
     , label name
-        `styleBasic` [textSize 11]
+        `styleBasic` [textSize 11, textColor mutedTextColor]
     ]
     `styleBasic` [paddingR 24]
 
 librarySectionControls :: Model -> WidgetNode Model GuiEvent
 librarySectionControls model =
   case libraryStats model of
-    Nothing -> spacer
-    Just stats ->
-      vstack
-        [ label "Sections"
-            `styleBasic` [textSize 12, paddingT 8]
-        , hstack
-            ( button "All" (GuiLibrarySectionChanged "")
-                : map sectionButton (Map.toList (sectionCounts stats))
-            )
+    Nothing -> emptyBlock
+    Just _stats ->
+      hstack
+        [ label "Section"
+            `styleBasic` [paddingR 8, textColor mutedTextColor]
+        , textDropdownV_
+            activeSectionValue
+            GuiLibrarySectionChanged
+            ("" : map fst sections)
+            sectionText
+            [maxHeight 320]
+            `styleBasic` (inputStyle <> [width 300])
         ]
+        `styleBasic` [paddingT 8, paddingB 4]
   where
     activeSection = librarySection (libraryQuery model)
-    sectionButton (sectionName, total) =
-      button (sectionName <> " (" <> tshow total <> ")") (GuiLibrarySectionChanged sectionName)
-        `styleBasic`
-          [ paddingR 4
-          , textColor (if activeSection == Just sectionName then cyan else white)
-          ]
+    sections = maybe [] (Map.toList . sectionCounts) (libraryStats model)
+    activeSectionValue = maybe "" id activeSection
+    sectionText "" = "All sections"
+    sectionText sectionName =
+      sectionName <> maybe "" (\total -> " (" <> tshow total <> ")") (Map.lookup sectionName (Map.fromList sections))
 
 toggle :: Text -> Bool -> (Bool -> GuiEvent) -> WidgetNode Model GuiEvent
 toggle text value handler =
   hstack
     [ checkboxV value handler
     , label text
-        `styleBasic` [paddingL 4, paddingR 16]
+        `styleBasic` [paddingL 5, paddingR 14, textColor mainTextColor]
     ]
 
 libraryPageLabel :: Model -> Text
@@ -510,27 +678,30 @@ lingqControls model =
       vstack
         [ lingqLoginControls model
         , hstack
-            [ button ("Select not uploaded (" <> tshow (length uploadable) <> ")") (GuiLingqSelectNotUploaded (lingqArticles model))
-            , button "Deselect" GuiLingqClearSelection
+            [ secondaryButton ("Select not uploaded (" <> tshow (length uploadable) <> ")") (GuiLingqSelectNotUploaded (lingqArticles model))
+            , secondaryButton "Deselect" GuiLingqClearSelection
             , label (tshow (Set.size (lingqSelectedIds model)) <> " selected")
-                `styleBasic` [paddingH 8]
-            , button ("Upload selected (" <> tshow (Set.size (lingqSelectedIds model)) <> ")") (GuiUploadSelected (lingqArticles model))
-            , button ("Upload visible (" <> T.pack (show (length uploadable)) <> ")") (GuiUploadVisible (lingqArticles model))
-            , button "Sync known words" GuiSyncKnownWords
-            , button "Refresh %" GuiComputeKnownWords
-            , button "Refresh collections" GuiRefreshCollections
+                `styleBasic` [paddingH 8, textColor mutedTextColor]
+            , primaryButton ("Upload selected (" <> tshow (Set.size (lingqSelectedIds model)) <> ")") (GuiUploadSelected (lingqArticles model))
+            , secondaryButton ("Upload visible (" <> T.pack (show (length uploadable)) <> ")") (GuiUploadVisible (lingqArticles model))
+            ]
+            `styleBasic` [paddingB 6]
+        , hstack
+            [ secondaryButton "Sync known words" GuiSyncKnownWords
+            , secondaryButton "Refresh %" GuiComputeKnownWords
+            , secondaryButton "Refresh collections" GuiRefreshCollections
             , toggle "Auto-date lesson titles" (datePrefixEnabled model) GuiDatePrefixChanged
             ]
         , label ("Known German stems: " <> tshow (knownStemTotal model))
-            `styleBasic` [paddingT 8]
+            `styleBasic` [paddingT 8, textColor mutedTextColor]
         , hstack
             [ label "Fallback collection"
-                `styleBasic` [paddingR 8]
+                `styleBasic` [paddingR 8, textColor mutedTextColor]
             , textFieldV_
                 (maybe "" id (lingqFallbackCollection model))
                 GuiFallbackCollectionChanged
                 [placeholder "collection id or blank"]
-                `styleBasic` [width 260]
+                `styleBasic` (inputStyle <> [width 260])
             ]
             `styleBasic` [paddingT 8]
         , collectionList model
@@ -540,10 +711,10 @@ lingqControls model =
             (knownImportText model)
             GuiKnownImportTextChanged
             [maxLines 6]
-            `styleBasic` [height 120]
+            `styleBasic` (inputStyle <> [height 120])
         , hstack
-            [ button "Import pasted words" GuiImportKnownWords
-            , button "Clear known words" GuiClearKnownWords
+            [ primaryButton "Import pasted words" GuiImportKnownWords
+            , dangerButton "Clear known words" GuiClearKnownWords
             ]
             `styleBasic` [paddingT 6]
         , label "Per-section LingQ collection ids"
@@ -551,7 +722,7 @@ lingqControls model =
         , vstack (map collectionRow allSections)
         ]
         `styleBasic` [paddingV 8]
-    _ -> spacer
+    _ -> emptyBlock
   where
     uploadable =
       [ article
@@ -562,12 +733,12 @@ lingqControls model =
     collectionRow section =
       hstack
         [ label (sectionLabel section)
-            `styleBasic` [width 110]
+            `styleBasic` [width 140, textColor mutedTextColor]
         , textFieldV_
             (Map.findWithDefault "" (sectionLabel section) (sectionCollections model))
             (GuiSectionCollectionChanged (sectionLabel section))
             [placeholder "collection id"]
-            `styleBasic` [width 220]
+            `styleBasic` (inputStyle <> [width 220])
         ]
         `styleBasic` [paddingB 4]
 
@@ -575,34 +746,34 @@ lingqLoginControls :: Model -> WidgetNode Model GuiEvent
 lingqLoginControls model =
   vstack
     [ label "LingQ connection"
-        `styleBasic` [textSize 16, paddingT 8]
+        `styleBasic` [textSize 16, paddingT 8, textColor mainTextColor]
     , hstack
         [ label "API key"
-            `styleBasic` [paddingR 8]
+            `styleBasic` [paddingR 8, textColor mutedTextColor]
         , textFieldV_
             (lingqApiKeyText model)
             GuiLingqApiKeyChanged
             [placeholder "LingQ API key"]
-            `styleBasic` [width 360]
-        , button "Connect API key" GuiLingqApiKeyLogin
-        , button "Disconnect" GuiLingqLogout
+            `styleBasic` (inputStyle <> [width 360])
+        , primaryButton "Connect API key" GuiLingqApiKeyLogin
+        , secondaryButton "Disconnect" GuiLingqLogout
         ]
     , hstack
         [ label "Username"
-            `styleBasic` [paddingR 8]
+            `styleBasic` [paddingR 8, textColor mutedTextColor]
         , textFieldV_
             (lingqUsernameText model)
             GuiLingqUsernameChanged
             [placeholder "LingQ username or email"]
-            `styleBasic` [width 230]
+            `styleBasic` (inputStyle <> [width 230])
         , label "Password"
-            `styleBasic` [paddingL 12, paddingR 8]
+            `styleBasic` [paddingL 12, paddingR 8, textColor mutedTextColor]
         , textFieldV_
             (lingqPasswordText model)
             GuiLingqPasswordChanged
             [placeholder "Password", textFieldDisplayChar '*']
-            `styleBasic` [width 220]
-        , button "Login with password" GuiLingqPasswordLogin
+            `styleBasic` (inputStyle <> [width 220])
+        , primaryButton "Login with password" GuiLingqPasswordLogin
         ]
         `styleBasic` [paddingT 6]
     ]
@@ -621,34 +792,35 @@ collectionList model
         ]
   where
     collectionButton collection =
-      button
+      secondaryButton
         (collectionTitle collection <> " (" <> tshow (collectionLessonsCount collection) <> ")")
         (GuiFallbackCollectionChanged (collectionId collection))
-        `styleBasic` [paddingR 4, paddingB 4]
 
 selectedArticleBlock :: Model -> Maybe ArticleRowView -> WidgetNode Model GuiEvent
 selectedArticleBlock model Nothing =
   case currentView model of
     ArticleView -> label "No article selected."
-    _ -> spacer
+    _ -> emptyBlock
 selectedArticleBlock model (Just row) =
   vstack
     [ label (rowTitle row)
-        `styleBasic` [textSize 20, paddingT 12]
+        `styleBasic` [textSize 18, paddingT 8, textColor mainTextColor]
     , label (rowMeta row)
+        `styleBasic` [textColor mutedTextColor]
     , label (rowKnownPct row <> " | " <> rowUploadStatus row)
+        `styleBasic` [textColor mutedTextColor]
     , hstack (articleButtons (selectedArticle model) (selectedArticleContent model))
         `styleBasic` [paddingT 6]
     ]
 
 articleButtons :: Maybe ArticleSummary -> Maybe Article -> [WidgetNode Model GuiEvent]
-articleButtons Nothing _ = [button "Back to library" GuiCloseArticle]
+articleButtons Nothing _ = [secondaryButton "Back to library" GuiCloseArticle]
 articleButtons (Just article) maybeContent =
-  [ button "Back to library" GuiCloseArticle
+  [ secondaryButton "Back to library" GuiCloseArticle
   ]
     <> maybe [] (\ident -> uploadAction ident article) (summaryId article)
     <> audioButtons article maybeContent
-    <> maybe [] (\ident -> [button "Delete" (GuiDeleteArticle ident)]) (summaryId article)
+    <> maybe [] (\ident -> [dangerButton "Delete" (GuiDeleteArticle ident)]) (summaryId article)
 
 audioButtons :: ArticleSummary -> Maybe Article -> [WidgetNode Model GuiEvent]
 audioButtons summary maybeContent =
@@ -657,27 +829,28 @@ audioButtons summary maybeContent =
     Just ident ->
       let maybeAudioUrl = maybeContent >>= articleAudioUrl
           maybeAudioPath = maybeContent >>= articleAudioPath
-       in maybe [] (const [button "Download audio" (GuiDownloadAudio ident)]) maybeAudioUrl
-            <> maybe [] (const [button "Open audio" (GuiOpenAudio ident)]) maybeAudioPath
+       in maybe [] (const [secondaryButton "Download audio" (GuiDownloadAudio ident)]) maybeAudioUrl
+            <> maybe [] (const [secondaryButton "Open audio" (GuiOpenAudio ident)]) maybeAudioPath
 
 articleParagraphsBlock :: [Text] -> WidgetNode Model GuiEvent
 articleParagraphsBlock [] =
-  spacer
+  emptyBlock
 articleParagraphsBlock paragraphs =
-  scroll (vstack (map paragraphLabel paragraphs))
-    `styleBasic` [height 340, paddingT 12]
+  vscroll (vstack (map paragraphLabel paragraphs))
+    `styleBasic` [height 280, paddingT 8, paddingB 8]
 
 paragraphLabel :: Text -> WidgetNode Model GuiEvent
 paragraphLabel paragraph =
   label paragraph
-    `styleBasic` [paddingB 8]
+    `styleBasic` [paddingB 8, textColor mainTextColor]
 
 articleRowsBlock :: Model -> [ArticleSummary] -> WidgetNode Model GuiEvent
 articleRowsBlock _ [] =
   label "No rows loaded yet."
+    `styleBasic` [textColor mutedTextColor, paddingT 16]
 articleRowsBlock model rows =
-  scroll (vstack rowWidgets)
-    `styleBasic` [height 430, paddingT 16]
+  vscroll (vstack rowWidgets)
+    `styleBasic` [paddingT 8]
   where
     rowWidgets =
       case currentView model of
@@ -685,7 +858,7 @@ articleRowsBlock model rows =
         _ -> map (articleRowBlock model) rows
     groupedRows (sectionName, articles) =
       ( label (sectionName <> " (" <> tshow (length articles) <> ")")
-          `styleBasic` [textSize 16, textColor cyan, paddingT 8, paddingB 4]
+          `styleBasic` [textSize 15, textColor primaryColor, paddingT 8, paddingB 4]
       )
         : map (articleRowBlock model) articles
 
@@ -704,14 +877,15 @@ articleRowBlock model article =
   hstack
     [ rowSelectionCheckbox model article
     , vstack
-        [ label (rowTitle row)
-        , label (rowMeta row <> " | " <> rowKnownPct row <> " | " <> rowUploadStatus row)
-            `styleBasic` [textSize 12]
+        [ label_ (rowTitle row) [ellipsis]
+            `styleBasic` [textColor mainTextColor]
+        , label_ (rowMeta row <> " | " <> rowKnownPct row <> " | " <> rowUploadStatus row) [ellipsis]
+            `styleBasic` [textSize 12, textColor mutedTextColor]
+        , hstack (rowActions (currentView model) article)
+            `styleBasic` [paddingT 5]
         ]
-    , filler
-    , hstack (rowActions (currentView model) article)
     ]
-    `styleBasic` [paddingV 8, borderB 1 (rgbHex "#2f3b48")]
+    `styleBasic` [height 90, padding 7, radius 12, bgColor panelAltColor, border 1 borderColor]
   where
     row = articleRowView article
 
@@ -725,19 +899,19 @@ rowSelectionCheckbox model article =
         `styleBasic` [paddingR 8]
     LingqView ->
       case summaryId article of
-        Nothing -> spacer
+        Nothing -> emptyBlock
         Just ident ->
           checkboxV
             (Set.member ident (lingqSelectedIds model))
             (const (GuiLingqToggleSelection ident))
             `styleBasic` [paddingR 8]
-    _ -> spacer
+    _ -> emptyBlock
 
 rowActions :: View -> ArticleSummary -> [WidgetNode Model GuiEvent]
 rowActions BrowseView article =
-  [ button "Preview" (GuiPreviewArticle article)
-  , button "Fetch" (GuiFetchArticle article)
-  , button
+  [ rowSecondaryButton "Preview" (GuiPreviewArticle article)
+  , rowPrimaryButton "Fetch" (GuiFetchArticle article)
+  , rowSecondaryButton
       (if summaryIgnored article then "Unhide" else "Hide")
       (if summaryIgnored article then GuiUnhideBrowseArticle article else GuiHideBrowseArticle article)
   ]
@@ -745,20 +919,20 @@ rowActions _ article =
   maybe
     []
     (\ident ->
-      [ button "Open" (GuiOpenArticle article)
+      [ rowSecondaryButton "Open" (GuiOpenArticle article)
       ]
         <> uploadAction ident article
-        <> [ button
+        <> [ rowSecondaryButton
                (if summaryIgnored article then "Unignore" else "Ignore")
                (GuiToggleIgnored article)
-           , button "Delete" (GuiDeleteArticle ident)
+           , rowDangerButton "Delete" (GuiDeleteArticle ident)
            ])
     (summaryId article)
 
 uploadAction :: ArticleId -> ArticleSummary -> [WidgetNode Model GuiEvent]
 uploadAction ident article
   | summaryUploaded article || summaryIgnored article = []
-  | otherwise = [button "Upload" (GuiUploadArticle ident)]
+  | otherwise = [rowPrimaryButton "Upload" (GuiUploadArticle ident)]
 
 rowsForCurrentView :: Model -> [ArticleSummary]
 rowsForCurrentView model =
@@ -781,9 +955,9 @@ noticeLevelText ErrorNotice = "Error"
 noticeColor :: Notification -> Color
 noticeColor notice =
   case notificationLevel notice of
-    InfoNotice -> cyan
-    SuccessNotice -> lightGreen
-    ErrorNotice -> red
+    InfoNotice -> primaryColor
+    SuccessNotice -> primaryColor
+    ErrorNotice -> dangerColor
 
 loadGuiInitialModel :: AppPorts IO -> IO GuiEvent
 loadGuiInitialModel ports =
@@ -1060,7 +1234,8 @@ main = do
   where
     config =
       [ appWindowTitle "Zeit Tool Haskell"
-      , appWindowState (MainWindowNormal (1180, 760))
+      , appWindowState MainWindowMaximized
+      , appWindowResizable True
       , appTheme darkTheme
       , appFontDef "Regular" "C:\\Windows\\Fonts\\segoeui.ttf"
       , appInitEvent GuiInit
