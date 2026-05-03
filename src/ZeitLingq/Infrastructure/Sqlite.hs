@@ -6,7 +6,10 @@ module ZeitLingq.Infrastructure.Sqlite
   , addKnownWordsSqlite
   , closeLibrary
   , deleteArticleSqlite
+  , deleteIgnoredSqlite
+  , deleteOlderThanSqlite
   , getArticleSqlite
+  , getArticlesByQuerySqlite
   , getArticlesSqlite
   , getKnownStemCountSqlite
   , getKnownStemsSqlite
@@ -31,6 +34,7 @@ module ZeitLingq.Infrastructure.Sqlite
   ) where
 
 import Control.Exception (bracket)
+import Data.Int (Int64)
 import Data.Foldable (traverse_)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
@@ -177,20 +181,130 @@ getArticleSqlite (LibraryDb conn) (ArticleId ident) = do
     [] -> Nothing
 
 getArticlesSqlite :: LibraryDb -> WordFilter -> IO [ArticleSummary]
-getArticlesSqlite (LibraryDb conn) filters = do
-  rows <- query conn queryText params
-  pure (map summaryFromRow rows)
+getArticlesSqlite db filters =
+  libraryPageArticles <$> getArticlesByQuerySqlite db defaultLibraryQuery
+    { libraryWordFilter = filters
+    , libraryLimit = 10000
+    }
+
+getArticlesByQuerySqlite :: LibraryDb -> LibraryQuery -> IO LibraryPage
+getArticlesByQuerySqlite (LibraryDb conn) libraryQuery = do
+  [Only total] <- query conn countQuery whereParams
+  rows <- query conn pageQuery pageParams
+  pure
+    LibraryPage
+      { libraryPageArticles = map summaryFromRow rows
+      , libraryPageTotal = total
+      }
   where
-    queryText =
-      "SELECT id, url, title, section, word_count, ignored, uploaded_to_lingq, known_pct\
-      \ FROM articles\
-      \ WHERE word_count >= ? AND word_count <= ? AND ignored = 0\
-      \ ORDER BY fetched_at DESC"
-    params = (fromMaybe 0 (minWords filters), fromMaybe maxBound (maxWords filters) :: Int)
+    (whereClause, whereParams) = libraryWhere libraryQuery
+    countQuery =
+      Query ("SELECT COUNT(*) FROM articles WHERE " <> whereClause)
+    pageQuery =
+      Query
+        ( "SELECT id, url, title, section, word_count, ignored, uploaded_to_lingq, known_pct\
+          \ FROM articles\
+          \ WHERE "
+            <> whereClause
+            <> " ORDER BY fetched_at DESC LIMIT ? OFFSET ?"
+        )
+    pageParams =
+      whereParams
+        <> [ SQLInteger (safeLimit (libraryLimit libraryQuery))
+           , SQLInteger (safeOffset (libraryOffset libraryQuery))
+           ]
+
+defaultLibraryQuery :: LibraryQuery
+defaultLibraryQuery =
+  LibraryQuery
+    { librarySearch = Nothing
+    , librarySection = Nothing
+    , libraryWordFilter = WordFilter Nothing Nothing
+    , libraryIncludeIgnored = False
+    , libraryOnlyIgnored = False
+    , libraryOnlyNotUploaded = False
+    , libraryLimit = 50
+    , libraryOffset = 0
+    }
+
+libraryWhere :: LibraryQuery -> (Text, [SQLData])
+libraryWhere libraryQuery =
+  (T.intercalate " AND " (map fst fragments), concatMap snd fragments)
+  where
+    filters = libraryWordFilter libraryQuery
+    fragments =
+      [ ("1=1", [])
+      ]
+        <> maybeFragment (librarySearch libraryQuery) searchFragment
+        <> maybeFragment (librarySection libraryQuery) sectionFragment
+        <> maybeFragment (minWords filters) minWordsFragment
+        <> maybeFragment (maxWords filters) maxWordsFragment
+        <> ignoredFragments
+        <> notUploadedFragments
+
+    searchFragment raw =
+      let term = "%" <> T.strip raw <> "%"
+       in [("(title LIKE ? OR body_text LIKE ?)", [SQLText term, SQLText term]) | not (T.null (T.strip raw))]
+    sectionFragment raw =
+      [("section = ?", [SQLText raw]) | not (T.null (T.strip raw))]
+    minWordsFragment value =
+      [("word_count >= ?", [SQLInteger (fromIntegral value)])]
+    maxWordsFragment value =
+      [("word_count <= ?", [SQLInteger (fromIntegral value)])]
+    ignoredFragments
+      | libraryOnlyIgnored libraryQuery = [("ignored = 1", [])]
+      | libraryIncludeIgnored libraryQuery = []
+      | otherwise = [("ignored = 0", [])]
+    notUploadedFragments
+      | libraryOnlyNotUploaded libraryQuery = [("uploaded_to_lingq = 0", [])]
+      | otherwise = []
+
+maybeFragment :: Maybe a -> (a -> [(Text, [SQLData])]) -> [(Text, [SQLData])]
+maybeFragment Nothing _ = []
+maybeFragment (Just value) build = build value
+
+safeLimit :: Int -> Int64
+safeLimit value
+  | value <= 0 = 50
+  | otherwise = fromIntegral value
+
+safeOffset :: Int -> Int64
+safeOffset value
+  | value <= 0 = 0
+  | otherwise = fromIntegral value
 
 deleteArticleSqlite :: LibraryDb -> ArticleId -> IO ()
 deleteArticleSqlite (LibraryDb conn) (ArticleId ident) =
   execute conn "DELETE FROM articles WHERE id = ?" (Only ident)
+
+deleteIgnoredSqlite :: LibraryDb -> IO Int
+deleteIgnoredSqlite (LibraryDb conn) = do
+  [Only deleted] <- query_ conn "SELECT COUNT(*) FROM articles WHERE ignored = 1"
+  execute_ conn "DELETE FROM articles WHERE ignored = 1"
+  pure deleted
+
+deleteOlderThanSqlite :: LibraryDb -> UTCTime -> Bool -> Bool -> IO Int
+deleteOlderThanSqlite (LibraryDb conn) cutoff onlyUploaded onlyUnuploaded = do
+  [Only deleted] <- query conn countQuery params
+  execute conn deleteQuery params
+  pure deleted
+  where
+    (whereClause, params) =
+      deleteOlderWhere cutoff onlyUploaded onlyUnuploaded
+    countQuery =
+      Query ("SELECT COUNT(*) FROM articles WHERE " <> whereClause)
+    deleteQuery =
+      Query ("DELETE FROM articles WHERE " <> whereClause)
+
+deleteOlderWhere :: UTCTime -> Bool -> Bool -> (Text, [SQLData])
+deleteOlderWhere cutoff onlyUploaded onlyUnuploaded =
+  (T.intercalate " AND " (map fst fragments), concatMap snd fragments)
+  where
+    fragments =
+      [ ("fetched_at < ?", [SQLText (T.pack (show cutoff))])
+      ]
+        <> [("uploaded_to_lingq = 1", []) | onlyUploaded]
+        <> [("uploaded_to_lingq = 0", []) | onlyUnuploaded]
 
 setIgnoredSqlite :: LibraryDb -> ArticleId -> Bool -> IO ()
 setIgnoredSqlite (LibraryDb conn) (ArticleId ident) ignored =

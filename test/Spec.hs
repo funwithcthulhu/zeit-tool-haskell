@@ -3,7 +3,7 @@
 module Main (main) where
 
 import Data.Set qualified as Set
-import Data.Time (fromGregorian)
+import Data.Time (UTCTime(..), fromGregorian)
 import Data.Map.Strict qualified as Map
 import Control.Monad (when)
 import Data.Aeson (Value, eitherDecode)
@@ -340,6 +340,10 @@ main = hspec $ do
       parseArgs ["library", "custom.db"] `shouldBe` Right (ShowLibrary "custom.db")
       parseArgs ["stats"] `shouldBe` Right (ShowStats defaultDbPath)
       parseArgs ["delete-article", "42", "custom.db"] `shouldBe` Right (DeleteArticle 42 "custom.db")
+      parseArgs ["delete-older-than", "30", "custom.db"] `shouldBe` Right (DeleteOlderThan 30 False False "custom.db")
+      parseArgs ["delete-older-than-uploaded", "30"] `shouldBe` Right (DeleteOlderThan 30 True False defaultDbPath)
+      parseArgs ["delete-older-than-unuploaded", "30"] `shouldBe` Right (DeleteOlderThan 30 False True defaultDbPath)
+      parseArgs ["delete-ignored", "custom.db"] `shouldBe` Right (DeleteIgnored "custom.db")
       parseArgs ["ignore-article", "42"] `shouldBe` Right (IgnoreArticle 42 defaultDbPath)
       parseArgs ["unignore-article", "42", "custom.db"] `shouldBe` Right (UnignoreArticle 42 "custom.db")
       parseArgs ["known-sync", "custom.db"] `shouldBe` Right (SyncKnownWords "custom.db")
@@ -493,6 +497,80 @@ main = hspec $ do
         deleteArticleSqlite db secondId
         getArticleSqlite db secondId `shouldReturn` Nothing
 
+    it "queries library pages with search, section, ignored, uploaded, and paging filters" $ do
+      withLibrary ":memory:" $ \db -> do
+        alphaId <-
+          saveArticleSqlite db
+            demoArticle
+              { articleUrl = "https://example.com/alpha"
+              , articleTitle = "Alpha Wissen"
+              , articleSection = "Wissen"
+              , articleFetchedAt = Just (dayTime 1)
+              }
+        betaId <-
+          saveArticleSqlite db
+            demoArticle
+              { articleUrl = "https://example.com/beta"
+              , articleTitle = "Beta Kultur"
+              , articleSection = "Kultur"
+              , articleParagraphs = ["eins zwei drei vier funf sechs"]
+              , articleFetchedAt = Just (dayTime 2)
+              }
+        ignoredId <-
+          saveArticleSqlite db
+            demoArticle
+              { articleUrl = "https://example.com/ignored"
+              , articleTitle = "Ignored Alpha"
+              , articleSection = "Wissen"
+              , articleFetchedAt = Just (dayTime 3)
+              }
+        markUploadedSqlite db betaId (LingqLesson "lesson-2" "https://lingq.example/2")
+        setIgnoredSqlite db ignoredId True
+
+        page <-
+          getArticlesByQuerySqlite db
+            LibraryQuery
+              { librarySearch = Just "Alpha"
+              , librarySection = Just "Wissen"
+              , libraryWordFilter = WordFilter Nothing Nothing
+              , libraryIncludeIgnored = True
+              , libraryOnlyIgnored = False
+              , libraryOnlyNotUploaded = True
+              , libraryLimit = 10
+              , libraryOffset = 0
+              }
+        libraryPageTotal page `shouldBe` 2
+        map summaryId (libraryPageArticles page) `shouldBe` [Just ignoredId, Just alphaId]
+
+        ignoredPage <-
+          getArticlesByQuerySqlite db
+            LibraryQuery
+              { librarySearch = Nothing
+              , librarySection = Nothing
+              , libraryWordFilter = WordFilter Nothing Nothing
+              , libraryIncludeIgnored = False
+              , libraryOnlyIgnored = True
+              , libraryOnlyNotUploaded = False
+              , libraryLimit = 10
+              , libraryOffset = 0
+              }
+        map summaryId (libraryPageArticles ignoredPage) `shouldBe` [Just ignoredId]
+
+        paged <-
+          getArticlesByQuerySqlite db
+            LibraryQuery
+              { librarySearch = Nothing
+              , librarySection = Nothing
+              , libraryWordFilter = WordFilter Nothing Nothing
+              , libraryIncludeIgnored = True
+              , libraryOnlyIgnored = False
+              , libraryOnlyNotUploaded = False
+              , libraryLimit = 1
+              , libraryOffset = 1
+              }
+        libraryPageTotal paged `shouldBe` 3
+        map summaryId (libraryPageArticles paged) `shouldBe` [Just betaId]
+
     it "stores known-word stems and computes cached known percentages" $ do
       withLibrary ":memory:" $ \db -> do
         savedId <- saveArticleSqlite db demoArticle
@@ -529,6 +607,50 @@ main = hspec $ do
 
         unignoreUrlSqlite db "https://www.zeit.de/wissen/2026-05/a"
         getIgnoredUrlsSqlite db `shouldReturn` ["https://www.zeit.de/wissen/2026-05/b"]
+
+    it "bulk-deletes ignored and older articles" $ do
+      withLibrary ":memory:" $ \db -> do
+        oldUploaded <-
+          saveArticleSqlite db
+            demoArticle
+              { articleUrl = "https://example.com/old-uploaded"
+              , articleTitle = "Old uploaded"
+              , articleFetchedAt = Just (dayTime 1)
+              }
+        oldUnuploaded <-
+          saveArticleSqlite db
+            demoArticle
+              { articleUrl = "https://example.com/old-unuploaded"
+              , articleTitle = "Old unuploaded"
+              , articleFetchedAt = Just (dayTime 1)
+              }
+        oldIgnored <-
+          saveArticleSqlite db
+            demoArticle
+              { articleUrl = "https://example.com/old-ignored"
+              , articleTitle = "Old ignored"
+              , articleFetchedAt = Just (dayTime 1)
+              }
+        recent <-
+          saveArticleSqlite db
+            demoArticle
+              { articleUrl = "https://example.com/recent"
+              , articleTitle = "Recent"
+              , articleFetchedAt = Just (dayTime 5)
+              }
+        markUploadedSqlite db oldUploaded (LingqLesson "lesson-old" "https://lingq.example/old")
+        setIgnoredSqlite db oldIgnored True
+
+        deleteIgnoredSqlite db `shouldReturn` 1
+        getArticleSqlite db oldIgnored `shouldReturn` Nothing
+
+        deleteOlderThanSqlite db (dayTime 3) True False `shouldReturn` 1
+        getArticleSqlite db oldUploaded `shouldReturn` Nothing
+        fmap (fmap articleId) (getArticleSqlite db oldUnuploaded) `shouldReturn` Just (Just oldUnuploaded)
+
+        deleteOlderThanSqlite db (dayTime 3) False True `shouldReturn` 1
+        getArticleSqlite db oldUnuploaded `shouldReturn` Nothing
+        fmap (fmap articleId) (getArticleSqlite db recent) `shouldReturn` Just (Just recent)
 
   describe "JSON settings adapter" $ do
     it "returns defaults when the settings file does not exist" $ do
@@ -608,6 +730,10 @@ demoArticle =
     , articleAudioPath = Nothing
     , articleKnownPct = Nothing
     }
+
+dayTime :: Int -> UTCTime
+dayTime day =
+  UTCTime (fromGregorian 2026 5 day) 0
 
 withTempSettingsPath :: (FilePath -> IO a) -> IO a
 withTempSettingsPath action = do

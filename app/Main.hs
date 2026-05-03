@@ -7,7 +7,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.IO qualified as TIO
-import Data.Time (fromGregorian, getCurrentTime, utctDay)
+import Data.Time (addUTCTime, fromGregorian, getCurrentTime, utctDay)
 import System.Environment (getArgs, lookupEnv)
 import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
@@ -81,6 +81,16 @@ runCommand (DeleteArticle ident dbPath) =
     withExistingArticle db ident $ \articleIdValue -> do
       deleteArticleSqlite db articleIdValue
       putStrLn ("Deleted article " <> show ident)
+runCommand (DeleteOlderThan days onlyUploaded onlyUnuploaded dbPath) = do
+  now <- getCurrentTime
+  let cutoff = addUTCTime (negate (fromIntegral days * 86400)) now
+  withLibrary dbPath $ \db -> do
+    deleted <- deleteOlderThanSqlite db cutoff onlyUploaded onlyUnuploaded
+    putStrLn ("Deleted " <> show deleted <> " article(s).")
+runCommand (DeleteIgnored dbPath) =
+  withLibrary dbPath $ \db -> do
+    deleted <- deleteIgnoredSqlite db
+    putStrLn ("Deleted " <> show deleted <> " ignored article(s).")
 runCommand (IgnoreArticle ident dbPath) =
   withLibrary dbPath $ \db ->
     withExistingArticle db ident $ \articleIdValue -> do

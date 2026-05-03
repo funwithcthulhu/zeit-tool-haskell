@@ -21,6 +21,8 @@ data CliCommand
   | ShowLibrary FilePath
   | ShowStats FilePath
   | DeleteArticle Int FilePath
+  | DeleteOlderThan Int Bool Bool FilePath
+  | DeleteIgnored FilePath
   | IgnoreArticle Int FilePath
   | UnignoreArticle Int FilePath
   | SyncKnownWords FilePath
@@ -75,6 +77,20 @@ parseArgs ["delete-article", articleId] =
   DeleteArticle <$> parsePositiveInt "article-id" articleId <*> pure defaultDbPath
 parseArgs ["delete-article", articleId, dbPath] =
   DeleteArticle <$> parsePositiveInt "article-id" articleId <*> pure dbPath
+parseArgs ["delete-older-than", days] =
+  DeleteOlderThan <$> parsePositiveInt "days" days <*> pure False <*> pure False <*> pure defaultDbPath
+parseArgs ["delete-older-than", days, dbPath] =
+  DeleteOlderThan <$> parsePositiveInt "days" days <*> pure False <*> pure False <*> pure dbPath
+parseArgs ["delete-older-than-uploaded", days] =
+  DeleteOlderThan <$> parsePositiveInt "days" days <*> pure True <*> pure False <*> pure defaultDbPath
+parseArgs ["delete-older-than-uploaded", days, dbPath] =
+  DeleteOlderThan <$> parsePositiveInt "days" days <*> pure True <*> pure False <*> pure dbPath
+parseArgs ["delete-older-than-unuploaded", days] =
+  DeleteOlderThan <$> parsePositiveInt "days" days <*> pure False <*> pure True <*> pure defaultDbPath
+parseArgs ["delete-older-than-unuploaded", days, dbPath] =
+  DeleteOlderThan <$> parsePositiveInt "days" days <*> pure False <*> pure True <*> pure dbPath
+parseArgs ["delete-ignored"] = Right (DeleteIgnored defaultDbPath)
+parseArgs ["delete-ignored", dbPath] = Right (DeleteIgnored dbPath)
 parseArgs ["ignore-article", articleId] =
   IgnoreArticle <$> parsePositiveInt "article-id" articleId <*> pure defaultDbPath
 parseArgs ["ignore-article", articleId, dbPath] =
@@ -155,6 +171,10 @@ usageText =
     , "  zeit-lingq-tool library [db-path]"
     , "  zeit-lingq-tool stats [db-path]"
     , "  zeit-lingq-tool delete-article <article-id> [db-path]"
+    , "  zeit-lingq-tool delete-older-than <days> [db-path]"
+    , "  zeit-lingq-tool delete-older-than-uploaded <days> [db-path]"
+    , "  zeit-lingq-tool delete-older-than-unuploaded <days> [db-path]"
+    , "  zeit-lingq-tool delete-ignored [db-path]"
     , "  zeit-lingq-tool ignore-article <article-id> [db-path]"
     , "  zeit-lingq-tool unignore-article <article-id> [db-path]"
     , "  zeit-lingq-tool known-sync [db-path]"

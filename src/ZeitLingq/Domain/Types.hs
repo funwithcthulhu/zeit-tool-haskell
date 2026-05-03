@@ -6,6 +6,8 @@ module ZeitLingq.Domain.Types
   , ArticleId(..)
   , ArticleSummary(..)
   , AuthStatus(..)
+  , LibraryPage(..)
+  , LibraryQuery(..)
   , LibraryStats(..)
   , LingqCollection(..)
   , LingqLanguage(..)
@@ -58,6 +60,22 @@ data Section = Section
 data WordFilter = WordFilter
   { minWords :: Maybe Int
   , maxWords :: Maybe Int
+  } deriving (Eq, Show, Generic)
+
+data LibraryQuery = LibraryQuery
+  { librarySearch :: Maybe Text
+  , librarySection :: Maybe Text
+  , libraryWordFilter :: WordFilter
+  , libraryIncludeIgnored :: Bool
+  , libraryOnlyIgnored :: Bool
+  , libraryOnlyNotUploaded :: Bool
+  , libraryLimit :: Int
+  , libraryOffset :: Int
+  } deriving (Eq, Show, Generic)
+
+data LibraryPage = LibraryPage
+  { libraryPageArticles :: [ArticleSummary]
+  , libraryPageTotal :: Int
   } deriving (Eq, Show, Generic)
 
 data LingqLesson = LingqLesson
