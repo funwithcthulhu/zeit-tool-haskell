@@ -14,10 +14,11 @@ import Monomer hiding (Model)
 import Monomer qualified as M
 import System.Directory (copyFile, createDirectoryIfMissing, doesFileExist, getCurrentDirectory)
 import System.Environment (lookupEnv)
+import System.Exit (ExitCode(..))
 import System.FilePath ((</>), takeDirectory)
 import System.Info (os)
 import System.IO (hClose)
-import System.Process (CreateProcess(std_in), StdStream(CreatePipe), callProcess, proc, waitForProcess, withCreateProcess)
+import System.Process (CreateProcess(std_in), StdStream(CreatePipe), callProcess, proc, readCreateProcessWithExitCode, waitForProcess, withCreateProcess)
 import Data.Text.IO qualified as TIO
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.Core.Batch (BatchFetchResult(..))
@@ -45,6 +46,7 @@ data GuiEvent
   | GuiRefresh
   | GuiZeitCookieChanged Text
   | GuiOpenZeitLoginPage
+  | GuiZeitBrowserLogin
   | GuiZeitCookieLogin
   | GuiZeitLogout
   | GuiLingqApiKeyChanged Text
@@ -208,6 +210,8 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (ZeitCookieChanged cookie))]
     GuiOpenZeitLoginPage ->
       [Task (runSideEffect model (openExternalUrl zeitLoginUrl) "Opened Zeit login page in your browser.")]
+    GuiZeitBrowserLogin ->
+      withPendingNotice model "Opening browser-assisted Zeit login..." (runZeitBrowserLogin ports model)
     GuiZeitCookieLogin ->
       [Task (runAppEvent ports model (ZeitCookieLoginRequested (zeitCookieText model)))]
     GuiZeitLogout ->
@@ -825,7 +829,8 @@ zeitControls model =
             [maxLines 5]
             `styleBasic` (inputStyle <> [height 110])
         , hstack
-            [ secondaryButton "Open Zeit login page" GuiOpenZeitLoginPage
+            [ primaryButton "Browser login & import" GuiZeitBrowserLogin
+            , secondaryButton "Open Zeit login page" GuiOpenZeitLoginPage
             , primaryButton "Save cookie session" GuiZeitCookieLogin
             , secondaryButton "Disconnect Zeit" GuiZeitLogout
             ]
@@ -1633,6 +1638,36 @@ runUploadAppEvent ports model ident =
     envFallback <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
     let fallbackCollection = lingqFallbackCollection model <|> envFallback
     dispatchEvent ports model (ArticleUploadRequested (utctDay now) fallbackCollection ident)
+
+runZeitBrowserLogin :: AppPorts IO -> Model -> IO GuiEvent
+runZeitBrowserLogin ports model =
+  safeGuiTask $ do
+    cookie <- importZeitCookiesViaBrowser
+    dispatchEvent ports model (ZeitCookieLoginRequested cookie)
+
+importZeitCookiesViaBrowser :: IO Text
+importZeitCookiesViaBrowser
+  | os /= "mingw32" =
+      fail "Browser-assisted Zeit login is currently implemented for Windows Edge/Chrome only. Paste a Cookie header instead."
+  | otherwise = do
+      currentDir <- getCurrentDirectory
+      let script = currentDir </> "scripts" </> "zeit-browser-login.ps1"
+      exists <- doesFileExist script
+      if not exists
+        then fail ("Missing Zeit browser login helper: " <> script)
+        else do
+          (exitCode, out, err) <-
+            readCreateProcessWithExitCode
+              (proc "powershell.exe" ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script])
+              ""
+          let cookie = T.strip (T.pack out)
+              details = T.strip (T.pack err)
+          case exitCode of
+            ExitSuccess
+              | not (T.null cookie) -> pure cookie
+              | otherwise -> fail "Browser login finished without returning Zeit cookies."
+            ExitFailure code ->
+              fail (T.unpack ("Browser-assisted Zeit login failed (" <> tshow code <> "): " <> details))
 
 runDeleteOlderAppEvent :: AppPorts IO -> Model -> Int -> Bool -> Bool -> IO GuiEvent
 runDeleteOlderAppEvent ports model days onlyUploaded onlyUnuploaded =

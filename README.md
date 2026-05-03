@@ -86,7 +86,7 @@ The GUI currently supports:
 - Browsing Zeit sections with topic dropdown, search, hidden-url filtering, only-new filtering, paging, preview, original-link opening, single fetch, selected fetch, visible fetch, and retryable failed fetches.
 - Managing the local library with presets for common reading/upload workflows and duplicate review, compact or comfortable row density, search, section and word filters, ignored/not-uploaded filters, grouping, sorting, paging, article open/copy/original/audio actions, and configurable cleanup of ignored, old, uploaded, or unuploaded articles.
 - Uploading saved articles to LingQ with API key or password login, language selection, collection refresh, fallback collection selection, per-section collection mapping, date-prefixed lesson titles, existing-lesson updates, upload-status sync from an existing LingQ course, known-word sync/import/clear/recompute, selected/visible upload, and retryable failed uploads.
-- Opening the project data folder, the GUI log file, timestamped support bundles, and the Zeit login page from the GUI.
+- Zeit authentication through manual cookie paste or browser-assisted Edge/Chrome login import, plus opening the project data folder, the GUI log file, timestamped support bundles, and the Zeit login page from the GUI.
 
 ## Current Status
 
@@ -98,5 +98,5 @@ The GUI currently supports:
 
 Known limits:
 
-- Zeit authentication is cookie-session based. The GUI can open the Zeit login page, but it does not embed a browser or automatically capture browser cookies.
+- Zeit authentication is cookie-session based. On Windows, the GUI can launch Edge/Chrome for an interactive login and import the resulting Zeit cookies; on other platforms, paste a Cookie header manually.
 - Long-running operations show pending status, live batch progress, and final retry lists, but they do not yet expose a cancellable persisted job queue.
