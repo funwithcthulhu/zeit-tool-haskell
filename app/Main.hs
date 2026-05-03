@@ -69,6 +69,24 @@ runCommand (ShowLibrary dbPath) =
       else
         for_ articles $ \article ->
           putStrLn (showSummary article)
+runCommand (ShowStats dbPath) =
+  withLibrary dbPath $ \db ->
+    getStatsSqlite db >>= TIO.putStr . formatStats
+runCommand (DeleteArticle ident dbPath) =
+  withLibrary dbPath $ \db ->
+    withExistingArticle db ident $ \articleIdValue -> do
+      deleteArticleSqlite db articleIdValue
+      putStrLn ("Deleted article " <> show ident)
+runCommand (IgnoreArticle ident dbPath) =
+  withLibrary dbPath $ \db ->
+    withExistingArticle db ident $ \articleIdValue -> do
+      setIgnoredSqlite db articleIdValue True
+      putStrLn ("Ignored article " <> show ident)
+runCommand (UnignoreArticle ident dbPath) =
+  withLibrary dbPath $ \db ->
+    withExistingArticle db ident $ \articleIdValue -> do
+      setIgnoredSqlite db articleIdValue False
+      putStrLn ("Unignored article " <> show ident)
 runCommand (ImportKnownWords sourcePath dbPath) = do
   rawWords <- TIO.readFile sourcePath
   let stems = importKnownWordStems rawWords
@@ -180,6 +198,36 @@ showSummary article =
     <> show (summaryWordCount article)
     <> " words\t"
     <> T.unpack (summaryTitle article)
+
+formatStats :: LibraryStats -> T.Text
+formatStats stats =
+  T.unlines
+    ( [ "articles: " <> tshow (totalArticles stats)
+      , "uploaded: " <> tshow (uploadedArticles stats)
+      , "averageWords: " <> tshow (averageWordCount stats)
+      , "sections:"
+      ]
+        <> sectionLines
+    )
+  where
+    sections = Map.toList (sectionCounts stats)
+    sectionLines
+      | null sections = ["  -"]
+      | otherwise =
+          map
+            (\(sectionName, total) -> "  " <> sectionName <> ": " <> tshow total)
+            sections
+
+withExistingArticle :: LibraryDb -> Int -> (ArticleId -> IO ()) -> IO ()
+withExistingArticle db ident action = do
+  let articleIdValue = ArticleId ident
+  article <- getArticleSqlite db articleIdValue
+  case article of
+    Nothing -> putStrLn ("Article not found: " <> show ident)
+    Just _ -> action articleIdValue
+
+tshow :: Show a => a -> T.Text
+tshow = T.pack . show
 
 firstText :: Either LingqError LingqLesson -> Either T.Text LingqLesson
 firstText (Right lesson) = Right lesson

@@ -19,6 +19,10 @@ data CliCommand
   | FetchArticle Text FilePath
   | BatchFetch FilePath FilePath WordFilter
   | ShowLibrary FilePath
+  | ShowStats FilePath
+  | DeleteArticle Int FilePath
+  | IgnoreArticle Int FilePath
+  | UnignoreArticle Int FilePath
   | ImportKnownWords FilePath FilePath
   | KnownWordsInfo FilePath
   | ComputeKnownPct FilePath
@@ -58,6 +62,20 @@ parseArgs ["batch-fetch", sourcePath, dbPath, minValue, maxValue] =
           <*> fmap Just (parsePositiveInt "max-words" maxValue))
 parseArgs ["library"] = Right (ShowLibrary defaultDbPath)
 parseArgs ["library", dbPath] = Right (ShowLibrary dbPath)
+parseArgs ["stats"] = Right (ShowStats defaultDbPath)
+parseArgs ["stats", dbPath] = Right (ShowStats dbPath)
+parseArgs ["delete-article", articleId] =
+  DeleteArticle <$> parsePositiveInt "article-id" articleId <*> pure defaultDbPath
+parseArgs ["delete-article", articleId, dbPath] =
+  DeleteArticle <$> parsePositiveInt "article-id" articleId <*> pure dbPath
+parseArgs ["ignore-article", articleId] =
+  IgnoreArticle <$> parsePositiveInt "article-id" articleId <*> pure defaultDbPath
+parseArgs ["ignore-article", articleId, dbPath] =
+  IgnoreArticle <$> parsePositiveInt "article-id" articleId <*> pure dbPath
+parseArgs ["unignore-article", articleId] =
+  UnignoreArticle <$> parsePositiveInt "article-id" articleId <*> pure defaultDbPath
+parseArgs ["unignore-article", articleId, dbPath] =
+  UnignoreArticle <$> parsePositiveInt "article-id" articleId <*> pure dbPath
 parseArgs ["known-import", sourcePath] = Right (ImportKnownWords sourcePath defaultDbPath)
 parseArgs ["known-import", sourcePath, dbPath] = Right (ImportKnownWords sourcePath dbPath)
 parseArgs ["known-info"] = Right (KnownWordsInfo defaultDbPath)
@@ -126,6 +144,10 @@ usageText =
     , "  zeit-lingq-tool batch-fetch <url-list.txt> [db-path]"
     , "  zeit-lingq-tool batch-fetch <url-list.txt> <db-path> <min-words> <max-words>"
     , "  zeit-lingq-tool library [db-path]"
+    , "  zeit-lingq-tool stats [db-path]"
+    , "  zeit-lingq-tool delete-article <article-id> [db-path]"
+    , "  zeit-lingq-tool ignore-article <article-id> [db-path]"
+    , "  zeit-lingq-tool unignore-article <article-id> [db-path]"
     , "  zeit-lingq-tool known-import <word-list.txt> [db-path]"
     , "  zeit-lingq-tool known-info [db-path]"
     , "  zeit-lingq-tool known-compute [db-path]"

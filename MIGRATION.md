@@ -31,6 +31,7 @@ The rewrite uses four layers:
   - Partially ported into `ZeitLingq.Infrastructure.Lingq`.
 - `electron/services/database.js`
   - Partially ported into `ZeitLingq.Infrastructure.Sqlite` behind `LibraryPort`.
+  - CLI library maintenance now covers stats, delete, and saved-article ignore/unignore actions.
 - `electron/main.js` known-word import and percentage computation
   - Ported into `ZeitLingq.Core.KnownWords` plus SQLite cache helpers.
 - `electron/main.js` audio download path

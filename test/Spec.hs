@@ -81,6 +81,10 @@ main = hspec $ do
       parseArgs ["fetch", "https://www.zeit.de/wissen/2026-05/beispiel"] `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
       parseArgs ["batch-fetch", "urls.txt", "custom.db", "500", "2000"] `shouldBe` Right (BatchFetch "urls.txt" "custom.db" (WordFilter (Just 500) (Just 2000)))
       parseArgs ["library", "custom.db"] `shouldBe` Right (ShowLibrary "custom.db")
+      parseArgs ["stats"] `shouldBe` Right (ShowStats defaultDbPath)
+      parseArgs ["delete-article", "42", "custom.db"] `shouldBe` Right (DeleteArticle 42 "custom.db")
+      parseArgs ["ignore-article", "42"] `shouldBe` Right (IgnoreArticle 42 defaultDbPath)
+      parseArgs ["unignore-article", "42", "custom.db"] `shouldBe` Right (UnignoreArticle 42 "custom.db")
       parseArgs ["known-import", "words.txt", "custom.db"] `shouldBe` Right (ImportKnownWords "words.txt" "custom.db")
       parseArgs ["known-info"] `shouldBe` Right (KnownWordsInfo defaultDbPath)
       parseArgs ["known-compute", "custom.db"] `shouldBe` Right (ComputeKnownPct "custom.db")
@@ -197,6 +201,22 @@ main = hspec $ do
         fmap articleTitle loaded `shouldBe` Just "Demo refetched"
         fmap articleIgnored loaded `shouldBe` Just True
         fmap articleUploadedLesson loaded `shouldBe` Just (Just (LingqLesson "lesson-1" "https://lingq.example/lesson-1"))
+
+    it "deletes and hides articles by id" $ do
+      withLibrary ":memory:" $ \db -> do
+        firstId <- saveArticleSqlite db demoArticle
+        secondId <- saveArticleSqlite db demoArticle {articleUrl = "https://example.com/2", articleTitle = "Other"}
+
+        setIgnoredSqlite db firstId True
+        visibleAfterIgnore <- getArticlesSqlite db (WordFilter Nothing Nothing)
+        map summaryId visibleAfterIgnore `shouldMatchList` [Just secondId]
+
+        setIgnoredSqlite db firstId False
+        visibleAfterUnignore <- getArticlesSqlite db (WordFilter Nothing Nothing)
+        map summaryId visibleAfterUnignore `shouldMatchList` [Just firstId, Just secondId]
+
+        deleteArticleSqlite db secondId
+        getArticleSqlite db secondId `shouldReturn` Nothing
 
     it "stores known-word stems and computes cached known percentages" $ do
       withLibrary ":memory:" $ \db -> do

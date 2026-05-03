@@ -39,6 +39,10 @@ cabal run zeit-lingq-tool -- browse wissen 1
 cabal run zeit-lingq-tool -- fetch https://www.zeit.de/wissen/2026-05/example
 cabal run zeit-lingq-tool -- batch-fetch urls.txt zeit-tool.db 500 2000
 cabal run zeit-lingq-tool -- library
+cabal run zeit-lingq-tool -- stats
+cabal run zeit-lingq-tool -- ignore-article 1
+cabal run zeit-lingq-tool -- unignore-article 1
+cabal run zeit-lingq-tool -- delete-article 1
 cabal run zeit-lingq-tool -- known-import known-words.txt
 cabal run zeit-lingq-tool -- known-compute
 cabal run zeit-lingq-tool -- known-info
@@ -72,6 +76,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - Batch LingQ upload behavior is available as a pure use case over effectful callbacks.
 - LingQ upload now derives date-prefix and section collection behavior from persisted settings.
 - SQLite article persistence is available through `LibraryPort`.
+- SQLite stats, delete, and saved-article ignore/unignore controls are exposed through the CLI.
 - SQLite ignored browse URLs are available for pre-fetch hiding.
 - SQLite known-word storage and article `known_pct` recomputation are available.
 - Article audio metadata persistence and download helpers are available.
