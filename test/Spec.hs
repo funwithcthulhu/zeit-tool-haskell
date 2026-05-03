@@ -8,6 +8,7 @@ import Data.Map.Strict qualified as Map
 import Control.Monad (when)
 import Data.Aeson (Value, eitherDecode)
 import Data.ByteString.Lazy qualified as BL
+import Data.Either (isLeft)
 import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
 import Test.Hspec
@@ -87,6 +88,17 @@ main = hspec $ do
       parseArgs ["ignore-url", "https://example.com", "custom.db"] `shouldBe` Right (IgnoreUrl "https://example.com" "custom.db")
       parseArgs ["unignore-url", "https://example.com"] `shouldBe` Right (UnignoreUrl "https://example.com" defaultDbPath)
       parseArgs ["ignored"] `shouldBe` Right (ListIgnored defaultDbPath)
+      parseArgs ["settings"] `shouldBe` Right (ShowSettings defaultSettingsPath)
+      parseArgs ["settings", "settings.dev.json"] `shouldBe` Right (ShowSettings "settings.dev.json")
+      parseArgs ["settings", "set-view", "library"] `shouldBe` Right (SetSettingsView LibraryView defaultSettingsPath)
+      parseArgs ["settings", "set-browse-section", "wissen", "settings.dev.json"] `shouldBe` Right (SetSettingsBrowseSection "wissen" "settings.dev.json")
+      parseArgs ["settings", "set-date-prefix", "off", "settings.dev.json"] `shouldBe` Right (SetSettingsDatePrefix False "settings.dev.json")
+      parseArgs ["settings", "set-collection", "Wissen", "course-1"] `shouldBe` Right (SetSettingsSectionCollection "Wissen" "course-1" defaultSettingsPath)
+      parseArgs ["settings", "clear-collection", "Wissen"] `shouldBe` Right (ClearSettingsSectionCollection "Wissen" defaultSettingsPath)
+
+    it "rejects invalid settings values" $ do
+      parseArgs ["settings", "set-view", "nope"] `shouldSatisfy` isLeft
+      parseArgs ["settings", "set-date-prefix", "maybe"] `shouldSatisfy` isLeft
 
   describe "Batch fetch use case" $ do
     it "saves successful articles and skips articles outside the word filter" $ do

@@ -20,6 +20,7 @@ import ZeitLingq.Domain.Types
 import ZeitLingq.Infrastructure.Sqlite
 import ZeitLingq.Infrastructure.Audio
 import ZeitLingq.Infrastructure.Lingq
+import ZeitLingq.Infrastructure.Settings
 import ZeitLingq.Infrastructure.Zeit
 
 main :: IO ()
@@ -138,6 +139,34 @@ runCommand (ListIgnored dbPath) =
     if null urls
       then putStrLn "No ignored URLs."
       else for_ urls (putStrLn . T.unpack)
+runCommand (ShowSettings settingsPath) =
+  loadSettings settingsPath >>= TIO.putStr . formatSettings
+runCommand (SetSettingsView view settingsPath) = do
+  _ <- updateSettingsFile settingsPath $ \settings ->
+    settings {settingsCurrentView = view}
+  putStrLn ("Saved current view: " <> T.unpack (viewToText view))
+runCommand (SetSettingsBrowseSection sectionId settingsPath) = do
+  _ <- updateSettingsFile settingsPath $ \settings ->
+    settings {settingsBrowseSection = sectionId}
+  putStrLn ("Saved browse section: " <> T.unpack sectionId)
+runCommand (SetSettingsDatePrefix enabled settingsPath) = do
+  _ <- updateSettingsFile settingsPath $ \settings ->
+    settings {settingsDatePrefixEnabled = enabled}
+  putStrLn ("Saved date prefix: " <> T.unpack (boolText enabled))
+runCommand (SetSettingsSectionCollection sectionName collectionId settingsPath) = do
+  _ <- updateSettingsFile settingsPath $ \settings ->
+    settings
+      { settingsSectionCollections =
+          Map.insert sectionName collectionId (settingsSectionCollections settings)
+      }
+  putStrLn ("Mapped " <> T.unpack sectionName <> " to LingQ collection " <> T.unpack collectionId)
+runCommand (ClearSettingsSectionCollection sectionName settingsPath) = do
+  _ <- updateSettingsFile settingsPath $ \settings ->
+    settings
+      { settingsSectionCollections =
+          Map.delete sectionName (settingsSectionCollections settings)
+      }
+  putStrLn ("Cleared LingQ collection mapping for " <> T.unpack sectionName)
 
 sessionFromEnv :: IO ZeitSession
 sessionFromEnv = do
@@ -159,6 +188,37 @@ firstText (Left err) = Left (T.pack (show err))
 firstTextZeit :: Either ZeitError Article -> Either T.Text Article
 firstTextZeit (Right article) = Right article
 firstTextZeit (Left err) = Left (T.pack (show err))
+
+formatSettings :: Settings -> T.Text
+formatSettings settings =
+  T.unlines
+    ( [ "currentView: " <> viewToText (settingsCurrentView settings)
+      , "browseSection: " <> settingsBrowseSection settings
+      , "datePrefixEnabled: " <> boolText (settingsDatePrefixEnabled settings)
+      , "sectionCollections:"
+      ]
+        <> collectionLines
+    )
+  where
+    mappings = Map.toList (settingsSectionCollections settings)
+    collectionLines
+      | null mappings = ["  -"]
+      | otherwise = map formatCollection mappings
+
+formatCollection :: (T.Text, T.Text) -> T.Text
+formatCollection (sectionName, collectionId) =
+  "  " <> sectionName <> ": " <> collectionId
+
+boolText :: Bool -> T.Text
+boolText True = "on"
+boolText False = "off"
+
+updateSettingsFile :: FilePath -> (Settings -> Settings) -> IO Settings
+updateSettingsFile settingsPath change = do
+  settings <- loadSettings settingsPath
+  let nextSettings = change settings
+  saveSettings settingsPath nextSettings
+  pure nextSettings
 
 runDemo :: IO ()
 runDemo = do

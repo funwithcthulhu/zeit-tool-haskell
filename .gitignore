@@ -13,3 +13,5 @@ cabal.sandbox.config
 *.db
 *.db-shm
 *.db-wal
+settings.json
+settings.*.json

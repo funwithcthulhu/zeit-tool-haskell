@@ -46,6 +46,10 @@ cabal run zeit-lingq-tool -- lingq-upload 1
 cabal run zeit-lingq-tool -- audio-download 1 audio
 cabal run zeit-lingq-tool -- ignore-url https://www.zeit.de/wissen/2026-05/example
 cabal run zeit-lingq-tool -- ignored
+cabal run zeit-lingq-tool -- settings
+cabal run zeit-lingq-tool -- settings set-browse-section wissen
+cabal run zeit-lingq-tool -- settings set-date-prefix off
+cabal run zeit-lingq-tool -- settings set-collection Wissen 12345
 ```
 
 Set `ZEIT_COOKIE` before running `fetch` if an article needs an authenticated Zeit session.
@@ -71,6 +75,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - SQLite known-word storage and article `known_pct` recomputation are available.
 - Article audio metadata persistence and download helpers are available.
 - JSON user settings are available through `SettingsPort`.
+- JSON user settings are exposed through the CLI for GUI-ready configuration.
 - LingQ login, collection fetch, lesson upload, and known-word fetch helpers are scaffolded in Haskell.
 - Zeit article-list and article-content extraction is scaffolded in Haskell.
 - The executable now includes a small CLI harness for sections, browse, fetch, and library commands.

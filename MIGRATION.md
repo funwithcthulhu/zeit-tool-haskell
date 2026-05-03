@@ -51,6 +51,8 @@ The most sensible first GUI remains Monomer because the app state already fits a
 
 The executable now provides a small terminal harness around the adapters. It is useful for verifying scraper, persistence, and library behavior before the GUI is ready.
 
+The CLI also exposes the JSON settings adapter so view preferences, browse section, date-prefix behavior, and section-specific LingQ collection mappings can be exercised before a GUI is attached.
+
 ## App runtime
 
 The pure app update loop now has a small command interpreter for persisted settings. That keeps Monomer or any other GUI layer focused on rendering and event wiring.

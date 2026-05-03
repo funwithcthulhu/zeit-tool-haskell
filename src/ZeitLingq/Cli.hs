@@ -3,13 +3,14 @@
 module ZeitLingq.Cli
   ( CliCommand(..)
   , defaultDbPath
+  , defaultSettingsPath
   , parseArgs
   , usageText
   ) where
 
 import Data.Text (Text)
 import Data.Text qualified as T
-import ZeitLingq.Domain.Types (WordFilter(..))
+import ZeitLingq.Domain.Types (View(..), WordFilter(..))
 
 data CliCommand
   = ShowDemo
@@ -26,10 +27,19 @@ data CliCommand
   | IgnoreUrl Text FilePath
   | UnignoreUrl Text FilePath
   | ListIgnored FilePath
+  | ShowSettings FilePath
+  | SetSettingsView View FilePath
+  | SetSettingsBrowseSection Text FilePath
+  | SetSettingsDatePrefix Bool FilePath
+  | SetSettingsSectionCollection Text Text FilePath
+  | ClearSettingsSectionCollection Text FilePath
   deriving (Eq, Show)
 
 defaultDbPath :: FilePath
 defaultDbPath = "zeit-tool.db"
+
+defaultSettingsPath :: FilePath
+defaultSettingsPath = "settings.json"
 
 parseArgs :: [String] -> Either String CliCommand
 parseArgs [] = Right ShowDemo
@@ -70,6 +80,28 @@ parseArgs ["unignore-url", url] = Right (UnignoreUrl (T.pack url) defaultDbPath)
 parseArgs ["unignore-url", url, dbPath] = Right (UnignoreUrl (T.pack url) dbPath)
 parseArgs ["ignored"] = Right (ListIgnored defaultDbPath)
 parseArgs ["ignored", dbPath] = Right (ListIgnored dbPath)
+parseArgs ["settings"] = Right (ShowSettings defaultSettingsPath)
+parseArgs ["settings", "set-view", viewValue] =
+  SetSettingsView <$> parseView "view" viewValue <*> pure defaultSettingsPath
+parseArgs ["settings", "set-view", viewValue, settingsPath] =
+  SetSettingsView <$> parseView "view" viewValue <*> pure settingsPath
+parseArgs ["settings", "set-browse-section", sectionId] =
+  Right (SetSettingsBrowseSection (T.pack sectionId) defaultSettingsPath)
+parseArgs ["settings", "set-browse-section", sectionId, settingsPath] =
+  Right (SetSettingsBrowseSection (T.pack sectionId) settingsPath)
+parseArgs ["settings", "set-date-prefix", enabledValue] =
+  SetSettingsDatePrefix <$> parseToggle "date-prefix" enabledValue <*> pure defaultSettingsPath
+parseArgs ["settings", "set-date-prefix", enabledValue, settingsPath] =
+  SetSettingsDatePrefix <$> parseToggle "date-prefix" enabledValue <*> pure settingsPath
+parseArgs ["settings", "set-collection", sectionName, collectionId] =
+  Right (SetSettingsSectionCollection (T.pack sectionName) (T.pack collectionId) defaultSettingsPath)
+parseArgs ["settings", "set-collection", sectionName, collectionId, settingsPath] =
+  Right (SetSettingsSectionCollection (T.pack sectionName) (T.pack collectionId) settingsPath)
+parseArgs ["settings", "clear-collection", sectionName] =
+  Right (ClearSettingsSectionCollection (T.pack sectionName) defaultSettingsPath)
+parseArgs ["settings", "clear-collection", sectionName, settingsPath] =
+  Right (ClearSettingsSectionCollection (T.pack sectionName) settingsPath)
+parseArgs ["settings", settingsPath] = Right (ShowSettings settingsPath)
 parseArgs _ = Left usageText
 
 usageText :: String
@@ -91,6 +123,12 @@ usageText =
     , "  zeit-lingq-tool ignore-url <url> [db-path]"
     , "  zeit-lingq-tool unignore-url <url> [db-path]"
     , "  zeit-lingq-tool ignored [db-path]"
+    , "  zeit-lingq-tool settings [settings-path]"
+    , "  zeit-lingq-tool settings set-view <browse|library|lingq|zeit-login|article> [settings-path]"
+    , "  zeit-lingq-tool settings set-browse-section <section-id> [settings-path]"
+    , "  zeit-lingq-tool settings set-date-prefix <on|off> [settings-path]"
+    , "  zeit-lingq-tool settings set-collection <section-name> <collection-id> [settings-path]"
+    , "  zeit-lingq-tool settings clear-collection <section-name> [settings-path]"
     , ""
     , "Set ZEIT_COOKIE to pass an authenticated zeit.de cookie header for paid articles."
     , "Set LINGQ_API_KEY, and optionally LINGQ_COLLECTION_ID, before uploading to LingQ."
@@ -100,4 +138,29 @@ parsePositiveInt :: String -> String -> Either String Int
 parsePositiveInt label raw =
   case reads raw of
     [(value, "")] | value > 0 -> Right value
+    _ -> Left ("Invalid " <> label <> ": " <> raw <> "\n\n" <> usageText)
+
+parseToggle :: String -> String -> Either String Bool
+parseToggle label raw =
+  case T.toLower (T.pack raw) of
+    "on" -> Right True
+    "true" -> Right True
+    "yes" -> Right True
+    "1" -> Right True
+    "enabled" -> Right True
+    "off" -> Right False
+    "false" -> Right False
+    "no" -> Right False
+    "0" -> Right False
+    "disabled" -> Right False
+    _ -> Left ("Invalid " <> label <> ": " <> raw <> "\n\n" <> usageText)
+
+parseView :: String -> String -> Either String View
+parseView label raw =
+  case T.toLower (T.pack raw) of
+    "browse" -> Right BrowseView
+    "library" -> Right LibraryView
+    "lingq" -> Right LingqView
+    "zeit-login" -> Right ZeitLoginView
+    "article" -> Right ArticleView
     _ -> Left ("Invalid " <> label <> ": " <> raw <> "\n\n" <> usageText)
