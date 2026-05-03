@@ -16,6 +16,7 @@ Zeit Tool Haskell is a Haskell-native desktop workflow for reading Die Zeit arti
 - `src/ZeitLingq/Text/German.hs`: German tokenization and stemming.
 - `src/ZeitLingq/Core/KnownWords.hs`: pure known-word import and percentage estimation.
 - `src/ZeitLingq/App`: GUI-agnostic application model, update loop, and command runtime. This is shaped to fit Monomer's Elm-style architecture later.
+- `src/ZeitLingq/App/Driver.hs`: event dispatch helper that runs commands and folds follow-up events back into the model.
 - `src/ZeitLingq/App/Startup.hs`: settings-to-model startup hydration for a future GUI adapter.
 - `src/ZeitLingq/App/ViewModel.hs`: pure GUI-facing presentation state for navigation, badges, filters, and article rows.
 - `src/ZeitLingq/Infrastructure/Audio.hs`: article audio filename and download helpers.
@@ -87,6 +88,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - Batch fetch/save behavior is available as a pure use case over effectful callbacks.
 - App refresh commands can load browse, library, and LingQ rows through ports and emit pure loaded events.
 - Opening a saved article emits a load command and stores loaded article content for rendering.
+- App events can be dispatched through ports and reduced back into an updated model.
 - Batch LingQ upload behavior is available as a pure use case over effectful callbacks.
 - LingQ upload now derives date-prefix and section collection behavior from persisted settings.
 - SQLite article persistence is available through `LibraryPort`.

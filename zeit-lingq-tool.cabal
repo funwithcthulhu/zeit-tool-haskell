@@ -44,6 +44,7 @@ library
     import:           warnings, core-deps
     hs-source-dirs:   src
     exposed-modules:
+        ZeitLingq.App.Driver
         ZeitLingq.App.Model
         ZeitLingq.App.Runtime
         ZeitLingq.App.Startup

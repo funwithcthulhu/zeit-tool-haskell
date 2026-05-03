@@ -13,6 +13,7 @@ import Data.Functor.Identity (Identity(..), runIdentity)
 import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
 import Test.Hspec
+import ZeitLingq.App.Driver
 import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.Runtime qualified as Runtime
 import ZeitLingq.App.Startup
@@ -177,6 +178,40 @@ main = hspec $ do
           ports = basePorts {libraryPort = (libraryPort basePorts) {loadArticle = \_ -> Identity Nothing}}
       runIdentity (Runtime.runCommand ports (LoadArticle (ArticleId 404)))
         `shouldBe` [Notify ErrorNotice "Article not found."]
+
+  describe "App event driver" $ do
+    it "dispatches refresh commands and folds loaded events back into the model" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 21)
+              , summaryUrl = "https://example.com/driver"
+              , summaryTitle = "Driver Item"
+              , summarySection = "Wissen"
+              , summaryWordCount = 777
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          model = runIdentity (dispatchEvent (testPorts summary) initialModel (BrowseSectionSelected "kultur"))
+      browseSectionId model `shouldBe` "kultur"
+      browseArticles model `shouldBe` [summary {summarySection = "kultur"}]
+
+    it "dispatches article-open commands and folds loaded content into the model" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 1)
+              , summaryUrl = "https://example.com/open"
+              , summaryTitle = "Open Me"
+              , summarySection = "Wissen"
+              , summaryWordCount = 777
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          model = runIdentity (dispatchEvent (testPorts summary) initialModel (ArticleOpened summary))
+      currentView model `shouldBe` ArticleView
+      selectedArticle model `shouldBe` Just summary
+      selectedArticleContent model `shouldBe` Just demoArticle
 
   describe "Pure app view model" $ do
     it "projects navigation and status badges for a GUI adapter" $ do

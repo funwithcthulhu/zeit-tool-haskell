@@ -44,4 +44,6 @@ The CLI also exposes the JSON settings adapter so view preferences, browse secti
 
 The pure app update loop has a command interpreter for persisted settings, refresh effects, and article content loading. Refresh commands load browse, library, and LingQ article rows through ports and return pure loaded events. Opening a saved article emits a content-load command, and the runtime returns either loaded article content or a notification event. That keeps Monomer or any other GUI layer focused on rendering and event wiring.
 
+`ZeitLingq.App.Driver` composes the pure update function with the command runtime: it dispatches an event, runs generated commands through ports, and folds follow-up events back into the model.
+
 Startup hydration is port-driven: a GUI adapter can load `SettingsPort` into the pure `Model` before rendering its first frame.
