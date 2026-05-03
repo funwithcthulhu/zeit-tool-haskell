@@ -8,6 +8,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Maybe (catMaybes)
+import Data.Map.Strict qualified as Map
 import ZeitLingq.App.Update (Command(..), Event(..))
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.Core.Batch (BatchFetchResult(..), batchFetchArticles)
@@ -55,7 +56,9 @@ runCommand ports command =
     RefreshBrowse sectionId page showHidden -> do
       articles <- fetchArticleList zeit sectionId page
       ignoredUrls <- Set.fromList <$> loadIgnoredUrls library
-      let annotated = markIgnoredSummaries ignoredUrls articles
+      savedArticles <- loadLibrary library (WordFilter Nothing Nothing)
+      let savedByUrl = Map.fromList [(summaryUrl article, article) | article <- savedArticles]
+          annotated = map (mergeSavedSummary savedByUrl) (markIgnoredSummaries ignoredUrls articles)
           visible =
             if showHidden
               then annotated
@@ -70,9 +73,15 @@ runCommand ports command =
     LoadLibraryStats -> do
       stats <- loadStats library
       pure [LibraryStatsLoaded stats]
-    RefreshLingqLibrary filters -> do
-      articles <- loadLibrary library filters
-      pure [LingqArticlesLoaded articles]
+    RefreshLingqLibrary filters onlyNotUploaded -> do
+      let query =
+            defaultLibraryQuery
+              { libraryWordFilter = filters
+              , libraryOnlyNotUploaded = onlyNotUploaded
+              , libraryLimit = 10000
+              }
+      page <- loadLibraryPage library query
+      pure [LingqArticlesLoaded (libraryPageArticles page)]
     LoadArticle ident -> do
       article <- loadArticle library ident
       pure
@@ -285,6 +294,23 @@ batchFetchSummary results =
 
 tshow :: Show a => a -> Text
 tshow = T.pack . show
+
+mergeSavedSummary :: Map.Map Text ArticleSummary -> ArticleSummary -> ArticleSummary
+mergeSavedSummary savedByUrl summary =
+  case Map.lookup (summaryUrl summary) savedByUrl of
+    Nothing -> summary
+    Just saved ->
+      summary
+        { summaryId = summaryId saved
+        , summaryWordCount = preferPositive (summaryWordCount saved) (summaryWordCount summary)
+        , summaryIgnored = summaryIgnored summary || summaryIgnored saved
+        , summaryUploaded = summaryUploaded saved
+        , summaryKnownPct = summaryKnownPct saved
+        }
+  where
+    preferPositive value fallback
+      | value > 0 = value
+      | otherwise = fallback
 
 knownWordsSyncMessage :: Int -> Either Text Int -> Text
 knownWordsSyncMessage added computeResult =

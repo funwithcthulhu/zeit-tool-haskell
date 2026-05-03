@@ -27,6 +27,8 @@ data Model = Model
   , browseArticles :: [ArticleSummary]
   , browseSelectedUrls :: Set Text
   , browseShowHidden :: Bool
+  , browseOnlyNew :: Bool
+  , browseSearch :: Text
   , libraryArticles :: [ArticleSummary]
   , libraryTotal :: Int
   , libraryStats :: Maybe LibraryStats
@@ -35,6 +37,9 @@ data Model = Model
   , lingqSelectedIds :: Set ArticleId
   , lingqCollections :: [LingqCollection]
   , lingqFallbackCollection :: Maybe Text
+  , lingqOnlyNotUploaded :: Bool
+  , lingqShowKnownImport :: Bool
+  , lingqShowSectionMappings :: Bool
   , knownStemTotal :: Int
   , knownImportText :: Text
   , notification :: Maybe Notification
@@ -67,6 +72,8 @@ initialModel =
     , browseArticles = []
     , browseSelectedUrls = Set.empty
     , browseShowHidden = False
+    , browseOnlyNew = True
+    , browseSearch = ""
     , libraryArticles = []
     , libraryTotal = 0
     , libraryStats = Nothing
@@ -75,6 +82,9 @@ initialModel =
     , lingqSelectedIds = Set.empty
     , lingqCollections = []
     , lingqFallbackCollection = Nothing
+    , lingqOnlyNotUploaded = True
+    , lingqShowKnownImport = False
+    , lingqShowSectionMappings = False
     , knownStemTotal = 0
     , knownImportText = ""
     , notification = Nothing

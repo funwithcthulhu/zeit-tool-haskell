@@ -43,6 +43,8 @@ data Event
   | BrowseSelectionToggled Text
   | BrowseSelectionChanged (Set Text)
   | BrowseShowHiddenChanged Bool
+  | BrowseOnlyNewChanged Bool
+  | BrowseSearchChanged Text
   | BrowseBatchFetchRequested [ArticleSummary]
   | LingqBatchUploadRequested Day (Maybe Text) [ArticleSummary]
   | LingqSelectionToggled ArticleId
@@ -56,6 +58,9 @@ data Event
   | LingqCollectionsRefreshRequested Text
   | LingqCollectionsLoaded [LingqCollection]
   | LingqFallbackCollectionChanged Text
+  | LingqOnlyNotUploadedChanged Bool
+  | LingqKnownImportVisibilityChanged Bool
+  | LingqSectionMappingsVisibilityChanged Bool
   | BrowseArticlesLoaded [ArticleSummary]
   | LibraryArticlesLoaded [ArticleSummary]
   | LibraryPageLoaded LibraryPage
@@ -98,7 +103,7 @@ data Command
   | RefreshLibrary WordFilter
   | RefreshLibraryPage LibraryQuery
   | LoadLibraryStats
-  | RefreshLingqLibrary WordFilter
+  | RefreshLingqLibrary WordFilter Bool
   | LoadArticle ArticleId
   | PreviewArticle Text
   | FetchAndSaveArticle ArticleSummary
@@ -253,6 +258,14 @@ update event model =
        in ( nextModel
           , [RefreshBrowse (browseSectionId nextModel) (browsePage nextModel) enabled]
           )
+    BrowseOnlyNewChanged enabled ->
+      ( model {browseOnlyNew = enabled, browseSelectedUrls = Set.empty}
+      , []
+      )
+    BrowseSearchChanged search ->
+      ( model {browseSearch = search, browseSelectedUrls = Set.empty}
+      , []
+      )
     BrowseBatchFetchRequested articles ->
       ( model
       , [FetchAndSaveArticles (browseFilter model) articles]
@@ -306,6 +319,18 @@ update event model =
        in ( model {lingqFallbackCollection = nextCollection}
           , [PersistLingqFallbackCollection nextCollection]
           )
+    LingqOnlyNotUploadedChanged enabled ->
+      ( model {lingqOnlyNotUploaded = enabled, lingqSelectedIds = Set.empty}
+      , [RefreshLingqLibrary (lingqFilter model) enabled]
+      )
+    LingqKnownImportVisibilityChanged enabled ->
+      ( model {lingqShowKnownImport = enabled}
+      , []
+      )
+    LingqSectionMappingsVisibilityChanged enabled ->
+      ( model {lingqShowSectionMappings = enabled}
+      , []
+      )
     BrowseArticlesLoaded articles ->
       ( model
           { browseArticles = articles
@@ -446,7 +471,7 @@ update event model =
       )
     LingqFilterChanged filters ->
       ( model {lingqFilter = filters}
-      , [RefreshLingqLibrary filters]
+      , [RefreshLingqLibrary filters (lingqOnlyNotUploaded model)]
       )
     DatePrefixToggled enabled ->
       ( model {datePrefixEnabled = enabled}
@@ -463,7 +488,7 @@ refreshCommands model =
     BrowseView -> [RefreshBrowse (browseSectionId model) (browsePage model) (browseShowHidden model)]
     LibraryView -> [RefreshLibraryPage (libraryQuery model), LoadLibraryStats]
     LingqView ->
-      [RefreshLingqLibrary (lingqFilter model), LoadKnownWordsInfo "de"]
+      [RefreshLingqLibrary (lingqFilter model) (lingqOnlyNotUploaded model), LoadKnownWordsInfo "de"]
         <> [RefreshLingqCollections "de" | authLoggedIn (lingqStatus model)]
     ZeitLoginView -> []
     ArticleView -> maybe [] (maybe [] (pure . LoadArticle) . summaryId) (selectedArticle model)

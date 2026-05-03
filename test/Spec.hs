@@ -152,7 +152,7 @@ main = hspec $ do
       snd (update (LibraryFilterChanged filters) initialModel)
         `shouldBe` [RefreshLibraryPage defaultLibraryQuery {libraryWordFilter = filters}]
       snd (update (LingqFilterChanged filters) initialModel)
-        `shouldBe` [RefreshLingqLibrary filters]
+        `shouldBe` [RefreshLingqLibrary filters True]
 
     it "updates rich library queries for search, toggles and paging" $ do
       let baseQuery = defaultLibraryQuery {libraryOffset = 30}
@@ -274,7 +274,7 @@ main = hspec $ do
                            }
                        )
                    ]
-      runIdentity (Runtime.runCommand ports (RefreshLingqLibrary filters))
+      runIdentity (Runtime.runCommand ports (RefreshLingqLibrary filters True))
         `shouldBe` [LingqArticlesLoaded [summary]]
       runIdentity (Runtime.runCommand ports (LoadArticle (ArticleId 1)))
         `shouldBe` [ArticleContentLoaded demoArticle]
