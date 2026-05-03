@@ -17,6 +17,7 @@ import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.Startup
 import ZeitLingq.App.UploadConfig
 import ZeitLingq.App.Update
+import ZeitLingq.App.ViewModel
 import ZeitLingq.Cli
 import ZeitLingq.Core.Batch
 import ZeitLingq.Core.Browse
@@ -92,6 +93,48 @@ main = hspec $ do
       browseSectionId model `shouldBe` "wissen"
       datePrefixEnabled model `shouldBe` False
       sectionCollections model `shouldBe` Map.fromList [("Wissen", "course-1")]
+
+  describe "Pure app view model" $ do
+    it "projects navigation and status badges for a GUI adapter" $ do
+      let model =
+            initialModel
+              { currentView = LibraryView
+              , zeitStatus = AuthStatus True (Just "paid session")
+              , lingqStatus = AuthStatus False Nothing
+              , libraryFilter = WordFilter (Just 500) (Just 1500)
+              , datePrefixEnabled = False
+              }
+          viewModel = appViewModel model
+      vmTitle viewModel `shouldBe` "Saved Articles"
+      map navLabel (vmNavItems viewModel) `shouldBe` ["Browse", "Library", "LingQ", "Zeit"]
+      map navActive (vmNavItems viewModel) `shouldBe` [False, True, False, False]
+      vmStatusBadges viewModel
+        `shouldBe` [ StatusBadge "Zeit" "paid session" True
+                   , StatusBadge "LingQ" "disconnected" False
+                   ]
+      vmActiveFilter viewModel `shouldBe` "500-1500 words"
+      vmDatePrefix viewModel `shouldBe` "Date prefix: off"
+
+    it "projects article summaries into display rows" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 9)
+              , summaryUrl = "https://example.com"
+              , summaryTitle = "Der Test"
+              , summarySection = "Wissen"
+              , summaryWordCount = 812
+              , summaryIgnored = False
+              , summaryUploaded = True
+              , summaryKnownPct = Just 73
+              }
+      articleRowView summary
+        `shouldBe` ArticleRowView
+          { rowId = Just (ArticleId 9)
+          , rowTitle = "Der Test"
+          , rowMeta = "Wissen | 812 words"
+          , rowKnownPct = "known: 73%"
+          , rowUploadStatus = "uploaded"
+          }
 
   describe "CLI argument parsing" $ do
     it "defaults to the demo command" $ do

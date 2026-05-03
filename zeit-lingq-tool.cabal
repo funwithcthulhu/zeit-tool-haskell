@@ -39,6 +39,7 @@ library
         ZeitLingq.App.Startup
         ZeitLingq.App.UploadConfig
         ZeitLingq.App.Update
+        ZeitLingq.App.ViewModel
         ZeitLingq.Cli
         ZeitLingq.Core.Batch
         ZeitLingq.Core.Browse

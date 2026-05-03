@@ -17,6 +17,7 @@ Zeit Tool Haskell is a Haskell-native desktop workflow for reading Die Zeit arti
 - `src/ZeitLingq/Core/KnownWords.hs`: pure known-word import and percentage estimation.
 - `src/ZeitLingq/App`: GUI-agnostic application model, update loop, and command runtime. This is shaped to fit Monomer's Elm-style architecture later.
 - `src/ZeitLingq/App/Startup.hs`: settings-to-model startup hydration for a future GUI adapter.
+- `src/ZeitLingq/App/ViewModel.hs`: pure GUI-facing presentation state for navigation, badges, filters, and article rows.
 - `src/ZeitLingq/Infrastructure/Audio.hs`: article audio filename and download helpers.
 - `src/ZeitLingq/Infrastructure/Lingq.hs`: LingQ HTTP adapter and response parsing helpers.
 - `src/ZeitLingq/Infrastructure/Settings.hs`: JSON-backed user settings adapter.
@@ -87,6 +88,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - JSON user settings are available through `SettingsPort`.
 - JSON user settings are exposed through the CLI for GUI-ready configuration.
 - App startup can hydrate the pure model from `SettingsPort`, ready for a Monomer shell.
+- Pure view-model projection is available for a Monomer shell.
 - LingQ login, collection fetch, lesson upload, and known-word fetch helpers are scaffolded in Haskell.
 - Zeit article-list and article-content extraction is scaffolded in Haskell.
 - The executable includes a CLI harness for sections, browse, fetch, library maintenance, settings, known words, audio, and LingQ uploads.
