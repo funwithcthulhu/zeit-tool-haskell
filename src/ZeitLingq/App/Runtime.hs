@@ -47,6 +47,12 @@ runCommand ports command =
       [] <$ saveBrowseSection settings sectionId
     PersistBrowseFilter filters ->
       [] <$ saveBrowseFilter settings filters
+    PersistBrowseOnlyNew enabled ->
+      [] <$ saveBrowseOnlyNew settings enabled
+    PersistLingqFilter filters ->
+      [] <$ saveLingqFilter settings filters
+    PersistLingqOnlyNotUploaded enabled ->
+      [] <$ saveLingqOnlyNotUploaded settings enabled
     PersistDatePrefix enabled ->
       [] <$ saveDatePrefixEnabled settings enabled
     PersistLingqFallbackCollection collectionId ->

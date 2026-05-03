@@ -99,6 +99,9 @@ data Command
   | LogoutLingq
   | PersistBrowseSection Text
   | PersistBrowseFilter WordFilter
+  | PersistBrowseOnlyNew Bool
+  | PersistLingqFilter WordFilter
+  | PersistLingqOnlyNotUploaded Bool
   | PersistDatePrefix Bool
   | PersistLingqFallbackCollection (Maybe Text)
   | PersistSectionCollections (Map Text Text)
@@ -263,7 +266,7 @@ update event model =
           )
     BrowseOnlyNewChanged enabled ->
       ( model {browseOnlyNew = enabled, browseSelectedUrls = Set.empty}
-      , []
+      , [PersistBrowseOnlyNew enabled]
       )
     BrowseSearchChanged search ->
       ( model {browseSearch = search, browseSelectedUrls = Set.empty}
@@ -324,7 +327,7 @@ update event model =
           )
     LingqOnlyNotUploadedChanged enabled ->
       ( model {lingqOnlyNotUploaded = enabled, lingqSelectedIds = Set.empty}
-      , [RefreshLingqLibrary (lingqFilter model) enabled]
+      , [PersistLingqOnlyNotUploaded enabled, RefreshLingqLibrary (lingqFilter model) enabled]
       )
     LingqKnownImportVisibilityChanged enabled ->
       ( model {lingqShowKnownImport = enabled}
@@ -486,7 +489,7 @@ update event model =
       )
     LingqFilterChanged filters ->
       ( model {lingqFilter = filters}
-      , [RefreshLingqLibrary filters (lingqOnlyNotUploaded model)]
+      , [PersistLingqFilter filters, RefreshLingqLibrary filters (lingqOnlyNotUploaded model)]
       )
     DatePrefixToggled enabled ->
       ( model {datePrefixEnabled = enabled}

@@ -72,6 +72,12 @@ data SettingsPort m = SettingsPort
   , saveBrowseSection :: Text -> m ()
   , loadBrowseFilter :: m WordFilter
   , saveBrowseFilter :: WordFilter -> m ()
+  , loadBrowseOnlyNew :: m Bool
+  , saveBrowseOnlyNew :: Bool -> m ()
+  , loadLingqFilter :: m WordFilter
+  , saveLingqFilter :: WordFilter -> m ()
+  , loadLingqOnlyNotUploaded :: m Bool
+  , saveLingqOnlyNotUploaded :: Bool -> m ()
   , loadDatePrefixEnabled :: m Bool
   , saveDatePrefixEnabled :: Bool -> m ()
   , loadLingqFallbackCollection :: m (Maybe Text)

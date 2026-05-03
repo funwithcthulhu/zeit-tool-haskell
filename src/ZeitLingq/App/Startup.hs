@@ -12,6 +12,9 @@ loadInitialModel settings = do
   lingqApiKey <- loadLingqApiKey settings
   sectionId <- loadBrowseSection settings
   browseWords <- loadBrowseFilter settings
+  browseOnlyNewSetting <- loadBrowseOnlyNew settings
+  lingqWords <- loadLingqFilter settings
+  lingqOnlyNotUploadedSetting <- loadLingqOnlyNotUploaded settings
   datePrefix <- loadDatePrefixEnabled settings
   fallbackCollection <- loadLingqFallbackCollection settings
   collections <- loadSectionCollections settings
@@ -22,6 +25,9 @@ loadInitialModel settings = do
       , lingqApiKeyText = lingqApiKey
       , browseSectionId = sectionId
       , browseFilter = browseWords
+      , browseOnlyNew = browseOnlyNewSetting
+      , lingqFilter = lingqWords
+      , lingqOnlyNotUploaded = lingqOnlyNotUploadedSetting
       , datePrefixEnabled = datePrefix
       , lingqFallbackCollection = fallbackCollection
       , sectionCollections = collections

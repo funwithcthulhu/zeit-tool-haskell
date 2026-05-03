@@ -101,6 +101,12 @@ main = hspec $ do
               , saveBrowseSection = \_ -> Identity ()
               , loadBrowseFilter = Identity (WordFilter (Just 300) (Just 2000))
               , saveBrowseFilter = \_ -> Identity ()
+              , loadBrowseOnlyNew = Identity False
+              , saveBrowseOnlyNew = \_ -> Identity ()
+              , loadLingqFilter = Identity (WordFilter (Just 500) Nothing)
+              , saveLingqFilter = \_ -> Identity ()
+              , loadLingqOnlyNotUploaded = Identity False
+              , saveLingqOnlyNotUploaded = \_ -> Identity ()
               , loadDatePrefixEnabled = Identity False
               , saveDatePrefixEnabled = \_ -> Identity ()
               , loadLingqFallbackCollection = Identity (Just "fallback-course")
@@ -115,6 +121,9 @@ main = hspec $ do
       browseSectionId model `shouldBe` "wissen"
       browsePage model `shouldBe` 1
       browseFilter model `shouldBe` WordFilter (Just 300) (Just 2000)
+      browseOnlyNew model `shouldBe` False
+      lingqFilter model `shouldBe` WordFilter (Just 500) Nothing
+      lingqOnlyNotUploaded model `shouldBe` False
       datePrefixEnabled model `shouldBe` False
       lingqFallbackCollection model `shouldBe` Just "fallback-course"
       sectionCollections model `shouldBe` Map.fromList [("Wissen", "course-1")]
@@ -152,7 +161,7 @@ main = hspec $ do
       snd (update (LibraryFilterChanged filters) initialModel)
         `shouldBe` [RefreshLibraryPage defaultLibraryQuery {libraryWordFilter = filters}]
       snd (update (LingqFilterChanged filters) initialModel)
-        `shouldBe` [RefreshLingqLibrary filters True]
+        `shouldBe` [PersistLingqFilter filters, RefreshLingqLibrary filters True]
 
     it "updates rich library queries for search, toggles and paging" $ do
       let baseQuery = defaultLibraryQuery {libraryOffset = 30}
@@ -1034,6 +1043,9 @@ main = hspec $ do
         saveLingqApiKey port " api-key "
         saveBrowseSection port "wissen"
         saveBrowseFilter port (WordFilter (Just 250) (Just 1500))
+        saveBrowseOnlyNew port False
+        saveLingqFilter port (WordFilter (Just 500) Nothing)
+        saveLingqOnlyNotUploaded port False
         saveDatePrefixEnabled port False
         saveLingqFallbackCollection port (Just "fallback")
         saveSectionCollections port (Map.fromList [("Wissen", "course-1")])
@@ -1043,6 +1055,9 @@ main = hspec $ do
         loadLingqApiKey port `shouldReturn` "api-key"
         loadBrowseSection port `shouldReturn` "wissen"
         loadBrowseFilter port `shouldReturn` WordFilter (Just 250) (Just 1500)
+        loadBrowseOnlyNew port `shouldReturn` False
+        loadLingqFilter port `shouldReturn` WordFilter (Just 500) Nothing
+        loadLingqOnlyNotUploaded port `shouldReturn` False
         loadDatePrefixEnabled port `shouldReturn` False
         loadLingqFallbackCollection port `shouldReturn` Just "fallback"
         loadSectionCollections port `shouldReturn` Map.fromList [("Wissen", "course-1")]
@@ -1208,6 +1223,12 @@ testPorts summary =
           , saveBrowseSection = \_ -> Identity ()
           , loadBrowseFilter = Identity (WordFilter Nothing Nothing)
           , saveBrowseFilter = \_ -> Identity ()
+          , loadBrowseOnlyNew = Identity True
+          , saveBrowseOnlyNew = \_ -> Identity ()
+          , loadLingqFilter = Identity (WordFilter Nothing Nothing)
+          , saveLingqFilter = \_ -> Identity ()
+          , loadLingqOnlyNotUploaded = Identity True
+          , saveLingqOnlyNotUploaded = \_ -> Identity ()
           , loadDatePrefixEnabled = Identity True
           , saveDatePrefixEnabled = \_ -> Identity ()
           , loadLingqFallbackCollection = Identity Nothing

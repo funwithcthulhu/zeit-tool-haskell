@@ -29,6 +29,9 @@ data Settings = Settings
   , settingsLingqApiKey :: Text
   , settingsBrowseSection :: Text
   , settingsBrowseFilter :: WordFilter
+  , settingsBrowseOnlyNew :: Bool
+  , settingsLingqFilter :: WordFilter
+  , settingsLingqOnlyNotUploaded :: Bool
   , settingsDatePrefixEnabled :: Bool
   , settingsLingqFallbackCollection :: Maybe Text
   , settingsSectionCollections :: Map Text Text
@@ -42,6 +45,9 @@ defaultSettings =
     , settingsLingqApiKey = ""
     , settingsBrowseSection = "index"
     , settingsBrowseFilter = WordFilter Nothing Nothing
+    , settingsBrowseOnlyNew = True
+    , settingsLingqFilter = WordFilter Nothing Nothing
+    , settingsLingqOnlyNotUploaded = True
     , settingsDatePrefixEnabled = True
     , settingsLingqFallbackCollection = Nothing
     , settingsSectionCollections = Map.empty
@@ -60,6 +66,12 @@ jsonSettingsPort path =
     , saveBrowseSection = updateSettings path . setBrowseSection
     , loadBrowseFilter = settingsBrowseFilter <$> loadSettings path
     , saveBrowseFilter = updateSettings path . setBrowseFilter
+    , loadBrowseOnlyNew = settingsBrowseOnlyNew <$> loadSettings path
+    , saveBrowseOnlyNew = updateSettings path . setBrowseOnlyNew
+    , loadLingqFilter = settingsLingqFilter <$> loadSettings path
+    , saveLingqFilter = updateSettings path . setLingqFilter
+    , loadLingqOnlyNotUploaded = settingsLingqOnlyNotUploaded <$> loadSettings path
+    , saveLingqOnlyNotUploaded = updateSettings path . setLingqOnlyNotUploaded
     , loadDatePrefixEnabled = settingsDatePrefixEnabled <$> loadSettings path
     , saveDatePrefixEnabled = updateSettings path . setDatePrefixEnabled
     , loadLingqFallbackCollection = settingsLingqFallbackCollection <$> loadSettings path
@@ -102,6 +114,15 @@ setBrowseSection value settings = settings {settingsBrowseSection = value}
 setBrowseFilter :: WordFilter -> Settings -> Settings
 setBrowseFilter value settings = settings {settingsBrowseFilter = value}
 
+setBrowseOnlyNew :: Bool -> Settings -> Settings
+setBrowseOnlyNew value settings = settings {settingsBrowseOnlyNew = value}
+
+setLingqFilter :: WordFilter -> Settings -> Settings
+setLingqFilter value settings = settings {settingsLingqFilter = value}
+
+setLingqOnlyNotUploaded :: Bool -> Settings -> Settings
+setLingqOnlyNotUploaded value settings = settings {settingsLingqOnlyNotUploaded = value}
+
 setDatePrefixEnabled :: Bool -> Settings -> Settings
 setDatePrefixEnabled value settings = settings {settingsDatePrefixEnabled = value}
 
@@ -119,6 +140,9 @@ instance ToJSON Settings where
       , "lingqApiKey" .= settingsLingqApiKey settings
       , "browseSection" .= settingsBrowseSection settings
       , "browseFilter" .= wordFilterToJson (settingsBrowseFilter settings)
+      , "browseOnlyNew" .= settingsBrowseOnlyNew settings
+      , "lingqFilter" .= wordFilterToJson (settingsLingqFilter settings)
+      , "lingqOnlyNotUploaded" .= settingsLingqOnlyNotUploaded settings
       , "datePrefixEnabled" .= settingsDatePrefixEnabled settings
       , "lingqFallbackCollection" .= settingsLingqFallbackCollection settings
       , "sectionCollections" .= settingsSectionCollections settings
@@ -133,6 +157,9 @@ instance FromJSON Settings where
         <*> obj .:? "lingqApiKey" .!= settingsLingqApiKey defaultSettings
         <*> obj .:? "browseSection" .!= settingsBrowseSection defaultSettings
         <*> (obj .:? "browseFilter" >>= maybe (pure (settingsBrowseFilter defaultSettings)) parseWordFilter)
+        <*> obj .:? "browseOnlyNew" .!= settingsBrowseOnlyNew defaultSettings
+        <*> (obj .:? "lingqFilter" >>= maybe (pure (settingsLingqFilter defaultSettings)) parseWordFilter)
+        <*> obj .:? "lingqOnlyNotUploaded" .!= settingsLingqOnlyNotUploaded defaultSettings
         <*> obj .:? "datePrefixEnabled" .!= settingsDatePrefixEnabled defaultSettings
         <*> obj .:? "lingqFallbackCollection" .!= settingsLingqFallbackCollection defaultSettings
         <*> obj .:? "sectionCollections" .!= settingsSectionCollections defaultSettings
