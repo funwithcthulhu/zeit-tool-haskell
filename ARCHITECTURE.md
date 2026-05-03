@@ -49,4 +49,4 @@ The pure app update loop has a command interpreter for persisted settings, refre
 
 Startup hydration is port-driven: a GUI adapter can load `SettingsPort` into the pure `Model` before rendering its first frame.
 
-Batch fetch/upload queue state is also represented in the pure model. The Monomer adapter owns the actual background producers, but queuing, pausing, clearing, and completed-job history are modeled as regular app events so the behavior remains testable and renderer-independent.
+Batch fetch/upload queue state is also represented in the pure model. The Monomer adapter owns the actual background producers and a small cooperative cancellation flag, but queuing, pausing, clearing, and completed-job history are modeled as regular app events so the behavior remains testable and renderer-independent.

@@ -87,7 +87,7 @@ The GUI currently supports:
 - Managing the local library with presets for common reading/upload workflows and duplicate review, compact or comfortable row density, persisted light/dark theme selection, search, section and word filters, ignored/not-uploaded filters, grouping, sorting, paging, article open/copy/original/audio actions, and configurable cleanup of ignored, old, uploaded, or unuploaded articles.
 - Uploading saved articles to LingQ with API key or password login, language selection, collection refresh, fallback collection selection, per-section collection mapping, date-prefixed lesson titles, existing-lesson updates, upload-status sync from an existing LingQ course, known-word sync/import/clear/recompute, selected/visible upload, and retryable failed uploads.
 - Zeit authentication through manual cookie paste or browser-assisted Edge/Chrome login import. The browser import uses a real installed browser, stores the matching browser user-agent with the cookies, and reuses browser-like request headers for article fetches. The GUI also opens the project data folder, the GUI log file, timestamped support bundles, and the Zeit login page.
-- Diagnostics for live batch jobs, queued fetch/upload work, queue pause/resume/clear controls, completed job history, retry lists, support bundles, and copying recent GUI log lines.
+- Diagnostics for live batch jobs, queued fetch/upload work, cooperative cancellation, queue pause/resume/clear controls, completed job history, retry lists, support bundles, and copying recent GUI log lines.
 
 ## Current Status
 
@@ -100,4 +100,4 @@ The GUI currently supports:
 Known limits:
 
 - Zeit authentication is cookie-session based. On Windows, the GUI can launch a real Edge/Chrome window for interactive login and import the resulting cookies plus browser user-agent; this is intentionally closer to a normal human browser session than an embedded/headless login flow. On other platforms, paste a Cookie header manually.
-- Long-running batch operations now have an in-memory queue and completed-job history. The queue is not yet persisted across app restarts, and active jobs are not cancellable yet.
+- Long-running batch operations now have an in-memory queue, cooperative cancellation, and completed-job history. The queue is not yet persisted across app restarts.

@@ -5,6 +5,7 @@ module Main (main) where
 import Control.Exception (SomeException, displayException, try)
 import Control.Applicative ((<|>))
 import Data.Aeson (FromJSON(..), eitherDecodeStrict', withObject, (.:))
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -44,6 +45,11 @@ data BrowserZeitSession = BrowserZeitSession
   { browserCookieHeader :: Text
   , browserUserAgent :: Text
   } deriving (Eq, Show)
+
+data GuiRuntime = GuiRuntime
+  { guiPorts :: AppPorts IO
+  , guiCancelFlag :: IORef Bool
+  }
 
 instance FromJSON BrowserZeitSession where
   parseJSON =
@@ -107,6 +113,8 @@ data GuiEvent
   | GuiClearQueuedJobs
   | GuiClearCompletedJobs
   | GuiRunNextQueuedJob
+  | GuiCancelCurrentJob
+  | GuiCancelArmed
   | GuiCopyRecentLog
   | GuiProgress (Maybe ProgressStatus)
   | GuiRowDensityChanged RowDensity
@@ -263,18 +271,18 @@ buildUI _ model =
     vm = appViewModel model
 
 handleEvent
-  :: AppPorts IO
+  :: GuiRuntime
   -> WidgetEnv Model GuiEvent
   -> WidgetNode Model GuiEvent
   -> Model
   -> GuiEvent
   -> [AppEventResponse Model GuiEvent]
-handleEvent ports _ _ model event =
+handleEvent runtime _ _ model event =
   case event of
     GuiInit ->
       [Task (loadGuiInitialModel ports)]
     GuiModelLoaded nextModel ->
-      modelLoadedResponses ports model nextModel
+      modelLoadedResponses runtime model nextModel
     GuiFailed message ->
       [M.Model model {notification = Just (Notification ErrorNotice message)}]
     GuiNavigate view ->
@@ -340,9 +348,9 @@ handleEvent ports _ _ model event =
     GuiFetchSelected articles ->
       case selectedBrowseArticles model articles of
         [] -> [Task (runAppEvent ports model (Notify ErrorNotice "Select at least one article to fetch."))]
-        selected -> queueOrStartFetchJob ports model "Fetching selected articles" selected
+        selected -> queueOrStartFetchJob runtime model "Fetching selected articles" selected
     GuiFetchVisible articles ->
-      queueOrStartFetchJob ports model "Fetching visible articles" articles
+      queueOrStartFetchJob runtime model "Fetching visible articles" articles
     GuiToggleIgnored article ->
       case summaryId article of
         Just ident -> [Task (runAppEvent ports model (ArticleIgnoredChanged ident (not (summaryIgnored article))))]
@@ -358,9 +366,9 @@ handleEvent ports _ _ model event =
     GuiUploadSelected articles ->
       case selectedLingqArticles model articles of
         [] -> [Task (runAppEvent ports model (Notify ErrorNotice "Select at least one article to upload."))]
-        selected -> queueOrStartUploadJob ports model "Uploading selected articles" selected
+        selected -> queueOrStartUploadJob runtime model "Uploading selected articles" selected
     GuiUploadVisible articles ->
-      queueOrStartUploadJob ports model "Uploading visible articles" articles
+      queueOrStartUploadJob runtime model "Uploading visible articles" articles
     GuiSyncLingqStatus ->
       case lingqFallbackCollection model of
         Nothing -> [Task (runAppEvent ports model (Notify ErrorNotice "Choose a fallback LingQ course before syncing upload status."))]
@@ -381,22 +389,33 @@ handleEvent ports _ _ model event =
       case failedFetches model of
         [] -> [Task (runAppEvent ports model (Notify InfoNotice "No failed fetches to retry."))]
         failures ->
-          queueOrStartFetchJob ports model "Retrying failed fetches" (map failedFetchSummary failures)
+          queueOrStartFetchJob runtime model "Retrying failed fetches" (map failedFetchSummary failures)
     GuiRetryFailedUploads ->
       case failedUploads model of
         [] -> [Task (runAppEvent ports model (Notify InfoNotice "No failed uploads to retry."))]
         failures ->
-          queueOrStartUploadJob ports model "Retrying failed uploads" (map failedUploadSummary failures)
+          queueOrStartUploadJob runtime model "Retrying failed uploads" (map failedUploadSummary failures)
     GuiClearFailures ->
       [Task (runAppEvent ports model FailureListsCleared)]
     GuiQueuePausedChanged paused ->
-      queueControlResponses ports model (JobQueuePausedChanged paused)
+      queueControlResponses runtime model (JobQueuePausedChanged paused)
     GuiClearQueuedJobs ->
-      queueControlResponses ports model QueuedJobsCleared
+      queueControlResponses runtime model QueuedJobsCleared
     GuiClearCompletedJobs ->
-      queueControlResponses ports model CompletedJobsCleared
+      queueControlResponses runtime model CompletedJobsCleared
     GuiRunNextQueuedJob ->
-      startNextQueuedJobIfReady ports (model {jobQueuePaused = False})
+      startNextQueuedJobIfReady runtime (model {jobQueuePaused = False})
+    GuiCancelCurrentJob ->
+      if modelBusy model
+        then [Task (writeIORef cancelFlag True >> pure GuiCancelArmed)]
+        else [M.Model model {notification = Just (Notification InfoNotice "No running batch job to cancel.")}]
+    GuiCancelArmed ->
+      [ M.Model
+          model
+            { jobQueuePaused = True
+            , notification = Just (Notification InfoNotice "Cancel requested. The queue is paused until you resume it.")
+            }
+      ]
     GuiCopyRecentLog ->
       [Task (runCopyRecentLog model)]
     GuiProgress progress ->
@@ -480,6 +499,9 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model ArticleClosed)]
     GuiClearNotice ->
       [Task (runAppEvent ports model NotificationCleared)]
+  where
+    ports = guiPorts runtime
+    cancelFlag = guiCancelFlag runtime
 
 withPendingNotice :: Model -> Text -> IO GuiEvent -> [AppEventResponse Model GuiEvent]
 withPendingNotice model message task =
@@ -491,9 +513,9 @@ modelBusy :: Model -> Bool
 modelBusy model =
   activeProgress model /= Nothing
 
-modelLoadedResponses :: AppPorts IO -> Model -> Model -> [AppEventResponse Model GuiEvent]
-modelLoadedResponses ports current loaded =
-  startNextQueuedJobIfReady ports (mergeLoadedModel current loaded)
+modelLoadedResponses :: GuiRuntime -> Model -> Model -> [AppEventResponse Model GuiEvent]
+modelLoadedResponses runtime current loaded =
+  startNextQueuedJobIfReady runtime (mergeLoadedModel current loaded)
 
 mergeLoadedModel :: Model -> Model -> Model
 mergeLoadedModel current loaded =
@@ -511,37 +533,41 @@ mergeCompletedJobs loaded current =
     loadedIds = Set.fromList (map completedJobId loaded)
     isNew job = not (Set.member (completedJobId job) loadedIds)
 
-queueOrStartFetchJob :: AppPorts IO -> Model -> Text -> [ArticleSummary] -> [AppEventResponse Model GuiEvent]
-queueOrStartFetchJob ports model labelText articles
+queueOrStartFetchJob :: GuiRuntime -> Model -> Text -> [ArticleSummary] -> [AppEventResponse Model GuiEvent]
+queueOrStartFetchJob runtime model labelText articles
   | null articles = [Task (runAppEvent ports model (Notify ErrorNotice "No articles to fetch."))]
-  | shouldQueueJob model = queueControlResponses ports model (FetchJobQueued labelText articles)
-  | otherwise = startQueuedJob ports model (QueuedFetchJob (nextJobId model) labelText (browseFilter model) articles)
+  | shouldQueueJob model = queueControlResponses runtime model (FetchJobQueued labelText articles)
+  | otherwise = startQueuedJob runtime model (QueuedFetchJob (nextJobId model) labelText (browseFilter model) articles)
+  where
+    ports = guiPorts runtime
 
-queueOrStartUploadJob :: AppPorts IO -> Model -> Text -> [ArticleSummary] -> [AppEventResponse Model GuiEvent]
-queueOrStartUploadJob ports model labelText articles
+queueOrStartUploadJob :: GuiRuntime -> Model -> Text -> [ArticleSummary] -> [AppEventResponse Model GuiEvent]
+queueOrStartUploadJob runtime model labelText articles
   | null articles = [Task (runAppEvent ports model (Notify ErrorNotice "No articles to upload."))]
-  | shouldQueueJob model = queueControlResponses ports model (UploadJobQueued labelText articles)
-  | otherwise = startQueuedJob ports model (QueuedUploadJob (nextJobId model) labelText articles)
+  | shouldQueueJob model = queueControlResponses runtime model (UploadJobQueued labelText articles)
+  | otherwise = startQueuedJob runtime model (QueuedUploadJob (nextJobId model) labelText articles)
+  where
+    ports = guiPorts runtime
 
 shouldQueueJob :: Model -> Bool
 shouldQueueJob model =
   modelBusy model || jobQueuePaused model || not (null (queuedJobs model))
 
-queueControlResponses :: AppPorts IO -> Model -> Event -> [AppEventResponse Model GuiEvent]
-queueControlResponses ports model event =
+queueControlResponses :: GuiRuntime -> Model -> Event -> [AppEventResponse Model GuiEvent]
+queueControlResponses runtime model event =
   let (nextModel, _commands) = update event model
-   in startNextQueuedJobIfReady ports nextModel
+   in startNextQueuedJobIfReady runtime nextModel
 
-startNextQueuedJobIfReady :: AppPorts IO -> Model -> [AppEventResponse Model GuiEvent]
-startNextQueuedJobIfReady ports model
+startNextQueuedJobIfReady :: GuiRuntime -> Model -> [AppEventResponse Model GuiEvent]
+startNextQueuedJobIfReady runtime model
   | modelBusy model || jobQueuePaused model = [M.Model model]
   | otherwise =
       case queuedJobs model of
         [] -> [M.Model model]
-        job : _ -> startQueuedJob ports model job
+        job : _ -> startQueuedJob runtime model job
 
-startQueuedJob :: AppPorts IO -> Model -> QueuedJob -> [AppEventResponse Model GuiEvent]
-startQueuedJob ports model job =
+startQueuedJob :: GuiRuntime -> Model -> QueuedJob -> [AppEventResponse Model GuiEvent]
+startQueuedJob runtime model job =
   let reservedModel = model {nextJobId = max (nextJobId model) (queuedJobId job + 1)}
       (dequeuedModel, _commands) = update (QueuedJobStarted job) reservedModel
       startModel =
@@ -551,8 +577,8 @@ startQueuedJob ports model job =
           }
       producer =
         case job of
-          QueuedFetchJob {} -> runFetchBatchProducer ports startModel job
-          QueuedUploadJob {} -> runUploadBatchProducer ports startModel job
+          QueuedFetchJob {} -> runFetchBatchProducer runtime startModel job
+          QueuedUploadJob {} -> runUploadBatchProducer runtime startModel job
    in [M.Model startModel, Producer producer]
 
 queuedJobItemCount :: QueuedJob -> Int
@@ -1026,6 +1052,7 @@ diagnosticsJobPanel model =
         [ label ("Queue: " <> (if jobQueuePaused model then "paused" else "running"))
             `styleBasic` [textColor (mutedTextColor model), paddingR 12]
         , secondaryButton model (if jobQueuePaused model then "Resume queue" else "Pause queue") (GuiQueuePausedChanged (not (jobQueuePaused model)))
+        , secondaryButton model "Cancel current" GuiCancelCurrentJob
         , secondaryButton model "Run next" GuiRunNextQueuedJob
         , dangerButton model "Clear queue" GuiClearQueuedJobs
         ]
@@ -1812,28 +1839,39 @@ runAppEvent :: AppPorts IO -> Model -> Event -> IO GuiEvent
 runAppEvent ports model event =
   safeGuiTask (dispatchEvent ports model event)
 
-runFetchBatchProducer :: AppPorts IO -> Model -> QueuedJob -> (GuiEvent -> IO ()) -> IO ()
-runFetchBatchProducer ports model job send =
+runFetchBatchProducer :: GuiRuntime -> Model -> QueuedJob -> (GuiEvent -> IO ()) -> IO ()
+runFetchBatchProducer runtime model job send =
   safeGuiProducer send $ do
-    results <- traverse fetchOne (zip [1 ..] articles)
+    writeIORef cancelFlag False
+    (results, cancelled) <- fetchMany [] (zip [1 ..] articles)
     sendProgress (length articles) "Updating the local library..."
     let failures = guiBatchFetchFailures results
-        summary = guiBatchFetchSummary results
+        summary = withCancelSuffix cancelled (guiBatchFetchSummary results)
     finalModel <-
       dispatchEvents
         ports
         model
         [ BatchFetchFinished failures
-        , CompletedJobRecorded (CompletedJob (queuedJobId job) FetchJob (queuedJobLabel job) summary (null failures))
-        , Notify (guiBatchFetchLevel results) (guiBatchFetchSummary results)
+        , CompletedJobRecorded (CompletedJob (queuedJobId job) FetchJob (queuedJobLabel job) summary (not cancelled && null failures))
+        , Notify (if cancelled then InfoNotice else guiBatchFetchLevel results) summary
         , RefreshCurrentView
         ]
     send (GuiModelLoaded finalModel)
   where
+    ports = guiPorts runtime
+    cancelFlag = guiCancelFlag runtime
     articles = queuedFetchArticles job
     total = length articles
     sendProgress current detail =
       send (GuiProgress (Just (ProgressStatus (queuedJobLabel job) current total detail)))
+    fetchMany acc [] = pure (reverse acc, False)
+    fetchMany acc (item : rest) = do
+      cancelled <- readIORef cancelFlag
+      if cancelled
+        then pure (reverse acc, True)
+        else do
+          result <- fetchOne item
+          fetchMany (result : acc) rest
     fetchOne (index, article) = do
       sendProgress (index - 1) (summaryTitle article)
       result <- fetchArticleForBatch article
@@ -1855,9 +1893,10 @@ runFetchBatchProducer ports model job send =
             decision -> pure (BatchSkipped url decision)
     filters = queuedFetchFilter job
 
-runUploadBatchProducer :: AppPorts IO -> Model -> QueuedJob -> (GuiEvent -> IO ()) -> IO ()
-runUploadBatchProducer ports model job send =
+runUploadBatchProducer :: GuiRuntime -> Model -> QueuedJob -> (GuiEvent -> IO ()) -> IO ()
+runUploadBatchProducer runtime model job send =
   safeGuiProducer send $ do
+    writeIORef cancelFlag False
     now <- getCurrentTime
     envFallback <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
     let fallbackCollection = lingqFallbackCollection model <|> envFallback
@@ -1885,23 +1924,33 @@ runUploadBatchProducer ports model job send =
         let loadFailures = [failure | Left failure <- loaded]
             uploadArticles = [article | Right article <- loaded]
         sendProgress (ProgressStatus (queuedJobLabel job) 0 (length uploadArticles) "Uploading to LingQ...")
-        uploadResults <- traverse (uploadOne config (length uploadArticles)) (zip [1 ..] uploadArticles)
+        (uploadResults, cancelled) <- uploadMany config (length uploadArticles) [] (zip [1 ..] uploadArticles)
         let failures = loadFailures <> guiBatchUploadFailures uploadResults
-            summary = guiBatchUploadSummary loadFailures uploadResults
+            summary = withCancelSuffix cancelled (guiBatchUploadSummary loadFailures uploadResults)
         finalModel <-
           dispatchEvents
             ports
             model
             ( BatchUploadFinished failures
-                : CompletedJobRecorded (CompletedJob (queuedJobId job) UploadJob (queuedJobLabel job) summary (null failures))
-                : guiBatchUploadResultEvents loadFailures uploadResults
+                : CompletedJobRecorded (CompletedJob (queuedJobId job) UploadJob (queuedJobLabel job) summary (not cancelled && null failures))
+                : guiBatchUploadResultEvents cancelled loadFailures uploadResults
                   <> [RefreshCurrentView]
             )
         send (GuiModelLoaded finalModel)
   where
+    ports = guiPorts runtime
+    cancelFlag = guiCancelFlag runtime
     articles = queuedUploadArticles job
     sendProgress progress =
       send (GuiProgress (Just progress))
+    uploadMany _config _total acc [] = pure (reverse acc, False)
+    uploadMany config total acc (item : rest) = do
+      cancelled <- readIORef cancelFlag
+      if cancelled
+        then pure (reverse acc, True)
+        else do
+          result <- uploadOne config total item
+          uploadMany config total (result : acc) rest
     loadOne ident = do
       loaded <- tryText (loadArticle (libraryPort ports) ident)
       pure $
@@ -2209,20 +2258,15 @@ guiBatchFetchLevel results
     isFailed BatchFailed {} = True
     isFailed _ = False
 
-guiBatchUploadResultEvents :: [(ArticleId, Text)] -> [BatchUploadResult] -> [Event]
-guiBatchUploadResultEvents loadFailures results =
+guiBatchUploadResultEvents :: Bool -> [(ArticleId, Text)] -> [BatchUploadResult] -> [Event]
+guiBatchUploadResultEvents cancelled loadFailures results =
   [ Notify level
-      ( "Batch upload: uploaded "
-          <> tshow uploaded
-          <> ", failed "
-          <> tshow failed
-          <> "."
-      )
+      (withCancelSuffix cancelled (guiBatchUploadSummary loadFailures results))
   ]
   where
-    uploaded = length [() | UploadSucceeded {} <- results] + length [() | UploadSucceededUntracked {} <- results]
     failed = length loadFailures + length [() | UploadFailed {} <- results]
     level
+      | cancelled = InfoNotice
       | failed > 0 = ErrorNotice
       | otherwise = SuccessNotice
 
@@ -2236,6 +2280,11 @@ guiBatchUploadSummary loadFailures results =
   where
     uploaded = length [() | UploadSucceeded {} <- results] + length [() | UploadSucceededUntracked {} <- results]
     failed = length loadFailures + length [() | UploadFailed {} <- results]
+
+withCancelSuffix :: Bool -> Text -> Text
+withCancelSuffix cancelled message
+  | cancelled = message <> " Cancelled before processing the remaining items."
+  | otherwise = message
 
 guiBatchUploadFailures :: [BatchUploadResult] -> [(ArticleId, Text)]
 guiBatchUploadFailures results =
@@ -2523,8 +2572,9 @@ failedUploadSummary (ident, labelText) =
 main :: IO ()
 main = do
   ports <- makePorts
+  cancelFlag <- newIORef False
   initial <- loadInitialModel (settingsPort ports)
-  startApp initial (handleEvent ports) buildUI (config initial)
+  startApp initial (handleEvent (GuiRuntime ports cancelFlag)) buildUI (config initial)
   where
     config initial =
       [ appWindowTitle "Zeit Tool Haskell"
