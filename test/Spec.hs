@@ -20,6 +20,7 @@ import ZeitLingq.Core.Upload
 import ZeitLingq.Domain.Article
 import ZeitLingq.Domain.Types
 import ZeitLingq.Infrastructure.Settings
+import ZeitLingq.Infrastructure.Audio
 import ZeitLingq.Infrastructure.Sqlite
 import ZeitLingq.Infrastructure.Lingq
 import ZeitLingq.Infrastructure.Zeit
@@ -181,6 +182,15 @@ main = hspec $ do
         clearKnownWordsSqlite db "de"
         getKnownStemCountSqlite db "de" `shouldReturn` 0
 
+    it "updates audio metadata for saved articles" $ do
+      withLibrary ":memory:" $ \db -> do
+        savedId <- saveArticleSqlite db demoArticle
+        setAudioUrlSqlite db savedId (Just "https://cdn.example/audio.m4a")
+        setAudioPathSqlite db savedId (Just "C:\\audio\\demo.m4a")
+        loaded <- getArticleSqlite db savedId
+        fmap articleAudioUrl loaded `shouldBe` Just (Just "https://cdn.example/audio.m4a")
+        fmap articleAudioPath loaded `shouldBe` Just (Just "C:\\audio\\demo.m4a")
+
   describe "JSON settings adapter" $ do
     it "returns defaults when the settings file does not exist" $ do
       withTempSettingsPath $ \path -> do
@@ -208,6 +218,16 @@ main = hspec $ do
     it "extracts known-word terms from paged responses" $ do
       let value = decodeValue "{\"results\":[{\"term\":\"Haus\"},{\"word\":\"laufen\"},{\"text\":\"  Leer  \"}]}"
       parseKnownWordTerms value `shouldBe` ["haus", "laufen", "leer"]
+
+  describe "Audio helpers" $ do
+    it "builds stable safe filenames for article audio" $ do
+      let article =
+            demoArticle
+              { articleId = Just (ArticleId 12)
+              , articleTitle = "Hören: Häuser & Sachen!"
+              , articleAudioUrl = Just "https://cdn.example/audio/clip.m4a?token=abc"
+              }
+      audioFilename article `shouldBe` "12-h-ren-h-user-sachen.m4a"
 
   describe "Zeit HTML extraction" $ do
     it "extracts article links from index markup" $ do

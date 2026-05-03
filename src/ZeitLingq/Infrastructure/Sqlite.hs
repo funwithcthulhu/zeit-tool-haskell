@@ -19,6 +19,8 @@ module ZeitLingq.Infrastructure.Sqlite
   , markUploadedSqlite
   , openLibrary
   , saveArticleSqlite
+  , setAudioPathSqlite
+  , setAudioUrlSqlite
   , setIgnoredSqlite
   , sqliteLibraryPort
   , updateKnownPctSqlite
@@ -192,6 +194,14 @@ markUploadedSqlite (LibraryDb conn) (ArticleId ident) LingqLesson {lessonId, les
     conn
     "UPDATE articles SET uploaded_to_lingq = 1, lingq_lesson_id = ?, lingq_lesson_url = ? WHERE id = ?"
     (lessonId, lessonUrl, ident)
+
+setAudioUrlSqlite :: LibraryDb -> ArticleId -> Maybe Text -> IO ()
+setAudioUrlSqlite (LibraryDb conn) (ArticleId ident) audioUrl =
+  execute conn "UPDATE articles SET audio_url = ? WHERE id = ?" (audioUrl, ident)
+
+setAudioPathSqlite :: LibraryDb -> ArticleId -> Maybe FilePath -> IO ()
+setAudioPathSqlite (LibraryDb conn) (ArticleId ident) audioPath =
+  execute conn "UPDATE articles SET audio_path = ? WHERE id = ?" (audioPath, ident)
 
 getStatsSqlite :: LibraryDb -> IO LibraryStats
 getStatsSqlite (LibraryDb conn) = do

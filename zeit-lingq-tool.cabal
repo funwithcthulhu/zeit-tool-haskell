@@ -42,6 +42,7 @@ library
         ZeitLingq.Domain.Section
         ZeitLingq.Domain.Types
         ZeitLingq.Infrastructure.Settings
+        ZeitLingq.Infrastructure.Audio
         ZeitLingq.Infrastructure.Lingq
         ZeitLingq.Infrastructure.Sqlite
         ZeitLingq.Infrastructure.Zeit

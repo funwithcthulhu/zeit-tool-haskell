@@ -16,6 +16,7 @@ This repository is the Haskell-first rewrite of the original Electron Zeit/LingQ
 - `src/ZeitLingq/Text/German.hs`: German tokenization and stemming ported from the JavaScript app.
 - `src/ZeitLingq/Core/KnownWords.hs`: pure known-word import and percentage estimation.
 - `src/ZeitLingq/App`: GUI-agnostic application model and update loop. This is shaped to fit Monomer's Elm-style architecture later.
+- `src/ZeitLingq/Infrastructure/Audio.hs`: article audio filename and download helpers.
 - `src/ZeitLingq/Infrastructure/Lingq.hs`: LingQ HTTP adapter and response parsing helpers.
 - `src/ZeitLingq/Infrastructure/Settings.hs`: JSON-backed user settings adapter.
 - `src/ZeitLingq/Infrastructure/Sqlite.hs`: SQLite-backed article library adapter.
@@ -64,6 +65,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - Batch LingQ upload behavior is available as a pure use case over effectful callbacks.
 - SQLite article persistence is available through `LibraryPort`.
 - SQLite known-word storage and article `known_pct` recomputation are available.
+- Article audio metadata persistence and download helpers are available.
 - JSON user settings are available through `SettingsPort`.
 - LingQ login, collection fetch, lesson upload, and known-word fetch helpers are scaffolded in Haskell.
 - Zeit article-list and article-content extraction is scaffolded in Haskell.
