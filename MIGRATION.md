@@ -25,7 +25,7 @@ The rewrite uses four layers:
 - `electron/services/lingq-api.js`
   - Future `ZeitLingq.Infrastructure.Lingq` adapter behind `LingqPort`.
 - `electron/services/database.js`
-  - Future `ZeitLingq.Infrastructure.Sqlite` adapter behind `LibraryPort`.
+  - Partially ported into `ZeitLingq.Infrastructure.Sqlite` behind `LibraryPort`.
 - `electron/services/stemmer.js`
   - Ported into `ZeitLingq.Text.German`.
 - `src/App.jsx` and component state

@@ -10,6 +10,7 @@ import ZeitLingq.App.Update
 import ZeitLingq.Core.KnownWords (estimateKnownPct, importKnownWordStems)
 import ZeitLingq.Domain.Article
 import ZeitLingq.Domain.Types
+import ZeitLingq.Infrastructure.Sqlite
 import ZeitLingq.Text.German
 
 main :: IO ()
@@ -54,6 +55,35 @@ main = hspec $ do
       currentView nextModel `shouldBe` ArticleView
       selectedArticle nextModel `shouldBe` Just summary
       commands `shouldBe` [PersistCurrentView ArticleView]
+
+  describe "SQLite library adapter" $ do
+    it "saves and reloads articles with summaries and stats" $ do
+      withLibrary ":memory:" $ \db -> do
+        savedId <- saveArticleSqlite db demoArticle
+        loaded <- getArticleSqlite db savedId
+        fmap articleTitle loaded `shouldBe` Just "Demo"
+        fmap articleParagraphs loaded `shouldBe` Just ["eins zwei", "drei vier"]
+
+        summaries <- getArticlesSqlite db (WordFilter Nothing Nothing)
+        map summaryTitle summaries `shouldBe` ["Demo"]
+        map summaryWordCount summaries `shouldBe` [4]
+
+        stats <- getStatsSqlite db
+        totalArticles stats `shouldBe` 1
+        averageWordCount stats `shouldBe` 4
+
+    it "preserves upload and ignored state when an article is refetched" $ do
+      withLibrary ":memory:" $ \db -> do
+        savedId <- saveArticleSqlite db demoArticle
+        markUploadedSqlite db savedId (LingqLesson "lesson-1" "https://lingq.example/lesson-1")
+        setIgnoredSqlite db savedId True
+
+        _ <- saveArticleSqlite db demoArticle {articleTitle = "Demo refetched"}
+        loaded <- getArticleSqlite db savedId
+
+        fmap articleTitle loaded `shouldBe` Just "Demo refetched"
+        fmap articleIgnored loaded `shouldBe` Just True
+        fmap articleUploadedLesson loaded `shouldBe` Just (Just (LingqLesson "lesson-1" "https://lingq.example/lesson-1"))
 
 demoArticle :: Article
 demoArticle =

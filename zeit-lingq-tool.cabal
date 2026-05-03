@@ -17,6 +17,7 @@ common core-deps
     build-depends:
         base ^>=4.18.3.0,
         containers ^>=0.6.7,
+        sqlite-simple ^>=0.4.19.0,
         text ^>=2.0.2,
         time ^>=1.12.2
     default-language: GHC2021
@@ -31,6 +32,7 @@ library
         ZeitLingq.Domain.Article
         ZeitLingq.Domain.Section
         ZeitLingq.Domain.Types
+        ZeitLingq.Infrastructure.Sqlite
         ZeitLingq.Ports
         ZeitLingq.Text.German
 

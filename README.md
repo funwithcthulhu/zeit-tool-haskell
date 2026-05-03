@@ -14,6 +14,7 @@ This repository is the Haskell-first rewrite of the original Electron Zeit/LingQ
 - `src/ZeitLingq/Text/German.hs`: German tokenization and stemming ported from the JavaScript app.
 - `src/ZeitLingq/Core/KnownWords.hs`: pure known-word import and percentage estimation.
 - `src/ZeitLingq/App`: GUI-agnostic application model and update loop. This is shaped to fit Monomer's Elm-style architecture later.
+- `src/ZeitLingq/Infrastructure/Sqlite.hs`: SQLite-backed article library adapter.
 - `src/ZeitLingq/Ports.hs`: effect boundaries for Zeit scraping, LingQ, settings, and persistence.
 
 ## Build
@@ -33,3 +34,9 @@ The current recommendation is:
 3. Treat scraping, SQLite, logging, and LingQ as infrastructure ports that the GUI drives.
 
 That gives us a Haskell-native application without forcing the whole codebase to depend on the first GUI choice we try.
+
+## Current Migration Slice
+
+- Pure article, known-word, and app-update logic is in place.
+- SQLite article persistence is available through `LibraryPort`.
+- Next infrastructure targets are the LingQ client and Zeit article fetching adapter.
