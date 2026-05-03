@@ -43,6 +43,7 @@ cabal run zeit-lingq-tool -- known-import known-words.txt
 cabal run zeit-lingq-tool -- known-compute
 cabal run zeit-lingq-tool -- known-info
 cabal run zeit-lingq-tool -- lingq-upload 1
+cabal run zeit-lingq-tool -- audio-download 1 audio
 ```
 
 Set `ZEIT_COOKIE` before running `fetch` if an article needs an authenticated Zeit session.

@@ -22,6 +22,7 @@ data CliCommand
   | KnownWordsInfo FilePath
   | ComputeKnownPct FilePath
   | UploadLingq Int FilePath
+  | DownloadAudio Int FilePath FilePath
   deriving (Eq, Show)
 
 defaultDbPath :: FilePath
@@ -54,6 +55,12 @@ parseArgs ["lingq-upload", articleId] =
   UploadLingq <$> parsePositiveInt "article-id" articleId <*> pure defaultDbPath
 parseArgs ["lingq-upload", articleId, dbPath] =
   UploadLingq <$> parsePositiveInt "article-id" articleId <*> pure dbPath
+parseArgs ["audio-download", articleId] =
+  DownloadAudio <$> parsePositiveInt "article-id" articleId <*> pure "audio" <*> pure defaultDbPath
+parseArgs ["audio-download", articleId, audioDir] =
+  DownloadAudio <$> parsePositiveInt "article-id" articleId <*> pure audioDir <*> pure defaultDbPath
+parseArgs ["audio-download", articleId, audioDir, dbPath] =
+  DownloadAudio <$> parsePositiveInt "article-id" articleId <*> pure audioDir <*> pure dbPath
 parseArgs _ = Left usageText
 
 usageText :: String
@@ -71,6 +78,7 @@ usageText =
     , "  zeit-lingq-tool known-info [db-path]"
     , "  zeit-lingq-tool known-compute [db-path]"
     , "  zeit-lingq-tool lingq-upload <article-id> [db-path]"
+    , "  zeit-lingq-tool audio-download <article-id> [audio-dir] [db-path]"
     , ""
     , "Set ZEIT_COOKIE to pass an authenticated zeit.de cookie header for paid articles."
     , "Set LINGQ_API_KEY, and optionally LINGQ_COLLECTION_ID, before uploading to LingQ."

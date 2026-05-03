@@ -18,6 +18,7 @@ import ZeitLingq.Domain.Article (composeCleanText, lessonTitle, wordCount)
 import ZeitLingq.Domain.Section (allSections)
 import ZeitLingq.Domain.Types
 import ZeitLingq.Infrastructure.Sqlite
+import ZeitLingq.Infrastructure.Audio
 import ZeitLingq.Infrastructure.Lingq
 import ZeitLingq.Infrastructure.Zeit
 
@@ -111,6 +112,18 @@ runCommand (UploadLingq ident dbPath) = do
                 marker = markUploadedSqlite db
             results <- batchUploadArticles uploader marker config [article]
             for_ results print
+runCommand (DownloadAudio ident audioDir dbPath) =
+  withLibrary dbPath $ \db -> do
+    maybeArticle <- getArticleSqlite db (ArticleId ident)
+    case maybeArticle of
+      Nothing -> putStrLn ("Article not found: " <> show ident)
+      Just article -> do
+        result <- downloadArticleAudio audioDir article
+        case result of
+          Left err -> print err
+          Right path -> do
+            setAudioPathSqlite db (ArticleId ident) (Just path)
+            putStrLn ("Saved audio: " <> path)
 
 sessionFromEnv :: IO ZeitSession
 sessionFromEnv = do

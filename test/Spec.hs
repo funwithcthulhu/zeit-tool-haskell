@@ -83,6 +83,7 @@ main = hspec $ do
       parseArgs ["known-info"] `shouldBe` Right (KnownWordsInfo defaultDbPath)
       parseArgs ["known-compute", "custom.db"] `shouldBe` Right (ComputeKnownPct "custom.db")
       parseArgs ["lingq-upload", "42", "custom.db"] `shouldBe` Right (UploadLingq 42 "custom.db")
+      parseArgs ["audio-download", "42", "audio-cache", "custom.db"] `shouldBe` Right (DownloadAudio 42 "audio-cache" "custom.db")
 
   describe "Batch fetch use case" $ do
     it "saves successful articles and skips articles outside the word filter" $ do
