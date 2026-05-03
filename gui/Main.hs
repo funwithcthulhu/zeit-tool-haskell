@@ -11,8 +11,9 @@ import Data.Text qualified as T
 import Data.Time (addUTCTime, getCurrentTime, utctDay)
 import Monomer hiding (Model)
 import Monomer qualified as M
-import System.Directory (getCurrentDirectory)
+import System.Directory (createDirectoryIfMissing, getCurrentDirectory)
 import System.Environment (lookupEnv)
+import System.FilePath (takeDirectory)
 import System.Info (os)
 import System.IO (hClose)
 import System.Process (CreateProcess(std_in), StdStream(CreatePipe), callProcess, proc, waitForProcess, withCreateProcess)
@@ -119,6 +120,7 @@ data GuiEvent
   | GuiDeleteOldArticles Bool Bool
   | GuiDeleteArticle ArticleId
   | GuiOpenDataFolder
+  | GuiOpenLogs
   | GuiCloseArticle
   | GuiClearNotice
   deriving (Eq, Show)
@@ -128,6 +130,9 @@ dbPath = "zeit-tool.db"
 
 settingsPath :: FilePath
 settingsPath = "settings.json"
+
+logPath :: FilePath
+logPath = "logs/app.log"
 
 zeitLoginUrl :: Text
 zeitLoginUrl = "https://meine.zeit.de/anmelden?url=https%3A%2F%2Fwww.zeit.de%2Findex&entry_service=sonstige"
@@ -400,6 +405,8 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (ArticleDeleteRequested ident))]
     GuiOpenDataFolder ->
       [Task (runSideEffect model (getCurrentDirectory >>= openExternalPath) "Opened project data folder.")]
+    GuiOpenLogs ->
+      [Task (runSideEffect model (ensureLogFile >> openExternalPath logPath) "Opened log file.")]
     GuiCloseArticle ->
       [Task (runAppEvent ports model ArticleClosed)]
     GuiClearNotice ->
@@ -459,6 +466,8 @@ sidebarBlock model vm =
         `styleBasic` [paddingT 12]
     , filler
     , secondaryButton "Open data folder" GuiOpenDataFolder
+    , secondaryButton "Open logs" GuiOpenLogs
+        `styleBasic` [paddingT 6]
     , secondaryButton "Refresh" GuiRefresh
         `styleBasic` [paddingT 6]
     ]
@@ -1474,6 +1483,7 @@ noticeColor notice =
 loadGuiInitialModel :: AppPorts IO -> IO GuiEvent
 loadGuiInitialModel ports =
   safeGuiTask $ do
+    logInfo "App starting."
     model <- loadInitialModel (settingsPort ports)
     zeit <- loginToZeit (zeitPort ports)
     lingq <- loginToLingq (lingqPort ports) "" ""
@@ -1612,10 +1622,12 @@ runDeleteOlderAppEvent ports model days onlyUploaded onlyUnuploaded =
 safeGuiTask :: IO Model -> IO GuiEvent
 safeGuiTask action = do
   result <- try action
-  pure $
-    case result of
-      Right model -> GuiModelLoaded model
-      Left err -> GuiFailed (T.pack (displayException (err :: SomeException)))
+  case result of
+    Right model -> pure (GuiModelLoaded model)
+    Left err -> do
+      let message = T.pack (displayException (err :: SomeException))
+      logError ("GUI task failed: " <> message)
+      pure (GuiFailed message)
 
 safeGuiProducer :: (GuiEvent -> IO ()) -> IO () -> IO ()
 safeGuiProducer send action = do
@@ -1623,8 +1635,26 @@ safeGuiProducer send action = do
   case result of
     Right () -> pure ()
     Left err -> do
+      logError ("Background job failed: " <> T.pack (displayException (err :: SomeException)))
       send (GuiProgress Nothing)
       send (GuiFailed (T.pack (displayException (err :: SomeException))))
+
+ensureLogFile :: IO ()
+ensureLogFile = do
+  createDirectoryIfMissing True (takeDirectory logPath)
+  TIO.appendFile logPath ""
+
+logInfo :: Text -> IO ()
+logInfo = logLine "INFO"
+
+logError :: Text -> IO ()
+logError = logLine "ERROR"
+
+logLine :: Text -> Text -> IO ()
+logLine level message = do
+  createDirectoryIfMissing True (takeDirectory logPath)
+  now <- getCurrentTime
+  TIO.appendFile logPath ("[" <> tshow now <> "] [" <> level <> "] " <> message <> "\n")
 
 tryText :: IO a -> IO (Either Text a)
 tryText action = do
