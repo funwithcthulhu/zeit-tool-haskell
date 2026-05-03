@@ -26,7 +26,7 @@ import Data.Text.IO qualified as TIO
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.Core.Batch (BatchFetchResult(..))
 import ZeitLingq.Core.Upload (BatchUploadConfig(..), BatchUploadResult(..), targetCollectionFor)
-import ZeitLingq.Domain.Article (BatchDecision(..), applyWordFilter, lessonTitle)
+import ZeitLingq.Domain.Article (BatchDecision(..), applyWordFilter, lessonTitle, wordCount)
 import ZeitLingq.App.Driver (dispatchEvent, dispatchEvents)
 import ZeitLingq.App.Model (Model(..), PendingConfirmation(..))
 import ZeitLingq.App.Startup (loadInitialModel)
@@ -188,30 +188,30 @@ data Palette = Palette
 paletteFor :: UiTheme -> Palette
 paletteFor DarkUiTheme =
   Palette
-    { paletteAppBg = rgbHex "#0f151b"
-    , palettePanelBg = rgbHex "#17212b"
-    , palettePanelAlt = rgbHex "#101923"
-    , paletteBorder = rgbHex "#263746"
-    , palettePrimary = rgbHex "#16d9c5"
-    , palettePrimaryText = rgbHex "#071113"
-    , paletteMainText = rgbHex "#f3f7f8"
-    , paletteMutedText = rgbHex "#9eadba"
-    , paletteWarning = rgbHex "#f5a524"
+    { paletteAppBg = rgbHex "#0d1117"
+    , palettePanelBg = rgbHex "#121923"
+    , palettePanelAlt = rgbHex "#182232"
+    , paletteBorder = rgbHex "#2a3a4f"
+    , palettePrimary = rgbHex "#5dd6a5"
+    , palettePrimaryText = rgbHex "#071111"
+    , paletteMainText = rgbHex "#edf3f7"
+    , paletteMutedText = rgbHex "#98a6b8"
+    , paletteWarning = rgbHex "#f3b047"
     , paletteDanger = rgbHex "#ff6b6b"
-    , paletteDangerBg = rgbHex "#3a1f24"
+    , paletteDangerBg = rgbHex "#3a1f27"
     }
 paletteFor LightUiTheme =
   Palette
-    { paletteAppBg = rgbHex "#f4efe6"
-    , palettePanelBg = rgbHex "#fffaf2"
-    , palettePanelAlt = rgbHex "#efe7da"
-    , paletteBorder = rgbHex "#d6c8b5"
-    , palettePrimary = rgbHex "#0f766e"
+    { paletteAppBg = rgbHex "#f6f2ea"
+    , palettePanelBg = rgbHex "#fffdf7"
+    , palettePanelAlt = rgbHex "#eee7dc"
+    , paletteBorder = rgbHex "#d9ccba"
+    , palettePrimary = rgbHex "#0f8a7a"
     , palettePrimaryText = rgbHex "#fbfffb"
     , paletteMainText = rgbHex "#17211d"
-    , paletteMutedText = rgbHex "#66736d"
-    , paletteWarning = rgbHex "#a16207"
-    , paletteDanger = rgbHex "#c2410c"
+    , paletteMutedText = rgbHex "#637268"
+    , paletteWarning = rgbHex "#9a5b05"
+    , paletteDanger = rgbHex "#bd3b12"
     , paletteDangerBg = rgbHex "#fff0e8"
     }
 
@@ -286,7 +286,7 @@ handleEvent runtime _ _ model event =
     GuiModelLoaded nextModel ->
       modelLoadedResponses runtime model nextModel
     GuiFailed message ->
-      [M.Model model {notification = Just (Notification ErrorNotice message)}]
+      [M.Model model {notification = Just (Notification ErrorNotice (friendlyFailureMessage message))}]
     GuiNavigate view ->
       [Task (runAppEvent ports model (Navigate view))]
     GuiRefresh ->
@@ -627,12 +627,16 @@ queuedJobItemCount QueuedUploadJob {queuedUploadArticles = articles} = length ar
 titleBlock :: Model -> AppViewModel -> WidgetNode Model GuiEvent
 titleBlock model vm =
   hstack
-    [ label (vmTitle vm)
-        `styleBasic` [textSize 18, textColor (mainTextColor model), paddingR 12]
+    [ vstack
+        [ label (vmTitle vm)
+            `styleBasic` [textSize 22, textColor (mainTextColor model)]
+        , mutedLabel model (viewKicker (currentView model))
+            `styleBasic` [paddingT 2]
+        ]
     , filler
     , statusBlock model vm
     , label "Density"
-        `styleBasic` [paddingL 12, paddingR 6, textColor (mutedTextColor model)]
+        `styleBasic` [paddingL 16, paddingR 6, textColor (mutedTextColor model), textSize 12]
     , textDropdownV_
         (rowDensity model)
         GuiRowDensityChanged
@@ -641,7 +645,7 @@ titleBlock model vm =
         []
         `styleBasic` (inputStyle model <> [width 126])
     , label "Theme"
-        `styleBasic` [paddingL 12, paddingR 6, textColor (mutedTextColor model)]
+        `styleBasic` [paddingL 12, paddingR 6, textColor (mutedTextColor model), textSize 12]
     , textDropdownV_
         (uiTheme model)
         GuiUiThemeChanged
@@ -651,7 +655,17 @@ titleBlock model vm =
         `styleBasic` (inputStyle model <> [width 92])
     , secondaryButton model "Refresh" GuiRefresh
     ]
-    `styleBasic` [paddingB 6]
+    `styleBasic` [padding 12, radius 16, bgColor (panelBgColor model), border 1 (borderColor model), paddingB 10]
+
+viewKicker :: View -> Text
+viewKicker view =
+  case view of
+    BrowseView -> "Discover, filter, and save current Zeit articles."
+    LibraryView -> "Search the local library, clean up old items, and review saved work."
+    LingqView -> "Prepare lessons, map courses, sync known words, and upload."
+    ZeitLoginView -> "Use a real browser session for Zeit authentication."
+    DiagnosticsView -> "Watch jobs, retry failures, and gather support details."
+    ArticleView -> "Read, copy, upload, and manage one saved article."
 
 sidebarBlock :: Model -> AppViewModel -> WidgetNode Model GuiEvent
 sidebarBlock model vm =
@@ -678,7 +692,7 @@ sidebarBlock model vm =
     , secondaryButton model "Refresh" GuiRefresh
         `styleBasic` [paddingT 6]
     ]
-    `styleBasic` [width 188, padding 10, bgColor (panelAltColor model), border 1 (borderColor model)]
+    `styleBasic` [width 220, padding 12, bgColor (panelAltColor model), border 1 (borderColor model)]
 
 sideNavButton :: Model -> NavItem -> WidgetNode Model GuiEvent
 sideNavButton model item =
@@ -686,9 +700,9 @@ sideNavButton model item =
     `styleBasic`
       [ paddingH 10
       , paddingV 2
-      , height 28
-      , width 166
-      , radius 8
+      , height 30
+      , width 196
+      , radius 10
       , textSize 12
       , textColor (if navActive item then primaryTextColor model else mainTextColor model)
       , bgColor (if navActive item then primaryColor model else panelBgColor model)
@@ -787,11 +801,11 @@ statusLabel :: Model -> StatusBadge -> WidgetNode Model GuiEvent
 statusLabel model badge =
   label (statusName badge <> ": " <> statusText badge)
     `styleBasic`
-      [ paddingH 10
-      , paddingV 5
-      , paddingR 12
+      [ paddingH 9
+      , paddingV 4
+      , paddingR 10
       , radius 12
-      , textSize 13
+      , textSize 11
       , textColor (if statusConnected badge then primaryColor model else warningColor model)
       , bgColor (panelAltColor model)
       ]
@@ -857,10 +871,10 @@ primaryButton :: Model -> Text -> GuiEvent -> WidgetNode Model GuiEvent
 primaryButton model caption event =
   button caption event
     `styleBasic`
-      [ paddingH 7
+      [ paddingH 10
       , paddingV 2
-      , height 26
-      , radius 7
+      , height 28
+      , radius 10
       , textSize 12
       , textColor (primaryTextColor model)
       , bgColor (primaryColor model)
@@ -871,10 +885,10 @@ secondaryButton :: Model -> Text -> GuiEvent -> WidgetNode Model GuiEvent
 secondaryButton model caption event =
   button caption event
     `styleBasic`
-      [ paddingH 7
+      [ paddingH 10
       , paddingV 2
-      , height 26
-      , radius 7
+      , height 28
+      , radius 10
       , textSize 12
       , textColor (mainTextColor model)
       , bgColor (panelAltColor model)
@@ -885,10 +899,10 @@ dangerButton :: Model -> Text -> GuiEvent -> WidgetNode Model GuiEvent
 dangerButton model caption event =
   button caption event
     `styleBasic`
-      [ paddingH 7
+      [ paddingH 10
       , paddingV 2
-      , height 26
-      , radius 7
+      , height 28
+      , radius 10
       , textSize 12
       , textColor (mainTextColor model)
       , bgColor (dangerBgColor model)
@@ -899,10 +913,10 @@ rowPrimaryButton :: Model -> Text -> GuiEvent -> WidgetNode Model GuiEvent
 rowPrimaryButton model caption event =
   button caption event
     `styleBasic`
-      [ paddingH 5
+      [ paddingH 7
       , paddingV 1
-      , height 20
-      , radius 6
+      , height 22
+      , radius 8
       , textSize 10
       , textColor (primaryTextColor model)
       , bgColor (primaryColor model)
@@ -913,13 +927,13 @@ rowSecondaryButton :: Model -> Text -> GuiEvent -> WidgetNode Model GuiEvent
 rowSecondaryButton model caption event =
   button caption event
     `styleBasic`
-      [ paddingH 5
+      [ paddingH 7
       , paddingV 1
-      , height 20
-      , radius 6
+      , height 22
+      , radius 8
       , textSize 10
       , textColor (mainTextColor model)
-      , bgColor (panelAltColor model)
+      , bgColor (panelBgColor model)
       , border 1 (borderColor model)
       ]
 
@@ -927,10 +941,10 @@ rowDangerButton :: Model -> Text -> GuiEvent -> WidgetNode Model GuiEvent
 rowDangerButton model caption event =
   button caption event
     `styleBasic`
-      [ paddingH 5
+      [ paddingH 7
       , paddingV 1
-      , height 20
-      , radius 6
+      , height 22
+      , radius 8
       , textSize 10
       , textColor (mainTextColor model)
       , bgColor (dangerBgColor model)
@@ -939,20 +953,20 @@ rowDangerButton model caption event =
 
 inputStyle :: Model -> [StyleState]
 inputStyle model =
-  [ paddingH 7
+  [ paddingH 9
   , paddingV 2
-  , height 26
-  , radius 7
+  , height 28
+  , radius 9
   , textSize 12
   , textColor (mainTextColor model)
-  , bgColor (panelAltColor model)
+  , bgColor (panelBgColor model)
   , border 1 (borderColor model)
   ]
 
 panelStyle :: Model -> [StyleState]
 panelStyle model =
-  [ padding 8
-  , radius 12
+  [ padding 12
+  , radius 18
   , bgColor (panelBgColor model)
   , border 1 (borderColor model)
   ]
@@ -997,13 +1011,26 @@ contentBlock model vm =
 screenSummary :: Model -> AppViewModel -> WidgetNode Model GuiEvent
 screenSummary model vm =
   hstack
-    [ mutedLabel model ("Section: " <> vmBrowseSection vm)
-    , mutedLabel model ("Filter: " <> vmActiveFilter vm)
-        `styleBasic` [paddingL 16]
-    , mutedLabel model (vmDatePrefix vm)
-        `styleBasic` [paddingL 16]
+    [ metaChip model ("Section: " <> vmBrowseSection vm)
+    , metaChip model ("Filter: " <> vmActiveFilter vm)
+        `styleBasic` [paddingL 6]
+    , metaChip model (vmDatePrefix vm)
+        `styleBasic` [paddingL 6]
     ]
     `styleBasic` [paddingB 8]
+
+metaChip :: Model -> Text -> WidgetNode Model GuiEvent
+metaChip model caption =
+  label caption
+    `styleBasic`
+      [ paddingH 10
+      , paddingV 4
+      , radius 12
+      , textSize 11
+      , textColor (mutedTextColor model)
+      , bgColor (panelAltColor model)
+      , border 1 (borderColor model)
+      ]
 
 zeitControls :: Model -> WidgetNode Model GuiEvent
 zeitControls model =
@@ -1199,7 +1226,8 @@ browseControls model =
   case currentView model of
     BrowseView ->
       vstack
-        [ hstack
+        [ browseSessionNotice model
+        , hstack
             [ label "Topic"
                 `styleBasic` [paddingR 8, textColor (mutedTextColor model)]
             , textDropdownV_
@@ -1244,6 +1272,21 @@ browseControls model =
     _ -> emptyBlock
   where
     visible = visibleBrowseArticles model
+
+browseSessionNotice :: Model -> WidgetNode Model GuiEvent
+browseSessionNotice model
+  | authLoggedIn (zeitStatus model) = emptyBlock
+  | otherwise =
+      hstack
+        [ vstack
+            [ label "Zeit is not connected"
+                `styleBasic` [textSize 13, textColor (warningColor model)]
+            , mutedLabel model "Fetches for subscriber articles may fail until you import a real browser session."
+            ]
+        , filler
+        , primaryButton model "Connect Zeit" (GuiNavigate ZeitLoginView)
+        ]
+        `styleBasic` [padding 10, radius 14, bgColor (panelAltColor model), border 1 (borderColor model), paddingB 8]
 
 libraryControls :: Model -> WidgetNode Model GuiEvent
 libraryControls model =
@@ -1606,41 +1649,63 @@ sectionMappingsPanel model
         `styleBasic` [paddingB 4]
 
 lingqLoginControls :: Model -> WidgetNode Model GuiEvent
-lingqLoginControls model =
-  vstack
-    [ label "LingQ connection"
-        `styleBasic` [textSize 16, paddingT 8, textColor (mainTextColor model)]
-    , hstack
-        [ label "API key"
-            `styleBasic` [paddingR 8, textColor (mutedTextColor model)]
-        , textFieldV_
-            (lingqApiKeyText model)
-            GuiLingqApiKeyChanged
-            [placeholder "LingQ API key"]
-            `styleBasic` (inputStyle model <> [width 360])
-        , primaryButton model "Connect API key" GuiLingqApiKeyLogin
+lingqLoginControls model
+  | authLoggedIn (lingqStatus model) =
+      hstack
+        [ vstack
+            [ label "LingQ connected"
+                `styleBasic` [textSize 15, textColor (mainTextColor model)]
+            , mutedLabel model ("Account: " <> connectedAuthLabel (lingqStatus model))
+            ]
+        , filler
         , secondaryButton model "Disconnect" GuiLingqLogout
         ]
-    , hstack
-        [ label "Username"
-            `styleBasic` [paddingR 8, textColor (mutedTextColor model)]
-        , textFieldV_
-            (lingqUsernameText model)
-            GuiLingqUsernameChanged
-            [placeholder "LingQ username or email"]
-            `styleBasic` (inputStyle model <> [width 230])
-        , label "Password"
-            `styleBasic` [paddingL 12, paddingR 8, textColor (mutedTextColor model)]
-        , textFieldV_
-            (lingqPasswordText model)
-            GuiLingqPasswordChanged
-            [placeholder "Password", textFieldDisplayChar '*']
-            `styleBasic` (inputStyle model <> [width 220])
-        , primaryButton model "Login with password" GuiLingqPasswordLogin
+        `styleBasic` [padding 10, radius 14, bgColor (panelAltColor model), border 1 (borderColor model), paddingB 10]
+  | otherwise =
+      vstack
+        [ hstack
+            [ label "LingQ connection"
+                `styleBasic` [textSize 16, textColor (mainTextColor model)]
+            , mutedLabel model "Use an API key when possible; password login is available if needed."
+                `styleBasic` [paddingL 12]
+            ]
+        , hstack
+            [ label "API key"
+                `styleBasic` [paddingR 8, textColor (mutedTextColor model)]
+            , textFieldV_
+                (lingqApiKeyText model)
+                GuiLingqApiKeyChanged
+                [placeholder "LingQ API key"]
+                `styleBasic` (inputStyle model <> [width 360])
+            , primaryButton model "Connect API key" GuiLingqApiKeyLogin
+            ]
+            `styleBasic` [paddingT 8]
+        , hstack
+            [ label "Username"
+                `styleBasic` [paddingR 8, textColor (mutedTextColor model)]
+            , textFieldV_
+                (lingqUsernameText model)
+                GuiLingqUsernameChanged
+                [placeholder "LingQ username or email"]
+                `styleBasic` (inputStyle model <> [width 230])
+            , label "Password"
+                `styleBasic` [paddingL 12, paddingR 8, textColor (mutedTextColor model)]
+            , textFieldV_
+                (lingqPasswordText model)
+                GuiLingqPasswordChanged
+                [placeholder "Password", textFieldDisplayChar '*']
+                `styleBasic` (inputStyle model <> [width 220])
+            , primaryButton model "Login with password" GuiLingqPasswordLogin
+            ]
+            `styleBasic` [paddingT 6]
         ]
-        `styleBasic` [paddingT 6]
-    ]
-    `styleBasic` [paddingB 10]
+        `styleBasic` [padding 10, radius 14, bgColor (panelAltColor model), border 1 (borderColor model), paddingB 10]
+
+connectedAuthLabel :: AuthStatus -> Text
+connectedAuthLabel status =
+  case authLabel status of
+    Just labelText | not (T.null labelText) -> labelText
+    _ -> "connected"
 
 selectedArticleBlock :: Model -> Maybe ArticleRowView -> WidgetNode Model GuiEvent
 selectedArticleBlock model Nothing =
@@ -1650,14 +1715,46 @@ selectedArticleBlock model Nothing =
 selectedArticleBlock model (Just row) =
   vstack
     [ label (rowTitle row)
-        `styleBasic` [textSize 18, paddingT 8, textColor (mainTextColor model)]
-    , label (rowMeta row)
-        `styleBasic` [textColor (mutedTextColor model)]
-    , label (rowKnownPct row <> " | " <> rowUploadStatus row)
-        `styleBasic` [textColor (mutedTextColor model)]
+        `styleBasic` [textSize 20, paddingT 8, textColor (mainTextColor model)]
+    , articleDetailLine model row (selectedArticleContent model)
+        `styleBasic` [paddingT 4]
+    , articleAudioLine model (selectedArticleContent model)
+        `styleBasic` [paddingT 4]
     , hstack (articleButtons model (selectedArticle model) (selectedArticleContent model))
-        `styleBasic` [paddingT 6]
+        `styleBasic` [paddingT 8]
     ]
+
+articleDetailLine :: Model -> ArticleRowView -> Maybe Article -> WidgetNode Model GuiEvent
+articleDetailLine model row maybeContent =
+  label (T.intercalate "  /  " (filter (not . T.null) parts))
+    `styleBasic` [textSize 12, textColor (mutedTextColor model)]
+  where
+    parts =
+      case maybeContent of
+        Nothing ->
+          [rowMeta row, rowKnownPct row, rowUploadStatus row]
+        Just content ->
+          [ articleSection content
+          , maybe "" id (articleDate content)
+          , if T.null (articleAuthor content) then "" else "By " <> articleAuthor content
+          , tshow (wordCount content) <> " words"
+          , rowKnownPct row
+          , rowUploadStatus row
+          ]
+
+articleAudioLine :: Model -> Maybe Article -> WidgetNode Model GuiEvent
+articleAudioLine model maybeContent =
+  case maybeContent of
+    Nothing -> emptyBlock
+    Just content ->
+      label ("Audio: " <> audioStatus)
+        `styleBasic` [textSize 12, textColor (mutedTextColor model)]
+      where
+        audioStatus =
+          case (articleAudioUrl content, articleAudioPath content) of
+            (_, Just _) -> "downloaded"
+            (Just _, Nothing) -> "available"
+            (Nothing, Nothing) -> "not found for this article"
 
 articleButtons :: Model -> Maybe ArticleSummary -> Maybe Article -> [WidgetNode Model GuiEvent]
 articleButtons model Nothing _ = [secondaryButton model "Back to library" GuiCloseArticle]
@@ -1686,20 +1783,30 @@ articleParagraphsBlock _ [] =
   emptyBlock
 articleParagraphsBlock model paragraphs =
   vscroll (vstack (map (paragraphLabel model) paragraphs))
-    `styleBasic` [height 280, paddingT 8, paddingB 8]
+    `styleBasic` [height 430, paddingT 10, paddingB 8]
 
 paragraphLabel :: Model -> Text -> WidgetNode Model GuiEvent
 paragraphLabel model paragraph =
-  label paragraph
-    `styleBasic` [paddingB 8, textColor (mainTextColor model)]
+  case T.stripPrefix "## " (T.strip paragraph) of
+    Just heading ->
+      label heading
+        `styleBasic` [paddingT 8, paddingB 6, textSize 15, textColor (primaryColor model)]
+    Nothing ->
+      label paragraph
+        `styleBasic` [paddingB 10, textSize 13, textColor (mainTextColor model)]
 
 articleRowsBlock :: Model -> [ArticleSummary] -> WidgetNode Model GuiEvent
 articleRowsBlock model [] =
-  label "No rows loaded yet."
-    `styleBasic` [textColor (mutedTextColor model), paddingT 16]
+  vstack
+    [ label "No articles to show"
+        `styleBasic` [textSize 16, textColor (mainTextColor model)]
+    , mutedLabel model (emptyRowsHint (currentView model))
+        `styleBasic` [paddingT 4]
+    ]
+    `styleBasic` [padding 18, radius 14, bgColor (panelAltColor model), border 1 (borderColor model), paddingT 16]
 articleRowsBlock model rows =
   vscroll (vstack rowWidgets)
-    `styleBasic` [paddingT 6]
+    `styleBasic` [paddingT 8]
   where
     rowWidgets =
       case currentView model of
@@ -1717,6 +1824,16 @@ articleRowsBlock model rows =
        in if collapsed
             then [heading]
             else heading : map (articleRowBlock model) articles
+
+emptyRowsHint :: View -> Text
+emptyRowsHint view =
+  case view of
+    BrowseView -> "Refresh a section or change your filters."
+    LibraryView -> "Try clearing filters or fetching articles from Browse."
+    LingqView -> "Saved, unignored articles appear here when they are ready for LingQ."
+    ZeitLoginView -> "Use the Zeit tab to connect your session."
+    DiagnosticsView -> "Diagnostics appear when jobs are queued or completed."
+    ArticleView -> "Open an article from Browse or Library."
 
 groupArticlesBySection :: [ArticleSummary] -> [(Text, [ArticleSummary])]
 groupArticlesBySection =
@@ -1737,19 +1854,37 @@ articleRowBlock model article =
             `styleBasic` [textSize (rowTitleSize model), textColor (mainTextColor model)]
         , label_ (rowMeta row <> " | " <> rowKnownPct row <> " | " <> rowUploadStatus row) [ellipsis]
             `styleBasic` [textSize (rowMetaSize model), textColor (mutedTextColor model)]
-        , hstack (rowActions model (currentView model) article)
-            `styleBasic` [paddingT (rowActionPadding model)]
         ]
+    , filler
+    , hstack (rowActions model (currentView model) article)
+        `styleBasic` [paddingL 10]
     ]
     `styleBasic`
       [ height (rowHeight model)
       , padding (rowPadding model)
-      , radius 8
-      , bgColor (panelAltColor model)
-      , border 1 (borderColor model)
+      , radius 12
+      , bgColor (articleRowBgColor model article)
+      , border 1 (articleRowBorderColor model article)
       ]
   where
     row = articleRowView article
+
+articleRowBgColor :: Model -> ArticleSummary -> Color
+articleRowBgColor model article
+  | articleSelected model article = panelBgColor model
+  | otherwise = panelAltColor model
+
+articleRowBorderColor :: Model -> ArticleSummary -> Color
+articleRowBorderColor model article
+  | articleSelected model article = primaryColor model
+  | otherwise = borderColor model
+
+articleSelected :: Model -> ArticleSummary -> Bool
+articleSelected model article =
+  case currentView model of
+    BrowseView -> Set.member (summaryUrl article) (browseSelectedUrls model)
+    LingqView -> maybe False (\ident -> Set.member ident (lingqSelectedIds model)) (summaryId article)
+    _ -> False
 
 rowHeight :: Model -> Double
 rowHeight model =
@@ -1774,12 +1909,6 @@ rowMetaSize model =
   case rowDensity model of
     CompactRows -> 9
     ComfortableRows -> 10
-
-rowActionPadding :: Model -> Double
-rowActionPadding model =
-  case rowDensity model of
-    CompactRows -> 1
-    ComfortableRows -> 3
 
 rowSelectionCheckbox :: Model -> ArticleSummary -> WidgetNode Model GuiEvent
 rowSelectionCheckbox model article =
@@ -1894,13 +2023,17 @@ runFetchBatchProducer runtime model job send =
     sendProgress (length articles) "Updating the local library..."
     let failures = guiBatchFetchFailures results
         summary = withCancelSuffix cancelled (guiBatchFetchSummary results)
+        finalSummary =
+          if fetchFailuresNeedZeitLogin failures
+            then summary <> " " <> zeitAuthGuidance
+            else summary
     finalModel <-
       dispatchEvents
         ports
         model
         [ BatchFetchFinished failures
-        , CompletedJobRecorded (CompletedJob (queuedJobId job) FetchJob (queuedJobLabel job) summary (not cancelled && null failures))
-        , Notify (if cancelled then InfoNotice else guiBatchFetchLevel results) summary
+        , CompletedJobRecorded (CompletedJob (queuedJobId job) FetchJob (queuedJobLabel job) finalSummary (not cancelled && null failures))
+        , Notify (if cancelled then InfoNotice else guiBatchFetchLevel results) finalSummary
         , RefreshCurrentView
         ]
     send (GuiModelLoaded finalModel)
@@ -2154,6 +2287,31 @@ cleanExceptionText raw =
   case T.stripSuffix ")" =<< T.stripPrefix "user error (" raw of
     Just inner -> inner
     Nothing -> raw
+
+friendlyFailureMessage :: Text -> Text
+friendlyFailureMessage message
+  | isZeitAuthFailureText message = message <> " " <> zeitAuthGuidance
+  | otherwise = message
+
+fetchFailuresNeedZeitLogin :: [(Text, Text)] -> Bool
+fetchFailuresNeedZeitLogin =
+  any (isZeitAuthFailureText . snd)
+
+isZeitAuthFailureText :: Text -> Bool
+isZeitAuthFailureText message =
+  any (`T.isInfixOf` lower)
+    [ "session expired"
+    , "paywall"
+    , "behind a paywall"
+    , "einloggen"
+    , "zeit request failed"
+    ]
+  where
+    lower = T.toLower message
+
+zeitAuthGuidance :: Text
+zeitAuthGuidance =
+  "Open the Zeit tab and use Browser login & import so requests reuse your real Edge/Chrome session."
 
 runSideEffect :: Model -> IO () -> Text -> IO GuiEvent
 runSideEffect model action message =
