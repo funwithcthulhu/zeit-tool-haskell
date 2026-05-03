@@ -1,0 +1,75 @@
+{-# LANGUAGE OverloadedStrings #-}
+
+module Main (main) where
+
+import Data.Set qualified as Set
+import Data.Time (fromGregorian)
+import Test.Hspec
+import ZeitLingq.App.Model (Model(..), initialModel)
+import ZeitLingq.App.Update
+import ZeitLingq.Core.KnownWords (estimateKnownPct, importKnownWordStems)
+import ZeitLingq.Domain.Article
+import ZeitLingq.Domain.Types
+import ZeitLingq.Text.German
+
+main :: IO ()
+main = hspec $ do
+  describe "German tokenization and stemming" $ do
+    it "keeps umlauted words and strips punctuation" $ do
+      tokenizeGerman "Häuser, laufen! und ß." `shouldBe` ["häuser", "laufen", "und"]
+
+    it "normalizes common plural variants into ASCII stems" $ do
+      stemGerman "Häuser" `shouldBe` "haus"
+
+  describe "Known-word estimation" $ do
+    it "imports, stems and scores vocabulary" $ do
+      let known = importKnownWordStems "laufen\nHaus\n"
+      estimateKnownPct known "Das Haus laufen langsam" `shouldBe` Just 50
+
+    it "returns Nothing for empty article text" $ do
+      estimateKnownPct Set.empty "" `shouldBe` Nothing
+
+  describe "Article helpers" $ do
+    it "adds a date prefix once" $ do
+      lessonTitle (fromGregorian 2026 5 2) True "Titel" `shouldBe` "2026-05-02 - Titel"
+      lessonTitle (fromGregorian 2026 5 2) True "2026-05-01 - Titel" `shouldBe` "2026-05-01 - Titel"
+
+    it "applies fetch filters like the Electron app" $ do
+      applyWordFilter (WordFilter (Just 5) (Just 10)) demoArticle `shouldBe` SkipBelowMinimum 4 5
+
+  describe "Pure app update" $ do
+    it "navigates to the article view and persists it" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 7)
+              , summaryUrl = "https://example.com"
+              , summaryTitle = "Test"
+              , summarySection = "Wissen"
+              , summaryWordCount = 123
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          (nextModel, commands) = update (ArticleOpened summary) initialModel
+      currentView nextModel `shouldBe` ArticleView
+      selectedArticle nextModel `shouldBe` Just summary
+      commands `shouldBe` [PersistCurrentView ArticleView]
+
+demoArticle :: Article
+demoArticle =
+  Article
+    { articleId = Nothing
+    , articleUrl = "https://example.com"
+    , articleTitle = "Demo"
+    , articleSubtitle = ""
+    , articleAuthor = ""
+    , articleDate = Nothing
+    , articleSection = "Wissen"
+    , articleParagraphs = ["eins zwei", "drei vier"]
+    , articleFetchedAt = Nothing
+    , articleUploadedLesson = Nothing
+    , articleIgnored = False
+    , articleAudioUrl = Nothing
+    , articleAudioPath = Nothing
+    , articleKnownPct = Nothing
+    }

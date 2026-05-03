@@ -1,0 +1,53 @@
+cabal-version:   3.14
+name:            zeit-lingq-tool
+version:         0.1.0.0
+synopsis:        Haskell-first rewrite of the Zeit to LingQ desktop workflow
+description:     Pure domain and app-state core for migrating the Electron Zeit Reader to Haskell.
+license:         BSD-3-Clause
+license-file:    LICENSE
+author:          OpenAI Codex
+maintainer:      noreply@example.com
+build-type:      Simple
+extra-doc-files: CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall
+
+common core-deps
+    build-depends:
+        base ^>=4.18.3.0,
+        containers ^>=0.6.7,
+        text ^>=2.0.2,
+        time ^>=1.12.2
+    default-language: GHC2021
+
+library
+    import:           warnings, core-deps
+    hs-source-dirs:   src
+    exposed-modules:
+        ZeitLingq.App.Model
+        ZeitLingq.App.Update
+        ZeitLingq.Core.KnownWords
+        ZeitLingq.Domain.Article
+        ZeitLingq.Domain.Section
+        ZeitLingq.Domain.Types
+        ZeitLingq.Ports
+        ZeitLingq.Text.German
+
+executable zeit-lingq-tool
+    import:           warnings, core-deps
+    main-is:          Main.hs
+    build-depends:
+        zeit-lingq-tool
+    hs-source-dirs:
+        app
+
+test-suite zeit-lingq-tool-test
+    import:           warnings, core-deps
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    hs-source-dirs:
+        test
+    build-depends:
+        hspec ^>=2.11.9,
+        zeit-lingq-tool

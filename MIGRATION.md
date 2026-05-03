@@ -1,0 +1,36 @@
+# Migration Notes
+
+## Why a parallel Haskell track
+
+The existing Electron app is still the best executable specification of behavior. Rewriting directly over it would make it too easy to lose working features while the new code is still forming. This repository is the new Haskell home; the legacy app is used as a reference until we reach feature parity.
+
+## Functional architecture
+
+The rewrite uses four layers:
+
+1. `Domain`
+   - Plain immutable data structures.
+   - Pure rules for article formatting, word-count filtering, and LingQ lesson naming.
+2. `Text`
+   - Language-specific normalization and stemming.
+3. `App`
+   - A pure model and event/update loop, intentionally compatible with Elm-style GUI libraries such as Monomer.
+4. `Ports`
+   - Explicit effect boundaries for scraping, persistence, settings, and LingQ.
+
+## Legacy to Haskell mapping
+
+- `electron/services/zeit-scraper.js`
+  - Future `ZeitLingq.Infrastructure.Zeit` adapter behind `ZeitPort`.
+- `electron/services/lingq-api.js`
+  - Future `ZeitLingq.Infrastructure.Lingq` adapter behind `LingqPort`.
+- `electron/services/database.js`
+  - Future `ZeitLingq.Infrastructure.Sqlite` adapter behind `LibraryPort`.
+- `electron/services/stemmer.js`
+  - Ported into `ZeitLingq.Text.German`.
+- `src/App.jsx` and component state
+  - Reframed as `ZeitLingq.App.Model` and `ZeitLingq.App.Update`.
+
+## GUI recommendation
+
+The most sensible first GUI remains Monomer because the app state already fits a pure model/update flow. We should still keep Monomer as an adapter, not as the center of the architecture, so replacing it later would not touch scraping, persistence, or domain rules.
