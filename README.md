@@ -34,6 +34,12 @@ cabal test
 cabal run
 ```
 
+On Windows, `run-zeit-tool.ps1` launches the CLI from the project directory:
+
+```powershell
+.\run-zeit-tool.ps1 sections
+```
+
 The GUI shell is optional so native Monomer dependencies do not affect the default CLI and CI path:
 
 ```powershell
