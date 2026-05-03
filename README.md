@@ -36,7 +36,7 @@ cabal run
 
 ```powershell
 cabal run zeit-lingq-tool -- sections
-cabal run zeit-lingq-tool -- browse wissen 1
+cabal run zeit-lingq-tool -- browse wissen 1 zeit-tool.db
 cabal run zeit-lingq-tool -- fetch https://www.zeit.de/wissen/2026-05/example
 cabal run zeit-lingq-tool -- batch-fetch urls.txt zeit-tool.db 500 2000
 cabal run zeit-lingq-tool -- library
@@ -80,6 +80,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - SQLite article persistence is available through `LibraryPort`.
 - SQLite stats, delete, and saved-article ignore/unignore controls are exposed through the CLI.
 - SQLite ignored browse URLs are available for pre-fetch hiding.
+- Browse output hides URLs recorded in the SQLite ignored URL list.
 - SQLite known-word storage and article `known_pct` recomputation are available.
 - LingQ known-word sync is available from the CLI and recomputes cached coverage.
 - Article audio metadata persistence and download helpers are available.

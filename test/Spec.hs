@@ -19,6 +19,7 @@ import ZeitLingq.App.UploadConfig
 import ZeitLingq.App.Update
 import ZeitLingq.Cli
 import ZeitLingq.Core.Batch
+import ZeitLingq.Core.Browse
 import ZeitLingq.Core.KnownWords (estimateKnownPct, importKnownWordStems)
 import ZeitLingq.Core.Upload
 import ZeitLingq.Domain.Article
@@ -97,7 +98,8 @@ main = hspec $ do
       parseArgs [] `shouldBe` Right ShowDemo
 
     it "parses browse, fetch and library commands" $ do
-      parseArgs ["browse", "wissen", "2"] `shouldBe` Right (BrowseZeit "wissen" 2)
+      parseArgs ["browse", "wissen", "2"] `shouldBe` Right (BrowseZeit "wissen" 2 defaultDbPath)
+      parseArgs ["browse", "wissen", "2", "custom.db"] `shouldBe` Right (BrowseZeit "wissen" 2 "custom.db")
       parseArgs ["fetch", "https://www.zeit.de/wissen/2026-05/beispiel"] `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
       parseArgs ["batch-fetch", "urls.txt", "custom.db", "500", "2000"] `shouldBe` Right (BatchFetch "urls.txt" "custom.db" (WordFilter (Just 500) (Just 2000)))
       parseArgs ["library", "custom.db"] `shouldBe` Right (ShowLibrary "custom.db")
@@ -126,6 +128,23 @@ main = hspec $ do
     it "rejects invalid settings values" $ do
       parseArgs ["settings", "set-view", "nope"] `shouldSatisfy` isLeft
       parseArgs ["settings", "set-date-prefix", "maybe"] `shouldSatisfy` isLeft
+
+  describe "Browse use case" $ do
+    it "hides browse summaries whose URLs were ignored before fetching" $ do
+      let visible =
+            ArticleSummary
+              { summaryId = Nothing
+              , summaryUrl = "https://example.com/visible"
+              , summaryTitle = "Visible"
+              , summarySection = "Wissen"
+              , summaryWordCount = 0
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          ignored = visible {summaryUrl = "https://example.com/ignored", summaryTitle = "Ignored"}
+      hideIgnoredSummaries (Set.singleton "https://example.com/ignored") [visible, ignored]
+        `shouldBe` [visible]
 
   describe "Batch fetch use case" $ do
     it "saves successful articles and skips articles outside the word filter" $ do

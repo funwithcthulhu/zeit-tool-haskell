@@ -4,6 +4,7 @@ module Main (main) where
 
 import Data.Foldable (for_)
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.IO qualified as TIO
 import Data.Time (fromGregorian, getCurrentTime, utctDay)
@@ -13,6 +14,7 @@ import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.App.Update (Event(..), update)
 import ZeitLingq.Cli
 import ZeitLingq.Core.Batch
+import ZeitLingq.Core.Browse
 import ZeitLingq.Core.KnownWords (estimateKnownPct, importKnownWordStems)
 import ZeitLingq.Core.Upload
 import ZeitLingq.Domain.Article (composeCleanText, lessonTitle, wordCount)
@@ -36,14 +38,16 @@ runCommand ShowDemo = runDemo
 runCommand ListSections =
   for_ allSections $ \section ->
     putStrLn (T.unpack (sectionId section <> "\t" <> sectionLabel section))
-runCommand (BrowseZeit sectionIdent page) = do
+runCommand (BrowseZeit sectionIdent page dbPath) = do
   session <- sessionFromEnv
   result <- fetchArticleListZeit session sectionIdent page
   case result of
     Left err -> print err
     Right articles ->
-      for_ articles $ \article ->
-        putStrLn (T.unpack (summaryTitle article <> "\n  " <> summaryUrl article))
+      withLibrary dbPath $ \db -> do
+        ignoredUrls <- Set.fromList <$> getIgnoredUrlsSqlite db
+        for_ (hideIgnoredSummaries ignoredUrls articles) $ \article ->
+          putStrLn (T.unpack (summaryTitle article <> "\n  " <> summaryUrl article))
 runCommand (FetchArticle url dbPath) = do
   session <- sessionFromEnv
   result <- fetchArticleContentZeit session url

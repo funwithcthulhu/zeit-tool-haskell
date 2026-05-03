@@ -15,7 +15,7 @@ import ZeitLingq.Domain.Types (View(..), WordFilter(..))
 data CliCommand
   = ShowDemo
   | ListSections
-  | BrowseZeit Text Int
+  | BrowseZeit Text Int FilePath
   | FetchArticle Text FilePath
   | BatchFetch FilePath FilePath WordFilter
   | ShowLibrary FilePath
@@ -49,9 +49,15 @@ defaultSettingsPath = "settings.json"
 parseArgs :: [String] -> Either String CliCommand
 parseArgs [] = Right ShowDemo
 parseArgs ["sections"] = Right ListSections
-parseArgs ["browse", sectionId] = Right (BrowseZeit (T.pack sectionId) 1)
+parseArgs ["browse", sectionId] = Right (BrowseZeit (T.pack sectionId) 1 defaultDbPath)
 parseArgs ["browse", sectionId, pageValue] =
-  BrowseZeit (T.pack sectionId) <$> parsePositiveInt "page" pageValue
+  BrowseZeit (T.pack sectionId)
+    <$> parsePositiveInt "page" pageValue
+    <*> pure defaultDbPath
+parseArgs ["browse", sectionId, pageValue, dbPath] =
+  BrowseZeit (T.pack sectionId)
+    <$> parsePositiveInt "page" pageValue
+    <*> pure dbPath
 parseArgs ["fetch", url] = Right (FetchArticle (T.pack url) defaultDbPath)
 parseArgs ["fetch", url, dbPath] = Right (FetchArticle (T.pack url) dbPath)
 parseArgs ["batch-fetch", sourcePath] = Right (BatchFetch sourcePath defaultDbPath (WordFilter Nothing Nothing))
@@ -142,7 +148,7 @@ usageText =
     [ "Usage:"
     , "  zeit-lingq-tool"
     , "  zeit-lingq-tool sections"
-    , "  zeit-lingq-tool browse <section-id> [page]"
+    , "  zeit-lingq-tool browse <section-id> [page] [db-path]"
     , "  zeit-lingq-tool fetch <article-url> [db-path]"
     , "  zeit-lingq-tool batch-fetch <url-list.txt> [db-path]"
     , "  zeit-lingq-tool batch-fetch <url-list.txt> <db-path> <min-words> <max-words>"

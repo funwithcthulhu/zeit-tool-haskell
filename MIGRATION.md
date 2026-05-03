@@ -39,6 +39,7 @@ The rewrite uses four layers:
   - Partially ported into `ZeitLingq.Infrastructure.Audio` plus SQLite audio metadata helpers.
 - `electron/services/database.js` ignored URL table
   - Ported into SQLite ignored URL helpers for browse-level hiding.
+  - CLI browse now consults the ignored URL table and hides matching summaries before fetch.
 - `electron/services/stemmer.js`
   - Ported into `ZeitLingq.Text.German`.
 - `src/App.jsx` and component state
