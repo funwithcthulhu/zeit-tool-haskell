@@ -17,6 +17,8 @@ import System.Info (os)
 import System.IO (hClose)
 import System.Process (CreateProcess(std_in), StdStream(CreatePipe), callProcess, proc, waitForProcess, withCreateProcess)
 import Data.Text.IO qualified as TIO
+import ZeitLingq.Core.Batch (BatchFetchResult(..))
+import ZeitLingq.Domain.Article (BatchDecision(..), applyWordFilter)
 import ZeitLingq.App.Driver (dispatchEvent, dispatchEvents)
 import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.Startup (loadInitialModel)
@@ -245,12 +247,12 @@ handleEvent ports _ _ model event =
           withPendingNotice
             model
             ("Fetching " <> tshow (length selected) <> " selected article(s)...")
-            (runAppEvent ports model (BrowseBatchFetchRequested selected))
+            (runFetchBatchAppEvent ports model selected)
     GuiFetchVisible articles ->
       withPendingNotice
         model
         ("Fetching " <> tshow (length articles) <> " visible article(s)...")
-        (runAppEvent ports model (BrowseBatchFetchRequested articles))
+        (runFetchBatchAppEvent ports model articles)
     GuiToggleIgnored article ->
       case summaryId article of
         Just ident -> [Task (runAppEvent ports model (ArticleIgnoredChanged ident (not (summaryIgnored article))))]
@@ -291,7 +293,7 @@ handleEvent ports _ _ model event =
           withPendingNotice
             model
             ("Retrying " <> tshow (length failures) <> " failed fetch(es)...")
-            (runAppEvent ports model (BrowseBatchFetchRequested (map failedFetchSummary failures)))
+            (runFetchBatchAppEvent ports model (map failedFetchSummary failures))
     GuiRetryFailedUploads ->
       case failedUploads model of
         [] -> [Task (runAppEvent ports model (Notify InfoNotice "No failed uploads to retry."))]
@@ -1255,6 +1257,31 @@ runAppEvent :: AppPorts IO -> Model -> Event -> IO GuiEvent
 runAppEvent ports model event =
   safeGuiTask (dispatchEvent ports model event)
 
+runFetchBatchAppEvent :: AppPorts IO -> Model -> [ArticleSummary] -> IO GuiEvent
+runFetchBatchAppEvent ports model articles =
+  safeGuiTask $ do
+    results <- traverse fetchOne articles
+    dispatchEvents
+      ports
+      model
+      [ BatchFetchFinished (guiBatchFetchFailures results)
+      , Notify SuccessNotice (guiBatchFetchSummary results)
+      , RefreshCurrentView
+      ]
+  where
+    filters = browseFilter model
+    fetchOne article = do
+      let url = summaryUrl article
+      fetched <- tryText (fetchArticleContent (zeitPort ports) url)
+      case fetched of
+        Left err -> pure (BatchFailed url err)
+        Right fetchedArticle ->
+          case applyWordFilter filters fetchedArticle of
+            KeepArticle -> do
+              savedId <- saveArticle (libraryPort ports) fetchedArticle
+              pure (BatchSaved url savedId)
+            decision -> pure (BatchSkipped url decision)
+
 runUploadAppEvent :: AppPorts IO -> Model -> ArticleId -> IO GuiEvent
 runUploadAppEvent ports model ident =
   safeGuiTask $ do
@@ -1285,6 +1312,20 @@ safeGuiTask action = do
     case result of
       Right model -> GuiModelLoaded model
       Left err -> GuiFailed (T.pack (displayException (err :: SomeException)))
+
+tryText :: IO a -> IO (Either Text a)
+tryText action = do
+  result <- try action
+  pure $
+    case result of
+      Right value -> Right value
+      Left err -> Left (cleanExceptionText (T.pack (displayException (err :: SomeException))))
+
+cleanExceptionText :: Text -> Text
+cleanExceptionText raw =
+  case T.stripSuffix ")" =<< T.stripPrefix "user error (" raw of
+    Just inner -> inner
+    Nothing -> raw
 
 runSideEffect :: Model -> IO () -> Text -> IO GuiEvent
 runSideEffect model action message =
@@ -1333,6 +1374,26 @@ articleCopyText article =
       , articleSubtitle article
       ]
         <> articleParagraphs article
+
+guiBatchFetchSummary :: [BatchFetchResult] -> Text
+guiBatchFetchSummary results =
+  "Batch fetch: saved "
+    <> tshow saved
+    <> ", skipped "
+    <> tshow skipped
+    <> ", failed "
+    <> tshow failed
+    <> "."
+  where
+    saved = length [() | BatchSaved {} <- results]
+    skipped = length [() | BatchSkipped {} <- results]
+    failed = length [() | BatchFailed {} <- results]
+
+guiBatchFetchFailures :: [BatchFetchResult] -> [(Text, Text)]
+guiBatchFetchFailures results =
+  [ (url, err)
+  | BatchFailed url err <- results
+  ]
 
 makePorts :: IO (AppPorts IO)
 makePorts = do
