@@ -30,6 +30,7 @@ data GuiEvent
   | GuiSectionSelected Text
   | GuiOpenArticle ArticleSummary
   | GuiFetchArticle ArticleSummary
+  | GuiToggleIgnored ArticleSummary
   | GuiDeleteArticle ArticleId
   | GuiCloseArticle
   | GuiClearNotice
@@ -81,6 +82,10 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (ArticleOpened article))]
     GuiFetchArticle article ->
       [Task (runAppEvent ports model (BrowseArticleFetchRequested article))]
+    GuiToggleIgnored article ->
+      case summaryId article of
+        Just ident -> [Task (runAppEvent ports model (ArticleIgnoredChanged ident (not (summaryIgnored article))))]
+        Nothing -> [Task (runAppEvent ports model (Notify ErrorNotice "Cannot ignore an unsaved article."))]
     GuiDeleteArticle ident ->
       [Task (runAppEvent ports model (ArticleDeleteRequested ident))]
     GuiCloseArticle ->
@@ -234,6 +239,9 @@ rowActions _ article =
     []
     (\ident ->
       [ button "Open" (GuiOpenArticle article)
+      , button
+          (if summaryIgnored article then "Unignore" else "Ignore")
+          (GuiToggleIgnored article)
       , button "Delete" (GuiDeleteArticle ident)
       ])
     (summaryId article)
@@ -345,6 +353,8 @@ guiLibraryPort =
         withLibrary dbPath $ \db -> saveArticleSqlite db article
     , deleteArticle = \ident ->
         withLibrary dbPath $ \db -> deleteArticleSqlite db ident
+    , setArticleIgnored = \ident ignored ->
+        withLibrary dbPath $ \db -> setIgnoredSqlite db ident ignored
     , loadStats =
         withLibrary dbPath getStatsSqlite
     }

@@ -81,9 +81,10 @@ articleRowView article =
           <> " words"
     , rowKnownPct = knownPctLabel (summaryKnownPct article)
     , rowUploadStatus =
-        if summaryUploaded article
-          then "uploaded"
-          else "not uploaded"
+        case (summaryIgnored article, summaryUploaded article) of
+          (True, _) -> "ignored"
+          (_, True) -> "uploaded"
+          _ -> "not uploaded"
     }
 
 viewLabel :: View -> Text

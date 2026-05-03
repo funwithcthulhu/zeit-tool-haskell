@@ -57,6 +57,12 @@ runCommand ports command =
         [ Notify SuccessNotice "Deleted article."
         , ArticleClosed
         ]
+    SetArticleIgnored ident ignored -> do
+      setArticleIgnored library ident ignored
+      pure
+        [ Notify SuccessNotice (if ignored then "Article ignored." else "Article unignored.")
+        , RefreshCurrentView
+        ]
   where
     zeit = zeitPort ports
     library = libraryPort ports

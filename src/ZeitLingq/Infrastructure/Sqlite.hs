@@ -76,6 +76,7 @@ sqliteLibraryPort db =
     , loadArticle = getArticleSqlite db
     , saveArticle = saveArticleSqlite db
     , deleteArticle = deleteArticleSqlite db
+    , setArticleIgnored = setIgnoredSqlite db
     , loadStats = getStatsSqlite db
     }
 

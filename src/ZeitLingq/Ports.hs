@@ -32,6 +32,7 @@ data LibraryPort m = LibraryPort
   , loadArticle :: ArticleId -> m (Maybe Article)
   , saveArticle :: Article -> m ArticleId
   , deleteArticle :: ArticleId -> m ()
+  , setArticleIgnored :: ArticleId -> Bool -> m ()
   , loadStats :: m LibraryStats
   }
 

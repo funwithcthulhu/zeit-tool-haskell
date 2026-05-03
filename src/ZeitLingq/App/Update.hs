@@ -20,6 +20,7 @@ data Event
   | ArticleClosed
   | BrowseArticleFetchRequested ArticleSummary
   | ArticleDeleteRequested ArticleId
+  | ArticleIgnoredChanged ArticleId Bool
   | BrowseArticlesLoaded [ArticleSummary]
   | LibraryArticlesLoaded [ArticleSummary]
   | LingqArticlesLoaded [ArticleSummary]
@@ -45,6 +46,7 @@ data Command
   | LoadArticle ArticleId
   | FetchAndSaveArticle ArticleSummary
   | DeleteSavedArticle ArticleId
+  | SetArticleIgnored ArticleId Bool
   deriving (Eq, Show)
 
 update :: Event -> Model -> (Model, [Command])
@@ -92,6 +94,10 @@ update event model =
     ArticleDeleteRequested ident ->
       ( model
       , [DeleteSavedArticle ident]
+      )
+    ArticleIgnoredChanged ident ignored ->
+      ( model
+      , [SetArticleIgnored ident ignored]
       )
     BrowseArticlesLoaded articles ->
       ( model {browseArticles = articles}

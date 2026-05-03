@@ -154,6 +154,8 @@ main = hspec $ do
         `shouldBe` [FetchAndSaveArticle summary]
       snd (update (ArticleDeleteRequested (ArticleId 15)) initialModel)
         `shouldBe` [DeleteSavedArticle (ArticleId 15)]
+      snd (update (ArticleIgnoredChanged (ArticleId 15) True) initialModel)
+        `shouldBe` [SetArticleIgnored (ArticleId 15) True]
 
   describe "App command runtime" $ do
     it "turns refresh commands into loaded events" $ do
@@ -222,6 +224,8 @@ main = hspec $ do
                    ]
       runIdentity (Runtime.runCommand ports (DeleteSavedArticle (ArticleId 1)))
         `shouldBe` [Notify SuccessNotice "Deleted article.", ArticleClosed]
+      runIdentity (Runtime.runCommand ports (SetArticleIgnored (ArticleId 1) True))
+        `shouldBe` [Notify SuccessNotice "Article ignored.", RefreshCurrentView]
 
   describe "App event driver" $ do
     it "dispatches refresh commands and folds loaded events back into the model" $ do
@@ -298,6 +302,7 @@ main = hspec $ do
           , rowKnownPct = "known: 73%"
           , rowUploadStatus = "uploaded"
           }
+      rowUploadStatus (articleRowView (summary {summaryIgnored = True})) `shouldBe` "ignored"
 
     it "projects current screen rows" $ do
       let summary =
@@ -776,6 +781,7 @@ testPorts summary =
           , loadArticle = \_ -> Identity (Just demoArticle)
           , saveArticle = \_ -> Identity (ArticleId 1)
           , deleteArticle = \_ -> Identity ()
+          , setArticleIgnored = \_ _ -> Identity ()
           , loadStats =
               Identity
                 ( LibraryStats
