@@ -77,6 +77,7 @@ data GuiEvent
   | GuiLingqClearSelection
   | GuiUploadSelected [ArticleSummary]
   | GuiUploadVisible [ArticleSummary]
+  | GuiSyncLingqStatus
   | GuiDownloadAudio ArticleId
   | GuiOpenAudio ArticleId
   | GuiOpenExternal Text
@@ -291,6 +292,14 @@ handleEvent ports _ _ model event =
         "Uploading visible articles"
         (length articles)
         (runUploadBatchProducer ports model articles)
+    GuiSyncLingqStatus ->
+      case lingqFallbackCollection model of
+        Nothing -> [Task (runAppEvent ports model (Notify ErrorNotice "Choose a fallback LingQ course before syncing upload status."))]
+        Just collectionId ->
+          withPendingNotice
+            model
+            "Syncing local upload status from LingQ..."
+            (runAppEvent ports model (LingqStatusSyncRequested (lingqLanguage model) collectionId))
     GuiDownloadAudio ident ->
       withPendingNotice model "Downloading article audio..." (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))
     GuiOpenAudio ident ->
@@ -1033,6 +1042,7 @@ lingqControls model =
                 `styleBasic` [paddingH 8, textColor mutedTextColor]
             , primaryButton ("Upload selected (" <> tshow (Set.size (lingqSelectedIds model)) <> ")") (GuiUploadSelected (lingqArticles model))
             , secondaryButton ("Upload visible (" <> T.pack (show (length uploadable)) <> ")") (GuiUploadVisible (lingqArticles model))
+            , secondaryButton "Sync status" GuiSyncLingqStatus
             ]
             `styleBasic` [paddingB 6]
         , hstack
@@ -1742,6 +1752,9 @@ guiLingqPort path =
     , fetchCollections = \languageCode -> do
         token <- loadLingqToken path
         either failWithShow pure =<< fetchCollectionsLingq token languageCode
+    , fetchCollectionLessons = \languageCode collectionId -> do
+        token <- loadLingqToken path
+        either failWithShow pure =<< fetchCollectionLessonsLingq token languageCode collectionId
     , fetchKnownWords = \languageCode -> do
         token <- loadLingqToken path
         either failWithShow pure =<< fetchKnownWordsLingq token languageCode

@@ -49,6 +49,7 @@ data Event
   | BrowseSearchChanged Text
   | BrowseBatchFetchRequested [ArticleSummary]
   | LingqBatchUploadRequested Day (Maybe Text) [ArticleSummary]
+  | LingqStatusSyncRequested Text Text
   | LingqSelectionToggled ArticleId
   | LingqSelectionChanged (Set ArticleId)
   | KnownWordsSyncRequested Text
@@ -129,6 +130,7 @@ data Command
   | SetBrowseUrlUnignored Text
   | FetchAndSaveArticles WordFilter [ArticleSummary]
   | UploadSavedArticles Day Text (Maybe Text) (Map Text Text) Bool [ArticleId]
+  | SyncLingqStatus Text Text
   | DownloadArticleAudio FilePath ArticleId
   | OpenArticleAudio ArticleId
   | SyncKnownWordsFromLingq Text
@@ -309,6 +311,10 @@ update event model =
     LingqBatchUploadRequested day fallbackCollection articles ->
       ( model
       , [UploadSavedArticles day (lingqLanguage model) fallbackCollection (sectionCollections model) (datePrefixEnabled model) (uploadableIds articles)]
+      )
+    LingqStatusSyncRequested languageCode collectionId ->
+      ( model
+      , [SyncLingqStatus languageCode collectionId]
       )
     LingqSelectionToggled ident ->
       ( model {lingqSelectedIds = toggleSetMember ident (lingqSelectedIds model)}

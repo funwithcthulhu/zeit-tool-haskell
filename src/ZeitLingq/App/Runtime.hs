@@ -9,6 +9,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Maybe (catMaybes)
 import Data.Map.Strict qualified as Map
+import Data.Foldable (traverse_)
 import ZeitLingq.App.Update (Command(..), Event(..))
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.Core.Batch (BatchFetchResult(..), batchFetchArticles)
@@ -154,6 +155,21 @@ runCommand ports command =
               (uploadConfigFromPreferences day languageCode fallbackCollection datePrefix sectionCollections)
               articles
           pure (BatchUploadFinished (batchUploadFailures results) : batchUploadResultEvents results <> [RefreshCurrentView])
+    SyncLingqStatus languageCode collectionId -> do
+      remoteLessons <- fetchCollectionLessons lingq languageCode collectionId
+      page <-
+        loadLibraryPage
+          library
+          defaultLibraryQuery
+            { libraryIncludeIgnored = True
+            , libraryLimit = 100000
+            }
+      let syncResult = matchLingqLessons (libraryPageArticles page) remoteLessons
+      traverse_ (uncurry (markArticleUploaded library)) (syncMatches syncResult)
+      pure
+        [ Notify SuccessNotice (syncLingqStatusMessage syncResult)
+        , RefreshCurrentView
+        ]
     SetBrowseUrlIgnored url -> do
       ignoreArticleUrl library url
       pure
@@ -295,6 +311,98 @@ batchUploadFailures results =
   [ (ident, title <> ": " <> err)
   | UploadFailed (Just ident) title err <- results
   ]
+
+data LingqStatusSyncResult = LingqStatusSyncResult
+  { syncScanned :: Int
+  , syncMatches :: [(ArticleId, LingqLesson)]
+  , syncAmbiguous :: Int
+  }
+
+matchLingqLessons :: [ArticleSummary] -> [LingqRemoteLesson] -> LingqStatusSyncResult
+matchLingqLessons articles lessons =
+  LingqStatusSyncResult
+    { syncScanned = length lessons
+    , syncMatches = Map.elems matchedByArticle
+    , syncAmbiguous = ambiguous
+    }
+  where
+    articleRows =
+      [ article
+      | article <- articles
+      , Just _ <- [summaryId article]
+      ]
+    byUrl =
+      Map.fromListWith
+        (<>)
+        [ (normalizeUrl (summaryUrl article), [article])
+        | article <- articleRows
+        , not (T.null (normalizeUrl (summaryUrl article)))
+        ]
+    byTitle =
+      Map.fromListWith
+        (<>)
+        [ (normalizeTitle (summaryTitle article), [article])
+        | article <- articleRows
+        , not (T.null (normalizeTitle (summaryTitle article)))
+        ]
+    (matchedByArticle, ambiguous) =
+      foldl collectMatch (Map.empty, 0) lessons
+    collectMatch (matched, ambiguousCount) lesson =
+      case lessonCandidates lesson of
+        [article] ->
+          case summaryId article of
+            Just ident ->
+              ( Map.insert
+                  ident
+                  ( ident
+                  , LingqLesson (remoteLessonId lesson) (remoteLessonUrl lesson)
+                  )
+                  matched
+              , ambiguousCount
+              )
+            Nothing -> (matched, ambiguousCount)
+        [] -> (matched, ambiguousCount)
+        _ -> (matched, ambiguousCount + 1)
+    lessonCandidates lesson =
+      case remoteLessonOriginalUrl lesson >>= (`Map.lookup` byUrl) . normalizeUrl of
+        Just candidates -> candidates
+        Nothing ->
+          Map.findWithDefault [] (normalizeTitle (remoteLessonTitle lesson)) byTitle
+
+normalizeUrl :: Text -> Text
+normalizeUrl =
+  T.toLower . T.dropWhileEnd (== '/') . fst . T.breakOn "?" . T.strip
+
+normalizeTitle :: Text -> Text
+normalizeTitle =
+  T.toLower . T.unwords . T.words . stripDatePrefix
+
+stripDatePrefix :: Text -> Text
+stripDatePrefix title
+  | hasDatePrefix stripped =
+      T.strip (T.dropWhile isDateSeparator (T.drop 10 stripped))
+  | otherwise = stripped
+  where
+    stripped = T.strip title
+    hasDatePrefix value =
+      T.length value >= 10
+        && T.all isDigitText (T.take 4 value)
+        && T.index value 4 == '-'
+        && T.all isDigitText (T.take 2 (T.drop 5 value))
+        && T.index value 7 == '-'
+        && T.all isDigitText (T.take 2 (T.drop 8 value))
+    isDigitText char = char >= '0' && char <= '9'
+    isDateSeparator char = char == ' ' || char == '-'
+
+syncLingqStatusMessage :: LingqStatusSyncResult -> Text
+syncLingqStatusMessage result =
+  "Synced LingQ status: scanned "
+    <> tshow (syncScanned result)
+    <> " lesson(s), matched "
+    <> tshow (length (syncMatches result))
+    <> " article(s), ambiguous "
+    <> tshow (syncAmbiguous result)
+    <> "."
 
 batchFetchSummary :: [BatchFetchResult] -> Text
 batchFetchSummary results =

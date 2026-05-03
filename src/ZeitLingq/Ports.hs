@@ -31,6 +31,7 @@ data LingqPort m = LingqPort
   , uploadLessonToLingq :: Text -> Maybe Text -> Article -> m LingqLesson
   , fetchLanguages :: m [LingqLanguage]
   , fetchCollections :: Text -> m [LingqCollection]
+  , fetchCollectionLessons :: Text -> Text -> m [LingqRemoteLesson]
   , fetchKnownWords :: Text -> m [Text]
   }
 

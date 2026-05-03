@@ -14,6 +14,7 @@ module ZeitLingq.Domain.Types
   , LingqCollection(..)
   , LingqLanguage(..)
   , LingqLesson(..)
+  , LingqRemoteLesson(..)
   , Notification(..)
   , NotificationLevel(..)
   , ProgressStatus(..)
@@ -124,6 +125,13 @@ defaultLibraryQuery =
 data LingqLesson = LingqLesson
   { lessonId :: Text
   , lessonUrl :: Text
+  } deriving (Eq, Show, Generic)
+
+data LingqRemoteLesson = LingqRemoteLesson
+  { remoteLessonId :: Text
+  , remoteLessonTitle :: Text
+  , remoteLessonOriginalUrl :: Maybe Text
+  , remoteLessonUrl :: Text
   } deriving (Eq, Show, Generic)
 
 data LingqLanguage = LingqLanguage

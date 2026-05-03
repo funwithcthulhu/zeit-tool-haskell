@@ -242,6 +242,8 @@ main = hspec $ do
         `shouldBe` [FetchAndSaveArticles (WordFilter Nothing Nothing) [summary]]
       snd (update (LingqBatchUploadRequested (fromGregorian 2026 5 2) Nothing [summary]) initialModel)
         `shouldBe` [UploadSavedArticles (fromGregorian 2026 5 2) "de" Nothing Map.empty True [ArticleId 15]]
+      snd (update (LingqStatusSyncRequested "de" "12") initialModel)
+        `shouldBe` [SyncLingqStatus "de" "12"]
       lingqSelectedIds (fst (update (LingqSelectionToggled (ArticleId 15)) initialModel))
         `shouldBe` Set.singleton (ArticleId 15)
       lingqSelectedIds (fst (update (LingqSelectionChanged (Set.singleton (ArticleId 15))) initialModel))
@@ -600,6 +602,38 @@ main = hspec $ do
         `shouldBe` [LingqCollectionsLoaded [LingqCollection "12" "Wissen" 3]]
       runIdentity (Runtime.runCommand ports RefreshLingqLanguages)
         `shouldBe` [LingqLanguagesLoaded [LingqLanguage "de" "German"]]
+
+    it "syncs local upload status from a LingQ collection" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 1)
+              , summaryUrl = "https://example.com/original"
+              , summaryTitle = "2026-05-02 - Existing Lesson"
+              , summarySection = "Wissen"
+              , summaryWordCount = 4
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          ports =
+            (testPorts summary)
+              { lingqPort =
+                  (lingqPort (testPorts summary))
+                    { fetchCollectionLessons =
+                        \_ _ ->
+                          Identity
+                            [ LingqRemoteLesson
+                                "99"
+                                "Existing Lesson"
+                                (Just "https://example.com/original")
+                                "https://www.lingq.com/de/learn/lesson/99/"
+                            ]
+                    }
+              }
+      runIdentity (Runtime.runCommand ports (SyncLingqStatus "de" "12"))
+        `shouldBe` [ Notify SuccessNotice "Synced LingQ status: scanned 1 lesson(s), matched 1 article(s), ambiguous 0."
+                   , RefreshCurrentView
+                   ]
 
     it "deletes ignored and old articles through runtime ports" $ do
       let summary =
@@ -1110,6 +1144,17 @@ main = hspec $ do
       let value = decodeValue "{\"results\":[{\"code\":\"DE\",\"title\":\"German\"},{\"code\":\"es\",\"title\":\"Spanish\"}]}"
       parseLanguagesValue value `shouldBe` Right [LingqLanguage "de" "German", LingqLanguage "es" "Spanish"]
 
+    it "parses LingQ collection lesson responses" $ do
+      let value = decodeValue "{\"results\":[{\"id\":99,\"title\":\"Existing Lesson\",\"original_url\":\"https://example.com/original\"}]}"
+      parseCollectionLessonsValue "de" value
+        `shouldBe` Right
+          [ LingqRemoteLesson
+              "99"
+              "Existing Lesson"
+              (Just "https://example.com/original")
+              "https://www.lingq.com/de/learn/lesson/99/"
+          ]
+
     it "extracts known-word terms from paged responses" $ do
       let value = decodeValue "{\"results\":[{\"term\":\"Haus\"},{\"word\":\"laufen\"},{\"text\":\"  Leer  \"}]}"
       parseKnownWordTerms value `shouldBe` ["haus", "laufen", "leer"]
@@ -1214,6 +1259,7 @@ testPorts summary =
           , uploadLessonToLingq = \_ _ _ -> Identity (LingqLesson "lesson" "https://lingq.example/lesson")
           , fetchLanguages = Identity [LingqLanguage "de" "German"]
           , fetchCollections = \_ -> Identity []
+          , fetchCollectionLessons = \_ _ -> Identity []
           , fetchKnownWords = \_ -> Identity []
           }
     , audioPort =
