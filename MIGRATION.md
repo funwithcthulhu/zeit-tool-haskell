@@ -24,6 +24,8 @@ The rewrite uses four layers:
   - Partially ported into `ZeitLingq.Infrastructure.Zeit`.
 - `electron/main.js` batch fetch loop
   - Ported as `ZeitLingq.Core.Batch`, with fetching and saving supplied as effects.
+- `electron/main.js` batch LingQ upload loop
+  - Ported as `ZeitLingq.Core.Upload`, with upload and mark-as-uploaded supplied as effects.
 - `electron/services/lingq-api.js`
   - Partially ported into `ZeitLingq.Infrastructure.Lingq`.
 - `electron/services/database.js`

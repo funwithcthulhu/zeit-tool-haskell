@@ -16,6 +16,7 @@ import ZeitLingq.App.Update
 import ZeitLingq.Cli
 import ZeitLingq.Core.Batch
 import ZeitLingq.Core.KnownWords (estimateKnownPct, importKnownWordStems)
+import ZeitLingq.Core.Upload
 import ZeitLingq.Domain.Article
 import ZeitLingq.Domain.Types
 import ZeitLingq.Infrastructure.Settings
@@ -93,6 +94,42 @@ main = hspec $ do
                    , BatchSkipped "short" (SkipBelowMinimum 2 3)
                    , BatchFailed "bad" "network"
                    ]
+
+  describe "Batch upload use case" $ do
+    it "chooses section-specific collections and marks tracked articles" $ do
+      let config =
+            BatchUploadConfig
+              { uploadLanguageCode = "de"
+              , uploadFallbackCollection = Just "fallback"
+              , uploadSectionCollections = Map.fromList [("Wissen", "wissen-course")]
+              , uploadDatePrefixEnabled = True
+              , uploadDay = fromGregorian 2026 5 2
+              }
+          uploader lang collection article =
+            pure (Right (LingqLesson (lang <> ":" <> maybe "none" id collection) ("lesson:" <> articleTitle article)))
+          marker _ _ =
+            pure ()
+      results <- batchUploadArticles uploader marker config [demoArticle {articleId = Just (ArticleId 3)}]
+      results
+        `shouldBe` [ UploadSucceeded
+                       (ArticleId 3)
+                       "2026-05-02 - Demo"
+                       (LingqLesson "de:wissen-course" "lesson:2026-05-02 - Demo")
+                   ]
+
+    it "returns upload failures without marking them" $ do
+      let config =
+            BatchUploadConfig
+              { uploadLanguageCode = "de"
+              , uploadFallbackCollection = Nothing
+              , uploadSectionCollections = Map.empty
+              , uploadDatePrefixEnabled = False
+              , uploadDay = fromGregorian 2026 5 2
+              }
+          uploader _ _ _ = pure (Left "upload failed")
+          marker _ _ = expectationFailure "marker should not be called"
+      results <- batchUploadArticles uploader marker config [demoArticle {articleId = Just (ArticleId 4)}]
+      results `shouldBe` [UploadFailed (Just (ArticleId 4)) "Demo" "upload failed"]
 
   describe "SQLite library adapter" $ do
     it "saves and reloads articles with summaries and stats" $ do

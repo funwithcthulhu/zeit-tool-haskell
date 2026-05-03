@@ -37,6 +37,7 @@ library
         ZeitLingq.Cli
         ZeitLingq.Core.Batch
         ZeitLingq.Core.KnownWords
+        ZeitLingq.Core.Upload
         ZeitLingq.Domain.Article
         ZeitLingq.Domain.Section
         ZeitLingq.Domain.Types

@@ -12,6 +12,7 @@ This repository is the Haskell-first rewrite of the original Electron Zeit/LingQ
 
 - `src/ZeitLingq/Domain`: stable business types and article rules.
 - `src/ZeitLingq/Core/Batch.hs`: batch article fetch/save workflow.
+- `src/ZeitLingq/Core/Upload.hs`: batch LingQ upload workflow.
 - `src/ZeitLingq/Text/German.hs`: German tokenization and stemming ported from the JavaScript app.
 - `src/ZeitLingq/Core/KnownWords.hs`: pure known-word import and percentage estimation.
 - `src/ZeitLingq/App`: GUI-agnostic application model and update loop. This is shaped to fit Monomer's Elm-style architecture later.
@@ -57,6 +58,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 
 - Pure article, known-word, and app-update logic is in place.
 - Batch fetch/save behavior is available as a pure use case over effectful callbacks.
+- Batch LingQ upload behavior is available as a pure use case over effectful callbacks.
 - SQLite article persistence is available through `LibraryPort`.
 - SQLite known-word storage and article `known_pct` recomputation are available.
 - JSON user settings are available through `SettingsPort`.
