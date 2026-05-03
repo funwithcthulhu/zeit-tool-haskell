@@ -1267,7 +1267,7 @@ runFetchBatchAppEvent ports model articles =
       ports
       model
       [ BatchFetchFinished (guiBatchFetchFailures results)
-      , Notify SuccessNotice (guiBatchFetchSummary results)
+      , Notify (guiBatchFetchLevel results) (guiBatchFetchSummary results)
       , RefreshCurrentView
       ]
   where
@@ -1280,8 +1280,11 @@ runFetchBatchAppEvent ports model articles =
         Right fetchedArticle ->
           case applyWordFilter filters fetchedArticle of
             KeepArticle -> do
-              savedId <- saveArticle (libraryPort ports) fetchedArticle
-              pure (BatchSaved url savedId)
+              saved <- tryText (saveArticle (libraryPort ports) fetchedArticle)
+              pure $
+                case saved of
+                  Left err -> BatchFailed url err
+                  Right savedId -> BatchSaved url savedId
             decision -> pure (BatchSkipped url decision)
 
 runUploadAppEvent :: AppPorts IO -> Model -> ArticleId -> IO GuiEvent
@@ -1431,6 +1434,14 @@ guiBatchFetchFailures results =
   [ (url, err)
   | BatchFailed url err <- results
   ]
+
+guiBatchFetchLevel :: [BatchFetchResult] -> NotificationLevel
+guiBatchFetchLevel results
+  | any isFailed results = ErrorNotice
+  | otherwise = SuccessNotice
+  where
+    isFailed BatchFailed {} = True
+    isFailed _ = False
 
 guiBatchUploadResultEvents :: [(ArticleId, Text)] -> [BatchUploadResult] -> [Event]
 guiBatchUploadResultEvents loadFailures results =
