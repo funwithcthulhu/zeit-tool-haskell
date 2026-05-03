@@ -15,9 +15,9 @@ Zeit Tool Haskell is a Haskell-native desktop workflow for reading Die Zeit arti
 - `src/ZeitLingq/Core/Upload.hs`: batch LingQ upload workflow.
 - `src/ZeitLingq/Text/German.hs`: German tokenization and stemming.
 - `src/ZeitLingq/Core/KnownWords.hs`: pure known-word import and percentage estimation.
-- `src/ZeitLingq/App`: GUI-agnostic application model, update loop, and command runtime. This is shaped to fit Monomer's Elm-style architecture later.
+- `src/ZeitLingq/App`: GUI-agnostic application model, update loop, and command runtime.
 - `src/ZeitLingq/App/Driver.hs`: event dispatch helper that runs commands and folds follow-up events back into the model.
-- `src/ZeitLingq/App/Startup.hs`: settings-to-model startup hydration for a future GUI adapter.
+- `src/ZeitLingq/App/Startup.hs`: settings-to-model startup hydration for GUI startup.
 - `src/ZeitLingq/App/ViewModel.hs`: pure GUI-facing presentation state for navigation, badges, filters, and article rows.
 - `src/ZeitLingq/Infrastructure/Audio.hs`: article audio filename and download helpers.
 - `src/ZeitLingq/Infrastructure/Lingq.hs`: LingQ HTTP adapter and response parsing helpers.
@@ -77,39 +77,26 @@ cabal run zeit-lingq-tool -- settings set-collection Wissen 12345
 Set `ZEIT_COOKIE` before running `fetch` if an article needs an authenticated Zeit session.
 Set `LINGQ_API_KEY` before running `lingq-upload` or `known-sync`; optionally set `LINGQ_COLLECTION_ID` as an upload fallback. Section-specific LingQ collection mappings and the date-prefix toggle are read from `settings.json`.
 
-## GUI Direction
+## GUI
 
-The current recommendation is:
+The Monomer GUI is the primary desktop entry point. It stays thin: user actions become pure app events, the command runtime talks to ports, and the GUI renders the updated model. This keeps scraping, SQLite, settings, audio, and LingQ code reusable outside the desktop adapter.
 
-1. Keep the core library pure and adapter-free.
-2. Keep the `Monomer` executable as a thin adapter over the app model.
-3. Treat scraping, SQLite, logging, and LingQ as infrastructure ports that the GUI drives.
+The GUI currently supports:
 
-That gives us a Haskell-native application without forcing the whole codebase to depend on the first GUI choice we try.
+- Browsing Zeit sections with topic dropdown, search, hidden-url filtering, only-new filtering, paging, preview, original-link opening, single fetch, selected fetch, visible fetch, and retryable failed fetches.
+- Managing the local library with search, section and word filters, ignored/not-uploaded filters, grouping, sorting, paging, article open/copy/original/audio actions, and configurable cleanup of ignored, old, uploaded, or unuploaded articles.
+- Uploading saved articles to LingQ with API key or password login, collection refresh, fallback collection selection, per-section collection mapping, date-prefixed lesson titles, known-word sync/import/clear/recompute, selected/visible upload, and retryable failed uploads.
+- Opening the project data folder and the Zeit login page from the GUI.
 
 ## Current Status
 
-- Pure article, known-word, and app-update logic is in place.
-- The app model stores browse, library, and LingQ article rows for GUI rendering.
-- Batch fetch/save behavior is available as a pure use case over effectful callbacks.
-- App refresh commands can load browse, library, and LingQ rows through ports and emit pure loaded events.
-- Opening a saved article emits a load command and stores loaded article content for rendering.
-- App events can be dispatched through ports and reduced back into an updated model.
-- Batch LingQ upload behavior is available as a pure use case over effectful callbacks.
-- LingQ upload now derives date-prefix and section collection behavior from persisted settings.
-- SQLite article persistence is available through `LibraryPort`.
-- SQLite stats, delete, and saved-article ignore/unignore controls are exposed through the CLI.
-- SQLite ignored browse URLs are available for pre-fetch hiding.
-- Browse output hides URLs recorded in the SQLite ignored URL list.
-- SQLite known-word storage and article `known_pct` recomputation are available.
-- LingQ known-word sync is available from the CLI and recomputes cached coverage.
-- Article audio metadata persistence and download helpers are available.
-- JSON user settings are available through `SettingsPort`.
-- JSON user settings are exposed through the CLI for GUI-ready configuration.
-- App startup can hydrate the pure model from `SettingsPort`, ready for a Monomer shell.
-- Pure view-model projection is available for a Monomer shell, including current-screen article rows.
-- A Monomer executable shell is available behind the `gui` Cabal flag and is launched by the Windows shortcut.
-- LingQ login, collection fetch, lesson upload, and known-word fetch helpers are scaffolded in Haskell.
-- Zeit article-list and article-content extraction is scaffolded in Haskell.
-- The executable includes a CLI harness for sections, browse, fetch, library maintenance, settings, known words, audio, and LingQ uploads.
-- Next target is filling the GUI shell with the full browse, library, detail, and LingQ workflows.
+- The Haskell core covers Zeit browsing/fetching, SQLite persistence, library maintenance, known-word import/sync/estimation, article audio download/open, and LingQ upload.
+- The Monomer GUI is functional and launched by `run-zeit-tool.ps1` or the Windows desktop shortcut.
+- Batch fetch and batch upload keep per-item failures retryable from the sidebar.
+- JSON settings persist the current view, Zeit cookie, LingQ API key, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
+- The CLI harness remains available for quick verification and scripting.
+
+Known limits:
+
+- Zeit authentication is cookie-session based. The GUI can open the Zeit login page, but it does not embed a browser or automatically capture browser cookies.
+- Long-running operations show pending status and final retry lists, but they do not yet expose a cancellable job queue with live per-item progress.
