@@ -23,6 +23,7 @@ data Event
   | ArticleDeleteRequested ArticleId
   | ArticleIgnoredChanged ArticleId Bool
   | ArticleUploadRequested Day (Maybe Text) ArticleId
+  | BrowseArticleHidden Text
   | BrowseArticlesLoaded [ArticleSummary]
   | LibraryArticlesLoaded [ArticleSummary]
   | LingqArticlesLoaded [ArticleSummary]
@@ -50,6 +51,7 @@ data Command
   | DeleteSavedArticle ArticleId
   | SetArticleIgnored ArticleId Bool
   | UploadSavedArticle Day (Maybe Text) (Map Text Text) Bool ArticleId
+  | SetBrowseUrlIgnored Text
   deriving (Eq, Show)
 
 update :: Event -> Model -> (Model, [Command])
@@ -105,6 +107,10 @@ update event model =
     ArticleUploadRequested day fallbackCollection ident ->
       ( model
       , [UploadSavedArticle day fallbackCollection (sectionCollections model) (datePrefixEnabled model) ident]
+      )
+    BrowseArticleHidden url ->
+      ( model
+      , [SetBrowseUrlIgnored url]
       )
     BrowseArticlesLoaded articles ->
       ( model {browseArticles = articles}

@@ -78,6 +78,9 @@ sqliteLibraryPort db =
     , deleteArticle = deleteArticleSqlite db
     , setArticleIgnored = setIgnoredSqlite db
     , markArticleUploaded = markUploadedSqlite db
+    , loadIgnoredUrls = getIgnoredUrlsSqlite db
+    , ignoreArticleUrl = ignoreUrlSqlite db
+    , unignoreArticleUrl = unignoreUrlSqlite db
     , loadStats = getStatsSqlite db
     }
 

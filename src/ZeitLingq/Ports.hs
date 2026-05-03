@@ -34,6 +34,9 @@ data LibraryPort m = LibraryPort
   , deleteArticle :: ArticleId -> m ()
   , setArticleIgnored :: ArticleId -> Bool -> m ()
   , markArticleUploaded :: ArticleId -> LingqLesson -> m ()
+  , loadIgnoredUrls :: m [Text]
+  , ignoreArticleUrl :: Text -> m ()
+  , unignoreArticleUrl :: Text -> m ()
   , loadStats :: m LibraryStats
   }
 

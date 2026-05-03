@@ -158,6 +158,8 @@ main = hspec $ do
         `shouldBe` [SetArticleIgnored (ArticleId 15) True]
       snd (update (ArticleUploadRequested (fromGregorian 2026 5 2) (Just "fallback") (ArticleId 15)) initialModel)
         `shouldBe` [UploadSavedArticle (fromGregorian 2026 5 2) (Just "fallback") Map.empty True (ArticleId 15)]
+      snd (update (BrowseArticleHidden "https://example.com/fetch") initialModel)
+        `shouldBe` [SetBrowseUrlIgnored "https://example.com/fetch"]
 
   describe "App command runtime" $ do
     it "turns refresh commands into loaded events" $ do
@@ -253,6 +255,36 @@ main = hspec $ do
         `shouldBe` [ Notify SuccessNotice "Uploaded 2026-05-02 - Demo to LingQ."
                    , RefreshCurrentView
                    ]
+
+    it "filters ignored browse URLs and can hide browse rows" $ do
+      let visible =
+            ArticleSummary
+              { summaryId = Nothing
+              , summaryUrl = "https://example.com/visible"
+              , summaryTitle = "Visible"
+              , summarySection = "Wissen"
+              , summaryWordCount = 0
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          hidden = visible {summaryUrl = "https://example.com/hidden", summaryTitle = "Hidden"}
+          basePorts = testPorts visible
+          ports =
+            basePorts
+              { zeitPort =
+                  (zeitPort basePorts)
+                    { fetchArticleList = \_ _ -> Identity [visible, hidden]
+                    }
+              , libraryPort =
+                  (libraryPort basePorts)
+                    { loadIgnoredUrls = Identity ["https://example.com/hidden"]
+                    }
+              }
+      runIdentity (Runtime.runCommand ports (RefreshBrowse "wissen" 1))
+        `shouldBe` [BrowseArticlesLoaded [visible]]
+      runIdentity (Runtime.runCommand ports (SetBrowseUrlIgnored "https://example.com/new"))
+        `shouldBe` [Notify SuccessNotice "Article hidden from browse.", RefreshCurrentView]
 
   describe "App event driver" $ do
     it "dispatches refresh commands and folds loaded events back into the model" $ do
@@ -810,6 +842,9 @@ testPorts summary =
           , deleteArticle = \_ -> Identity ()
           , setArticleIgnored = \_ _ -> Identity ()
           , markArticleUploaded = \_ _ -> Identity ()
+          , loadIgnoredUrls = Identity []
+          , ignoreArticleUrl = \_ -> Identity ()
+          , unignoreArticleUrl = \_ -> Identity ()
           , loadStats =
               Identity
                 ( LibraryStats

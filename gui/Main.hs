@@ -31,6 +31,7 @@ data GuiEvent
   | GuiSectionSelected Text
   | GuiOpenArticle ArticleSummary
   | GuiFetchArticle ArticleSummary
+  | GuiHideBrowseArticle ArticleSummary
   | GuiToggleIgnored ArticleSummary
   | GuiUploadArticle ArticleId
   | GuiDeleteArticle ArticleId
@@ -84,6 +85,8 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (ArticleOpened article))]
     GuiFetchArticle article ->
       [Task (runAppEvent ports model (BrowseArticleFetchRequested article))]
+    GuiHideBrowseArticle article ->
+      [Task (runAppEvent ports model (BrowseArticleHidden (summaryUrl article)))]
     GuiToggleIgnored article ->
       case summaryId article of
         Just ident -> [Task (runAppEvent ports model (ArticleIgnoredChanged ident (not (summaryIgnored article))))]
@@ -237,7 +240,9 @@ articleRowBlock view article =
 
 rowActions :: View -> ArticleSummary -> [WidgetNode Model GuiEvent]
 rowActions BrowseView article =
-  [button "Fetch" (GuiFetchArticle article)]
+  [ button "Fetch" (GuiFetchArticle article)
+  , button "Hide" (GuiHideBrowseArticle article)
+  ]
 rowActions _ article =
   maybe
     []
@@ -375,6 +380,12 @@ guiLibraryPort =
         withLibrary dbPath $ \db -> setIgnoredSqlite db ident ignored
     , markArticleUploaded = \ident lesson ->
         withLibrary dbPath $ \db -> markUploadedSqlite db ident lesson
+    , loadIgnoredUrls =
+        withLibrary dbPath getIgnoredUrlsSqlite
+    , ignoreArticleUrl = \url ->
+        withLibrary dbPath $ \db -> ignoreUrlSqlite db url
+    , unignoreArticleUrl = \url ->
+        withLibrary dbPath $ \db -> unignoreUrlSqlite db url
     , loadStats =
         withLibrary dbPath getStatsSqlite
     }

@@ -4,8 +4,10 @@ module ZeitLingq.App.Runtime
   ( runCommand
   ) where
 
+import Data.Set qualified as Set
 import ZeitLingq.App.Update (Command(..), Event(..))
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
+import ZeitLingq.Core.Browse (hideIgnoredSummaries)
 import ZeitLingq.Core.Upload (BatchUploadResult(..), batchUploadArticles)
 import ZeitLingq.Domain.Article (wordCount)
 import ZeitLingq.Domain.Types
@@ -24,7 +26,8 @@ runCommand ports command =
       [] <$ saveSectionCollections settings mappings
     RefreshBrowse sectionId page -> do
       articles <- fetchArticleList zeit sectionId page
-      pure [BrowseArticlesLoaded articles]
+      ignoredUrls <- Set.fromList <$> loadIgnoredUrls library
+      pure [BrowseArticlesLoaded (hideIgnoredSummaries ignoredUrls articles)]
     RefreshLibrary filters -> do
       articles <- loadLibrary library filters
       pure [LibraryArticlesLoaded articles]
@@ -79,6 +82,12 @@ runCommand ports command =
               (uploadConfigFromPreferences day fallbackCollection datePrefix sectionCollections)
               [article]
           pure (concatMap uploadResultEvents results <> [RefreshCurrentView])
+    SetBrowseUrlIgnored url -> do
+      ignoreArticleUrl library url
+      pure
+        [ Notify SuccessNotice "Article hidden from browse."
+        , RefreshCurrentView
+        ]
   where
     zeit = zeitPort ports
     lingq = lingqPort ports
