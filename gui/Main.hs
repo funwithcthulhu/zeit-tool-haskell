@@ -3,6 +3,7 @@
 module Main (main) where
 
 import Control.Exception (SomeException, displayException, try)
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (addUTCTime, getCurrentTime, utctDay)
@@ -43,6 +44,8 @@ data GuiEvent
   | GuiUploadVisible [ArticleSummary]
   | GuiDownloadAudio ArticleId
   | GuiSyncKnownWords
+  | GuiDatePrefixChanged Bool
+  | GuiSectionCollectionChanged Text Text
   | GuiLibrarySearchChanged Text
   | GuiLibraryMinWordsChanged Text
   | GuiLibraryMaxWordsChanged Text
@@ -128,6 +131,10 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))]
     GuiSyncKnownWords ->
       [Task (runAppEvent ports model (KnownWordsSyncRequested "de"))]
+    GuiDatePrefixChanged enabled ->
+      [Task (runAppEvent ports model (DatePrefixToggled enabled))]
+    GuiSectionCollectionChanged sectionName collectionId ->
+      [Task (runAppEvent ports model (SectionCollectionsChanged (updateSectionCollection sectionName collectionId (sectionCollections model))))]
     GuiLibrarySearchChanged search ->
       [Task (runAppEvent ports model (LibrarySearchChanged search))]
     GuiLibraryMinWordsChanged raw ->
@@ -326,9 +333,15 @@ lingqControls :: Model -> WidgetNode Model GuiEvent
 lingqControls model =
   case currentView model of
     LingqView ->
-      hstack
-        [ button ("Upload visible (" <> T.pack (show (length uploadable)) <> ")") (GuiUploadVisible (lingqArticles model))
-        , button "Sync known words" GuiSyncKnownWords
+      vstack
+        [ hstack
+            [ button ("Upload visible (" <> T.pack (show (length uploadable)) <> ")") (GuiUploadVisible (lingqArticles model))
+            , button "Sync known words" GuiSyncKnownWords
+            , toggle "Auto-date lesson titles" (datePrefixEnabled model) GuiDatePrefixChanged
+            ]
+        , label "Per-section LingQ collection ids"
+            `styleBasic` [paddingT 8]
+        , vstack (map collectionRow allSections)
         ]
         `styleBasic` [paddingV 8]
     _ -> spacer
@@ -339,6 +352,17 @@ lingqControls model =
       , not (summaryUploaded article)
       , not (summaryIgnored article)
       ]
+    collectionRow section =
+      hstack
+        [ label (sectionLabel section)
+            `styleBasic` [width 110]
+        , textFieldV_
+            (Map.findWithDefault "" (sectionLabel section) (sectionCollections model))
+            (GuiSectionCollectionChanged (sectionLabel section))
+            [placeholder "collection id"]
+            `styleBasic` [width 220]
+        ]
+        `styleBasic` [paddingB 4]
 
 selectedArticleBlock :: Model -> Maybe ArticleRowView -> WidgetNode Model GuiEvent
 selectedArticleBlock model Nothing =
@@ -607,6 +631,13 @@ parseOptionalInt raw =
 
 tshow :: Show a => a -> Text
 tshow = T.pack . show
+
+updateSectionCollection :: Text -> Text -> Map.Map Text Text -> Map.Map Text Text
+updateSectionCollection sectionName raw mappings
+  | T.null collectionId = Map.delete sectionName mappings
+  | otherwise = Map.insert sectionName collectionId mappings
+  where
+    collectionId = T.strip raw
 
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf size values
