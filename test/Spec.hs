@@ -54,7 +54,7 @@ main = hspec $ do
       lessonTitle (fromGregorian 2026 5 2) True "Titel" `shouldBe` "2026-05-02 - Titel"
       lessonTitle (fromGregorian 2026 5 2) True "2026-05-01 - Titel" `shouldBe` "2026-05-01 - Titel"
 
-    it "applies fetch filters like the Electron app" $ do
+    it "applies fetch filters" $ do
       applyWordFilter (WordFilter (Just 5) (Just 10)) demoArticle `shouldBe` SkipBelowMinimum 4 5
 
   describe "Pure app update" $ do

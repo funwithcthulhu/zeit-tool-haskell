@@ -1,14 +1,16 @@
 cabal-version:   3.14
 name:            zeit-lingq-tool
 version:         0.1.0.0
-synopsis:        Haskell-first rewrite of the Zeit to LingQ desktop workflow
-description:     Pure domain and app-state core for migrating the Electron Zeit Reader to Haskell.
+synopsis:        Haskell-first Zeit to LingQ desktop workflow
+description:     Pure domain and app-state core for browsing Zeit articles and creating LingQ lessons.
 license:         BSD-3-Clause
 license-file:    LICENSE
 author:          OpenAI Codex
 maintainer:      noreply@example.com
 build-type:      Simple
-extra-doc-files: CHANGELOG.md
+extra-doc-files:
+    ARCHITECTURE.md
+    CHANGELOG.md
 
 common warnings
     ghc-options: -Wall

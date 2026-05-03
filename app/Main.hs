@@ -303,8 +303,8 @@ runDemo = do
           , articleDate = Just "2026-05-02"
           , articleSection = "Wissen"
           , articleParagraphs =
-              [ "Das ist ein kurzer Beispieltext fur die erste Migrationsstufe."
-              , "Wir portieren zuerst das reine Kernverhalten und hangen danach eine GUI an."
+              [ "Das ist ein kurzer Beispieltext fur die erste Entwicklungsstufe."
+              , "Wir bauen zuerst das reine Kernverhalten und hangen danach eine GUI an."
               ]
           , articleFetchedAt = Just now
           , articleUploadedLesson = Nothing
@@ -321,9 +321,9 @@ runDemo = do
           (SectionCollectionsChanged (Map.fromList [("Wissen", "science-collection")]))
           initialModel
 
-  putStrLn "Zeit LingQ Haskell migration scaffold"
+  putStrLn "Zeit LingQ Haskell development scaffold"
   putStrLn "==================================="
-  putStrLn ("Sections ported: " <> show (length allSections))
+  putStrLn ("Sections available: " <> show (length allSections))
   putStrLn ("Demo article word count: " <> show (wordCount demoArticle))
   putStrLn ("Known-word estimate: " <> show knownPct)
   putStrLn ("LingQ lesson title: " <> T.unpack (lessonTitle demoDay True (articleTitle demoArticle)))
