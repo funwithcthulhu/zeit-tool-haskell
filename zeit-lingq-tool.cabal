@@ -5,12 +5,17 @@ synopsis:        Haskell-first Zeit to LingQ desktop workflow
 description:     Pure domain and app-state core for browsing Zeit articles and creating LingQ lessons.
 license:         BSD-3-Clause
 license-file:    LICENSE
+category:        Application
 author:          OpenAI Codex
 maintainer:      noreply@example.com
 build-type:      Simple
 extra-doc-files:
     ARCHITECTURE.md
     CHANGELOG.md
+
+source-repository head
+    type:     git
+    location: https://github.com/funwithcthulhu/zeit-tool-haskell.git
 
 common warnings
     ghc-options: -Wall
@@ -29,6 +34,11 @@ common core-deps
         text ^>=2.0.2,
         time ^>=1.12.2
     default-language: GHC2021
+
+flag gui
+    description: Build the optional Monomer GUI executable.
+    default:     False
+    manual:      True
 
 library
     import:           warnings, core-deps
@@ -63,6 +73,18 @@ executable zeit-lingq-tool
         zeit-lingq-tool
     hs-source-dirs:
         app
+
+executable zeit-lingq-tool-gui
+    import:           warnings, core-deps
+    main-is:          Main.hs
+    hs-source-dirs:
+        gui
+    if flag(gui)
+        build-depends:
+            monomer ^>=1.6.0.1,
+            zeit-lingq-tool
+    else
+        buildable: False
 
 test-suite zeit-lingq-tool-test
     import:           warnings, core-deps

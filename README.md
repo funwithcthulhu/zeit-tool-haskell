@@ -33,6 +33,14 @@ cabal test
 cabal run
 ```
 
+The GUI shell is optional so native Monomer dependencies do not affect the default CLI and CI path:
+
+```powershell
+cabal run -fgui zeit-lingq-tool-gui
+```
+
+Monomer requires native graphics dependencies. On Windows, make sure GLEW is visible through `pkg-config`; otherwise Cabal will report that `glew-any` is missing.
+
 ## CLI Harness
 
 ```powershell
@@ -89,6 +97,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - JSON user settings are exposed through the CLI for GUI-ready configuration.
 - App startup can hydrate the pure model from `SettingsPort`, ready for a Monomer shell.
 - Pure view-model projection is available for a Monomer shell.
+- An optional Monomer executable shell is available behind the `gui` Cabal flag.
 - LingQ login, collection fetch, lesson upload, and known-word fetch helpers are scaffolded in Haskell.
 - Zeit article-list and article-content extraction is scaffolded in Haskell.
 - The executable includes a CLI harness for sections, browse, fetch, library maintenance, settings, known words, audio, and LingQ uploads.

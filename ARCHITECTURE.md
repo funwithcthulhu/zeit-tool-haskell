@@ -32,6 +32,8 @@ The project uses four layers:
 
 The most sensible first GUI remains Monomer because the app state already fits a pure model/update flow. Monomer should stay as an adapter, not as the center of the architecture, so replacing it later would not touch scraping, persistence, or domain rules.
 
+The optional `zeit-lingq-tool-gui` executable is guarded by the `gui` Cabal flag. The default build keeps native GUI dependencies out of CI and CLI workflows, while `cabal run -fgui zeit-lingq-tool-gui` enables the Monomer shell. Monomer depends on native graphics packages, including GLEW through `pkg-config`.
+
 ## CLI harness
 
 The executable provides a terminal harness around the adapters. It is useful for verifying scraper, persistence, settings, known-word, audio, and LingQ behavior before the GUI is ready.
