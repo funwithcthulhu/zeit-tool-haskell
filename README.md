@@ -83,6 +83,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 ## Current Status
 
 - Pure article, known-word, and app-update logic is in place.
+- The app model stores browse, library, and LingQ article rows for GUI rendering.
 - Batch fetch/save behavior is available as a pure use case over effectful callbacks.
 - Batch LingQ upload behavior is available as a pure use case over effectful callbacks.
 - LingQ upload now derives date-prefix and section collection behavior from persisted settings.
@@ -96,7 +97,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - JSON user settings are available through `SettingsPort`.
 - JSON user settings are exposed through the CLI for GUI-ready configuration.
 - App startup can hydrate the pure model from `SettingsPort`, ready for a Monomer shell.
-- Pure view-model projection is available for a Monomer shell.
+- Pure view-model projection is available for a Monomer shell, including current-screen article rows.
 - An optional Monomer executable shell is available behind the `gui` Cabal flag.
 - LingQ login, collection fetch, lesson upload, and known-word fetch helpers are scaffolded in Haskell.
 - Zeit article-list and article-content extraction is scaffolded in Haskell.

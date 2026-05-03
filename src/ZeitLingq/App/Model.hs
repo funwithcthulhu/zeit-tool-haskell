@@ -16,6 +16,9 @@ data Model = Model
   , zeitStatus :: AuthStatus
   , lingqStatus :: AuthStatus
   , selectedArticle :: Maybe ArticleSummary
+  , browseArticles :: [ArticleSummary]
+  , libraryArticles :: [ArticleSummary]
+  , lingqArticles :: [ArticleSummary]
   , notification :: Maybe Notification
   , browseSectionId :: Text
   , browseFilter :: WordFilter
@@ -35,6 +38,9 @@ initialModel =
     , zeitStatus = emptyAuth
     , lingqStatus = emptyAuth
     , selectedArticle = Nothing
+    , browseArticles = []
+    , libraryArticles = []
+    , lingqArticles = []
     , notification = Nothing
     , browseSectionId = "index"
     , browseFilter = WordFilter Nothing Nothing

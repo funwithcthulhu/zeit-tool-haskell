@@ -77,6 +77,7 @@ contentBlock vm =
     , label ("Filter: " <> vmActiveFilter vm)
     , label (vmDatePrefix vm)
     , selectedArticleBlock (vmSelectedArticle vm)
+    , articleRowsBlock (vmArticleRows vm)
     ]
     `styleBasic` [padding 16]
 
@@ -90,6 +91,22 @@ selectedArticleBlock (Just row) =
     , label (rowMeta row)
     , label (rowKnownPct row <> " | " <> rowUploadStatus row)
     ]
+
+articleRowsBlock :: [ArticleRowView] -> WidgetNode Model GuiEvent
+articleRowsBlock [] =
+  label "No rows loaded yet."
+articleRowsBlock rows =
+  vstack (map articleRowBlock rows)
+    `styleBasic` [paddingT 16]
+
+articleRowBlock :: ArticleRowView -> WidgetNode Model GuiEvent
+articleRowBlock row =
+  vstack
+    [ label (rowTitle row)
+    , label (rowMeta row <> " | " <> rowKnownPct row <> " | " <> rowUploadStatus row)
+        `styleBasic` [textSize 12]
+    ]
+    `styleBasic` [paddingV 6]
 
 main :: IO ()
 main =

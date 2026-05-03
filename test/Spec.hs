@@ -94,6 +94,26 @@ main = hspec $ do
       datePrefixEnabled model `shouldBe` False
       sectionCollections model `shouldBe` Map.fromList [("Wissen", "course-1")]
 
+    it "stores loaded article lists for GUI screens" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 11)
+              , summaryUrl = "https://example.com/list"
+              , summaryTitle = "List Item"
+              , summarySection = "Wissen"
+              , summaryWordCount = 432
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          (browseModel, browseCommands) = update (BrowseArticlesLoaded [summary]) initialModel
+          (libraryModel, libraryCommands) = update (LibraryArticlesLoaded [summary]) initialModel
+          (lingqModel, lingqCommands) = update (LingqArticlesLoaded [summary]) initialModel
+      browseArticles browseModel `shouldBe` [summary]
+      libraryArticles libraryModel `shouldBe` [summary]
+      lingqArticles lingqModel `shouldBe` [summary]
+      browseCommands <> libraryCommands <> lingqCommands `shouldBe` []
+
   describe "Pure app view model" $ do
     it "projects navigation and status badges for a GUI adapter" $ do
       let model =
@@ -135,6 +155,26 @@ main = hspec $ do
           , rowKnownPct = "known: 73%"
           , rowUploadStatus = "uploaded"
           }
+
+    it "projects current screen rows" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 13)
+              , summaryUrl = "https://example.com/screen"
+              , summaryTitle = "Screen Row"
+              , summarySection = "Kultur"
+              , summaryWordCount = 640
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          viewModel =
+            appViewModel
+              initialModel
+                { currentView = BrowseView
+                , browseArticles = [summary]
+                }
+      map rowTitle (vmArticleRows viewModel) `shouldBe` ["Screen Row"]
 
   describe "CLI argument parsing" $ do
     it "defaults to the demo command" $ do

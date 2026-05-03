@@ -17,6 +17,9 @@ data Event
   | LingqStatusChanged AuthStatus
   | ArticleOpened ArticleSummary
   | ArticleClosed
+  | BrowseArticlesLoaded [ArticleSummary]
+  | LibraryArticlesLoaded [ArticleSummary]
+  | LingqArticlesLoaded [ArticleSummary]
   | Notify NotificationLevel Text
   | NotificationCleared
   | BrowseSectionSelected Text
@@ -65,6 +68,18 @@ update event model =
           , currentView = LibraryView
           }
       , [PersistCurrentView LibraryView]
+      )
+    BrowseArticlesLoaded articles ->
+      ( model {browseArticles = articles}
+      , []
+      )
+    LibraryArticlesLoaded articles ->
+      ( model {libraryArticles = articles}
+      , []
+      )
+    LingqArticlesLoaded articles ->
+      ( model {lingqArticles = articles}
+      , []
       )
     Notify level message ->
       ( model {notification = Just (Notification level message)}

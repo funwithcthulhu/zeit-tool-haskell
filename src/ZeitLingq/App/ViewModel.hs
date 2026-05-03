@@ -24,6 +24,7 @@ data AppViewModel = AppViewModel
   , vmActiveFilter :: Text
   , vmDatePrefix :: Text
   , vmSelectedArticle :: Maybe ArticleRowView
+  , vmArticleRows :: [ArticleRowView]
   } deriving (Eq, Show)
 
 data NavItem = NavItem
@@ -62,6 +63,7 @@ appViewModel model =
           then "Date prefix: on"
           else "Date prefix: off"
     , vmSelectedArticle = articleRowView <$> selectedArticle model
+    , vmArticleRows = map articleRowView (rowsForCurrentView model)
     }
 
 articleRowView :: ArticleSummary -> ArticleRowView
@@ -124,6 +126,15 @@ filterForCurrentView model =
     LingqView -> wordFilterLabel (lingqFilter model)
     ZeitLoginView -> "authentication"
     ArticleView -> "selected article"
+
+rowsForCurrentView :: Model -> [ArticleSummary]
+rowsForCurrentView model =
+  case currentView model of
+    BrowseView -> browseArticles model
+    LibraryView -> libraryArticles model
+    LingqView -> lingqArticles model
+    ZeitLoginView -> []
+    ArticleView -> maybe [] (: []) (selectedArticle model)
 
 statusBadge :: Text -> AuthStatus -> StatusBadge
 statusBadge name status =

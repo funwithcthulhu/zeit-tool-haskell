@@ -25,7 +25,7 @@ The project uses four layers:
 - `ZeitLingq.Infrastructure.Audio` handles article audio filenames and downloads.
 - `ZeitLingq.Text.German` handles German tokenization and stemming.
 - `ZeitLingq.App.Model` and `ZeitLingq.App.Update` define GUI-ready state and events.
-- `ZeitLingq.App.ViewModel` projects pure app state into renderer-friendly labels, badges, filters, and article rows.
+- `ZeitLingq.App.ViewModel` projects pure app state into renderer-friendly labels, badges, filters, and current-screen article rows.
 - `ZeitLingq.Infrastructure.Settings` provides JSON settings behind `SettingsPort`.
 
 ## GUI direction
