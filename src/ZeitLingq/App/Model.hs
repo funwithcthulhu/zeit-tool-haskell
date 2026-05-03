@@ -43,6 +43,8 @@ data Model = Model
   , knownStemTotal :: Int
   , knownImportText :: Text
   , notification :: Maybe Notification
+  , failedFetches :: [(Text, Text)]
+  , failedUploads :: [(ArticleId, Text)]
   , browseSectionId :: Text
   , browsePage :: Int
   , browseFilter :: WordFilter
@@ -88,6 +90,8 @@ initialModel =
     , knownStemTotal = 0
     , knownImportText = ""
     , notification = Nothing
+    , failedFetches = []
+    , failedUploads = []
     , browseSectionId = "index"
     , browsePage = 1
     , browseFilter = WordFilter Nothing Nothing

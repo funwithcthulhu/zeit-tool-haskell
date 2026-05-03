@@ -66,6 +66,9 @@ data Event
   | LibraryPageLoaded LibraryPage
   | LibraryStatsLoaded LibraryStats
   | LingqArticlesLoaded [ArticleSummary]
+  | BatchFetchFinished [(Text, Text)]
+  | BatchUploadFinished [(ArticleId, Text)]
+  | FailureListsCleared
   | RefreshCurrentView
   | Notify NotificationLevel Text
   | NotificationCleared
@@ -358,6 +361,18 @@ update event model =
           { lingqArticles = articles
           , lingqSelectedIds = pruneLingqSelection articles (lingqSelectedIds model)
           }
+      , []
+      )
+    BatchFetchFinished failures ->
+      ( model {failedFetches = failures}
+      , []
+      )
+    BatchUploadFinished failures ->
+      ( model {failedUploads = failures}
+      , []
+      )
+    FailureListsCleared ->
+      ( model {failedFetches = [], failedUploads = []}
       , []
       )
     RefreshCurrentView ->

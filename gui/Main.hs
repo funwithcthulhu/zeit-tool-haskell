@@ -74,6 +74,9 @@ data GuiEvent
   | GuiOpenAudio ArticleId
   | GuiOpenExternal Text
   | GuiCopyText Text
+  | GuiRetryFailedFetches
+  | GuiRetryFailedUploads
+  | GuiClearFailures
   | GuiSyncKnownWords
   | GuiKnownImportTextChanged Text
   | GuiImportKnownWords
@@ -257,6 +260,16 @@ handleEvent ports _ _ model event =
       [Task (runSideEffect model (openExternalUrl url) "Opened original article.")]
     GuiCopyText text ->
       [Task (runSideEffect model (copyTextToClipboard text) "Copied article text to clipboard.")]
+    GuiRetryFailedFetches ->
+      case failedFetches model of
+        [] -> [Task (runAppEvent ports model (Notify InfoNotice "No failed fetches to retry."))]
+        failures -> [Task (runAppEvent ports model (BrowseBatchFetchRequested (map failedFetchSummary failures)))]
+    GuiRetryFailedUploads ->
+      case failedUploads model of
+        [] -> [Task (runAppEvent ports model (Notify InfoNotice "No failed uploads to retry."))]
+        failures -> [Task (runUploadBatchAppEvent ports model (map failedUploadSummary failures))]
+    GuiClearFailures ->
+      [Task (runAppEvent ports model FailureListsCleared)]
     GuiSyncKnownWords ->
       [Task (runAppEvent ports model (KnownWordsSyncRequested "de"))]
     GuiKnownImportTextChanged text ->
@@ -339,6 +352,8 @@ sidebarBlock model vm =
         `styleBasic` [paddingT 12]
     , sidebarLibraryStats model
         `styleBasic` [paddingT 12]
+    , sidebarFailureBlock model
+        `styleBasic` [paddingT 12]
     , filler
     , secondaryButton "Refresh" GuiRefresh
     ]
@@ -390,6 +405,40 @@ sidebarStat name value =
         `styleBasic` [textSize 13, textColor mainTextColor]
     ]
     `styleBasic` [paddingT 4]
+
+sidebarFailureBlock :: Model -> WidgetNode Model GuiEvent
+sidebarFailureBlock model
+  | null (failedFetches model) && null (failedUploads model) = emptyBlock
+  | otherwise =
+      vstack
+        [ mutedLabel "Retry list"
+        , failureCountLine "Fetch" (length (failedFetches model))
+        , failureCountLine "Upload" (length (failedUploads model))
+        , vstack (map failureLine (take 3 (map fst (failedFetches model) <> map (tshow . fst) (failedUploads model))))
+        , hstack
+            [ rowSecondaryButton "Retry fetch" GuiRetryFailedFetches
+            , rowSecondaryButton "Retry upload" GuiRetryFailedUploads
+            ]
+            `styleBasic` [paddingT 6]
+        , rowDangerButton "Clear" GuiClearFailures
+            `styleBasic` [paddingT 4]
+        ]
+        `styleBasic` [padding 10, radius 12, bgColor panelBgColor, border 1 borderColor]
+
+failureCountLine :: Text -> Int -> WidgetNode Model GuiEvent
+failureCountLine name value =
+  hstack
+    [ mutedLabel name
+    , filler
+    , label (tshow value)
+        `styleBasic` [textSize 12, textColor (if value > 0 then dangerColor else mutedTextColor)]
+    ]
+    `styleBasic` [paddingT 4]
+
+failureLine :: Text -> WidgetNode Model GuiEvent
+failureLine text =
+  label_ text [ellipsis]
+    `styleBasic` [textSize 10, textColor mutedTextColor, paddingT 3]
 
 statusBlock :: AppViewModel -> WidgetNode Model GuiEvent
 statusBlock vm =
@@ -1411,6 +1460,32 @@ mapMaybeSummaryId articles =
   | article <- articles
   , Just ident <- [summaryId article]
   ]
+
+failedFetchSummary :: (Text, Text) -> ArticleSummary
+failedFetchSummary (url, _) =
+  ArticleSummary
+    { summaryId = Nothing
+    , summaryUrl = url
+    , summaryTitle = url
+    , summarySection = ""
+    , summaryWordCount = 0
+    , summaryIgnored = False
+    , summaryUploaded = False
+    , summaryKnownPct = Nothing
+    }
+
+failedUploadSummary :: (ArticleId, Text) -> ArticleSummary
+failedUploadSummary (ident, labelText) =
+  ArticleSummary
+    { summaryId = Just ident
+    , summaryUrl = ""
+    , summaryTitle = labelText
+    , summarySection = ""
+    , summaryWordCount = 0
+    , summaryIgnored = False
+    , summaryUploaded = False
+    , summaryKnownPct = Nothing
+    }
 
 main :: IO ()
 main = do

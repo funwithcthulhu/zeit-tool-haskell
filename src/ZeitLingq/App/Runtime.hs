@@ -145,7 +145,7 @@ runCommand ports command =
               (markArticleUploaded library)
               (uploadConfigFromPreferences day fallbackCollection datePrefix sectionCollections)
               articles
-          pure (batchUploadResultEvents results <> [RefreshCurrentView])
+          pure (BatchUploadFinished (batchUploadFailures results) : batchUploadResultEvents results <> [RefreshCurrentView])
     SetBrowseUrlIgnored url -> do
       ignoreArticleUrl library url
       pure
@@ -166,7 +166,8 @@ runCommand ports command =
           filters
           (map summaryUrl summaries)
       pure
-        [ Notify SuccessNotice (batchFetchSummary results)
+        [ BatchFetchFinished (batchFetchFailures results)
+        , Notify SuccessNotice (batchFetchSummary results)
         , RefreshCurrentView
         ]
     DownloadArticleAudio audioDir ident -> do
@@ -278,6 +279,12 @@ batchUploadResultEvents results =
       | failed > 0 = ErrorNotice
       | otherwise = SuccessNotice
 
+batchUploadFailures :: [BatchUploadResult] -> [(ArticleId, Text)]
+batchUploadFailures results =
+  [ (ident, title <> ": " <> err)
+  | UploadFailed (Just ident) title err <- results
+  ]
+
 batchFetchSummary :: [BatchFetchResult] -> Text
 batchFetchSummary results =
   "Batch fetch: saved "
@@ -291,6 +298,12 @@ batchFetchSummary results =
     saved = length [() | BatchSaved {} <- results]
     skipped = length [() | BatchSkipped {} <- results]
     failed = length [() | BatchFailed {} <- results]
+
+batchFetchFailures :: [BatchFetchResult] -> [(Text, Text)]
+batchFetchFailures results =
+  [ (url, err)
+  | BatchFailed url err <- results
+  ]
 
 tshow :: Show a => a -> Text
 tshow = T.pack . show

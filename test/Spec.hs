@@ -399,7 +399,8 @@ main = hspec $ do
                     }
               }
       runIdentity (Runtime.runCommand ports (UploadSavedArticles (fromGregorian 2026 5 2) Nothing Map.empty True [ArticleId 1, ArticleId 2]))
-        `shouldBe` [ Notify SuccessNotice "Batch upload: uploaded 2, failed 0."
+        `shouldBe` [ BatchUploadFinished []
+                   , Notify SuccessNotice "Batch upload: uploaded 2, failed 0."
                    , RefreshCurrentView
                    ]
 
@@ -452,7 +453,8 @@ main = hspec $ do
           second = first {summaryUrl = "https://example.com/two", summaryTitle = "Two"}
           ports = testPorts first
       runIdentity (Runtime.runCommand ports (FetchAndSaveArticles (WordFilter Nothing Nothing) [first, second]))
-        `shouldBe` [ Notify SuccessNotice "Batch fetch: saved 2, skipped 0, failed 0."
+        `shouldBe` [ BatchFetchFinished []
+                   , Notify SuccessNotice "Batch fetch: saved 2, skipped 0, failed 0."
                    , RefreshCurrentView
                    ]
 
