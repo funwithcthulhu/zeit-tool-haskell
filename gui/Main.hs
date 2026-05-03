@@ -35,6 +35,7 @@ data GuiEvent
   | GuiFetchVisible [ArticleSummary]
   | GuiToggleIgnored ArticleSummary
   | GuiUploadArticle ArticleId
+  | GuiUploadVisible [ArticleSummary]
   | GuiDeleteArticle ArticleId
   | GuiCloseArticle
   | GuiClearNotice
@@ -96,6 +97,8 @@ handleEvent ports _ _ model event =
         Nothing -> [Task (runAppEvent ports model (Notify ErrorNotice "Cannot ignore an unsaved article."))]
     GuiUploadArticle ident ->
       [Task (runUploadAppEvent ports model ident)]
+    GuiUploadVisible articles ->
+      [Task (runUploadBatchAppEvent ports model articles)]
     GuiDeleteArticle ident ->
       [Task (runAppEvent ports model (ArticleDeleteRequested ident))]
     GuiCloseArticle ->
@@ -162,6 +165,7 @@ contentBlock model vm =
     , label ("Filter: " <> vmActiveFilter vm)
     , label (vmDatePrefix vm)
     , browseControls model
+    , lingqControls model
     , selectedArticleBlock model (vmSelectedArticle vm)
     , articleParagraphsBlock (vmSelectedArticleParagraphs vm)
     , articleRowsBlock (currentView model) (rowsForCurrentView model)
@@ -185,6 +189,23 @@ browseControls model =
     sectionButton section =
       button (sectionLabel section) (GuiSectionSelected (sectionId section))
         `styleBasic` [paddingR 4]
+
+lingqControls :: Model -> WidgetNode Model GuiEvent
+lingqControls model =
+  case currentView model of
+    LingqView ->
+      hstack
+        [ button ("Upload visible (" <> T.pack (show (length uploadable)) <> ")") (GuiUploadVisible (lingqArticles model))
+        ]
+        `styleBasic` [paddingV 8]
+    _ -> spacer
+  where
+    uploadable =
+      [ article
+      | article <- lingqArticles model
+      , not (summaryUploaded article)
+      , not (summaryIgnored article)
+      ]
 
 selectedArticleBlock :: Model -> Maybe ArticleRowView -> WidgetNode Model GuiEvent
 selectedArticleBlock model Nothing =
@@ -307,6 +328,13 @@ runUploadAppEvent ports model ident =
     now <- getCurrentTime
     fallbackCollection <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
     dispatchEvent ports model (ArticleUploadRequested (utctDay now) fallbackCollection ident)
+
+runUploadBatchAppEvent :: AppPorts IO -> Model -> [ArticleSummary] -> IO GuiEvent
+runUploadBatchAppEvent ports model articles =
+  safeGuiTask $ do
+    now <- getCurrentTime
+    fallbackCollection <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
+    dispatchEvent ports model (LingqBatchUploadRequested (utctDay now) fallbackCollection articles)
 
 safeGuiTask :: IO Model -> IO GuiEvent
 safeGuiTask action = do

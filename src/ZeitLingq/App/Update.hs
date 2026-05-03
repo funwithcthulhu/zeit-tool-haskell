@@ -25,6 +25,7 @@ data Event
   | ArticleUploadRequested Day (Maybe Text) ArticleId
   | BrowseArticleHidden Text
   | BrowseBatchFetchRequested [ArticleSummary]
+  | LingqBatchUploadRequested Day (Maybe Text) [ArticleSummary]
   | BrowseArticlesLoaded [ArticleSummary]
   | LibraryArticlesLoaded [ArticleSummary]
   | LingqArticlesLoaded [ArticleSummary]
@@ -54,6 +55,7 @@ data Command
   | UploadSavedArticle Day (Maybe Text) (Map Text Text) Bool ArticleId
   | SetBrowseUrlIgnored Text
   | FetchAndSaveArticles WordFilter [ArticleSummary]
+  | UploadSavedArticles Day (Maybe Text) (Map Text Text) Bool [ArticleId]
   deriving (Eq, Show)
 
 update :: Event -> Model -> (Model, [Command])
@@ -118,6 +120,10 @@ update event model =
       ( model
       , [FetchAndSaveArticles (browseFilter model) articles]
       )
+    LingqBatchUploadRequested day fallbackCollection articles ->
+      ( model
+      , [UploadSavedArticles day fallbackCollection (sectionCollections model) (datePrefixEnabled model) (uploadableIds articles)]
+      )
     BrowseArticlesLoaded articles ->
       ( model {browseArticles = articles}
       , []
@@ -175,3 +181,12 @@ refreshCommands model =
     LingqView -> [RefreshLingqLibrary (lingqFilter model)]
     ZeitLoginView -> []
     ArticleView -> maybe [] (maybe [] (pure . LoadArticle) . summaryId) (selectedArticle model)
+
+uploadableIds :: [ArticleSummary] -> [ArticleId]
+uploadableIds articles =
+  [ ident
+  | article <- articles
+  , Just ident <- [summaryId article]
+  , not (summaryUploaded article)
+  , not (summaryIgnored article)
+  ]

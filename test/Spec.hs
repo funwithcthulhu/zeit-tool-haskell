@@ -162,6 +162,8 @@ main = hspec $ do
         `shouldBe` [SetBrowseUrlIgnored "https://example.com/fetch"]
       snd (update (BrowseBatchFetchRequested [summary]) initialModel)
         `shouldBe` [FetchAndSaveArticles (WordFilter Nothing Nothing) [summary]]
+      snd (update (LingqBatchUploadRequested (fromGregorian 2026 5 2) Nothing [summary]) initialModel)
+        `shouldBe` [UploadSavedArticles (fromGregorian 2026 5 2) Nothing Map.empty True [ArticleId 15]]
 
   describe "App command runtime" $ do
     it "turns refresh commands into loaded events" $ do
@@ -255,6 +257,31 @@ main = hspec $ do
               }
       runIdentity (Runtime.runCommand ports (UploadSavedArticle (fromGregorian 2026 5 2) Nothing Map.empty True (ArticleId 1)))
         `shouldBe` [ Notify SuccessNotice "Uploaded 2026-05-02 - Demo to LingQ."
+                   , RefreshCurrentView
+                   ]
+
+    it "batch-uploads saved articles through the runtime" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 1)
+              , summaryUrl = "https://example.com/upload-batch"
+              , summaryTitle = "Upload Batch"
+              , summarySection = "Wissen"
+              , summaryWordCount = 4
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          basePorts = testPorts summary
+          ports =
+            basePorts
+              { libraryPort =
+                  (libraryPort basePorts)
+                    { loadArticle = \_ -> Identity (Just (demoArticle {articleId = Just (ArticleId 1)}))
+                    }
+              }
+      runIdentity (Runtime.runCommand ports (UploadSavedArticles (fromGregorian 2026 5 2) Nothing Map.empty True [ArticleId 1, ArticleId 2]))
+        `shouldBe` [ Notify SuccessNotice "Batch upload: uploaded 2, failed 0."
                    , RefreshCurrentView
                    ]
 

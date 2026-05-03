@@ -7,6 +7,7 @@ module ZeitLingq.App.Runtime
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Maybe (catMaybes)
 import ZeitLingq.App.Update (Command(..), Event(..))
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.Core.Batch (BatchFetchResult(..), batchFetchArticles)
@@ -85,6 +86,19 @@ runCommand ports command =
               (uploadConfigFromPreferences day fallbackCollection datePrefix sectionCollections)
               [article]
           pure (concatMap uploadResultEvents results <> [RefreshCurrentView])
+    UploadSavedArticles day fallbackCollection sectionCollections datePrefix idents -> do
+      articles <- catMaybes <$> traverse (loadArticle library) idents
+      if null articles
+        then pure [Notify ErrorNotice "No uploadable articles selected."]
+        else do
+          results <-
+            batchUploadArticles
+              (\languageCode collectionId titledArticle ->
+                Right <$> uploadLessonToLingq lingq languageCode collectionId titledArticle)
+              (markArticleUploaded library)
+              (uploadConfigFromPreferences day fallbackCollection datePrefix sectionCollections)
+              articles
+          pure (batchUploadResultEvents results <> [RefreshCurrentView])
     SetBrowseUrlIgnored url -> do
       ignoreArticleUrl library url
       pure
@@ -117,6 +131,23 @@ uploadResultEvents result =
       [Notify SuccessNotice ("Uploaded " <> title <> " to LingQ.")]
     UploadFailed _ title err ->
       [Notify ErrorNotice ("Could not upload " <> title <> ": " <> err)]
+
+batchUploadResultEvents :: [BatchUploadResult] -> [Event]
+batchUploadResultEvents results =
+  [ Notify level
+      ( "Batch upload: uploaded "
+          <> tshow uploaded
+          <> ", failed "
+          <> tshow failed
+          <> "."
+      )
+  ]
+  where
+    uploaded = length [() | UploadSucceeded {} <- results] + length [() | UploadSucceededUntracked {} <- results]
+    failed = length [() | UploadFailed {} <- results]
+    level
+      | failed > 0 = ErrorNotice
+      | otherwise = SuccessNotice
 
 batchFetchSummary :: [BatchFetchResult] -> Text
 batchFetchSummary results =
