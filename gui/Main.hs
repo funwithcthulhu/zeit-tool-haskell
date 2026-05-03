@@ -11,6 +11,7 @@ import Data.Text qualified as T
 import Data.Time (addUTCTime, getCurrentTime, utctDay)
 import Monomer hiding (Model)
 import Monomer qualified as M
+import System.Directory (getCurrentDirectory)
 import System.Environment (lookupEnv)
 import System.Info (os)
 import System.IO (hClose)
@@ -98,12 +99,14 @@ data GuiEvent
   | GuiLibraryIncludeIgnoredChanged Bool
   | GuiLibraryOnlyIgnoredChanged Bool
   | GuiLibraryOnlyNotUploadedChanged Bool
+  | GuiLibrarySortChanged LibrarySort
   | GuiLibraryGroupBySectionChanged Bool
   | GuiLibraryPreviousPage
   | GuiLibraryNextPage
   | GuiDeleteIgnoredArticles
   | GuiDeleteOldArticles Int Bool Bool
   | GuiDeleteArticle ArticleId
+  | GuiOpenDataFolder
   | GuiCloseArticle
   | GuiClearNotice
   deriving (Eq, Show)
@@ -312,6 +315,8 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (LibraryOnlyIgnoredChanged enabled))]
     GuiLibraryOnlyNotUploadedChanged enabled ->
       [Task (runAppEvent ports model (LibraryOnlyNotUploadedChanged enabled))]
+    GuiLibrarySortChanged sortMode ->
+      [Task (runAppEvent ports model (LibrarySortChanged sortMode))]
     GuiLibraryGroupBySectionChanged enabled ->
       [Task (runAppEvent ports model (LibraryGroupBySectionChanged enabled))]
     GuiLibraryPreviousPage ->
@@ -324,6 +329,8 @@ handleEvent ports _ _ model event =
       [Task (runDeleteOlderAppEvent ports model days onlyUploaded onlyUnuploaded)]
     GuiDeleteArticle ident ->
       [Task (runAppEvent ports model (ArticleDeleteRequested ident))]
+    GuiOpenDataFolder ->
+      [Task (runSideEffect model (getCurrentDirectory >>= openExternalPath) "Opened project data folder.")]
     GuiCloseArticle ->
       [Task (runAppEvent ports model ArticleClosed)]
     GuiClearNotice ->
@@ -333,12 +340,12 @@ titleBlock :: AppViewModel -> WidgetNode Model GuiEvent
 titleBlock vm =
   hstack
     [ label (vmTitle vm)
-        `styleBasic` [textSize 22, textColor mainTextColor, paddingR 16]
+        `styleBasic` [textSize 20, textColor mainTextColor, paddingR 14]
     , filler
     , statusBlock vm
     , secondaryButton "Refresh" GuiRefresh
     ]
-    `styleBasic` [paddingB 8]
+    `styleBasic` [paddingB 6]
 
 sidebarBlock :: Model -> AppViewModel -> WidgetNode Model GuiEvent
 sidebarBlock model vm =
@@ -355,20 +362,22 @@ sidebarBlock model vm =
     , sidebarFailureBlock model
         `styleBasic` [paddingT 12]
     , filler
+    , secondaryButton "Open data folder" GuiOpenDataFolder
     , secondaryButton "Refresh" GuiRefresh
+        `styleBasic` [paddingT 6]
     ]
-    `styleBasic` [width 210, padding 14, bgColor panelAltColor, border 1 borderColor]
+    `styleBasic` [width 202, padding 12, bgColor panelAltColor, border 1 borderColor]
 
 sideNavButton :: NavItem -> WidgetNode Model GuiEvent
 sideNavButton item =
   button (navLabel item) (GuiNavigate (navView item))
     `styleBasic`
       [ paddingH 10
-      , paddingV 4
-      , height 34
-      , width 182
-      , radius 9
-      , textSize 14
+      , paddingV 3
+      , height 30
+      , width 176
+      , radius 8
+      , textSize 13
       , textColor (if navActive item then primaryTextColor else mainTextColor)
       , bgColor (if navActive item then primaryColor else panelBgColor)
       , border 1 (if navActive item then primaryColor else borderColor)
@@ -474,11 +483,11 @@ primaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 primaryButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 10
-      , paddingV 4
-      , height 34
-      , radius 9
-      , textSize 14
+      [ paddingH 9
+      , paddingV 3
+      , height 30
+      , radius 8
+      , textSize 13
       , textColor primaryTextColor
       , bgColor primaryColor
       , border 1 primaryColor
@@ -488,11 +497,11 @@ secondaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 secondaryButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 10
-      , paddingV 4
-      , height 34
-      , radius 9
-      , textSize 14
+      [ paddingH 9
+      , paddingV 3
+      , height 30
+      , radius 8
+      , textSize 13
       , textColor mainTextColor
       , bgColor panelAltColor
       , border 1 borderColor
@@ -502,11 +511,11 @@ dangerButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 dangerButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 10
-      , paddingV 4
-      , height 34
-      , radius 9
-      , textSize 14
+      [ paddingH 9
+      , paddingV 3
+      , height 30
+      , radius 8
+      , textSize 13
       , textColor mainTextColor
       , bgColor (rgbHex "#3a1f24")
       , border 1 dangerColor
@@ -516,11 +525,11 @@ rowPrimaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 rowPrimaryButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 8
-      , paddingV 2
-      , height 26
-      , radius 8
-      , textSize 12
+      [ paddingH 6
+      , paddingV 1
+      , height 22
+      , radius 7
+      , textSize 11
       , textColor primaryTextColor
       , bgColor primaryColor
       , border 1 primaryColor
@@ -530,11 +539,11 @@ rowSecondaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 rowSecondaryButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 8
-      , paddingV 2
-      , height 26
-      , radius 8
-      , textSize 12
+      [ paddingH 6
+      , paddingV 1
+      , height 22
+      , radius 7
+      , textSize 11
       , textColor mainTextColor
       , bgColor panelAltColor
       , border 1 borderColor
@@ -544,11 +553,11 @@ rowDangerButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 rowDangerButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 8
-      , paddingV 2
-      , height 26
-      , radius 8
-      , textSize 12
+      [ paddingH 6
+      , paddingV 1
+      , height 22
+      , radius 7
+      , textSize 11
       , textColor mainTextColor
       , bgColor (rgbHex "#3a1f24")
       , border 1 dangerColor
@@ -557,9 +566,10 @@ rowDangerButton caption event =
 inputStyle :: [StyleState]
 inputStyle =
   [ paddingH 8
-  , paddingV 4
-  , height 34
+  , paddingV 3
+  , height 30
   , radius 8
+  , textSize 13
   , textColor mainTextColor
   , bgColor panelAltColor
   , border 1 borderColor
@@ -567,8 +577,8 @@ inputStyle =
 
 panelStyle :: [StyleState]
 panelStyle =
-  [ padding 12
-  , radius 14
+  [ padding 10
+  , radius 12
   , bgColor panelBgColor
   , border 1 borderColor
   ]
@@ -703,7 +713,7 @@ libraryControls model =
             [ label "Search"
                 `styleBasic` [paddingR 8, textColor mutedTextColor]
             , textFieldV_ (maybe "" id (librarySearch query)) GuiLibrarySearchChanged [placeholder "Title or article text"]
-                `styleBasic` (inputStyle <> [width 300])
+                `styleBasic` (inputStyle <> [width 260])
             , label "Min"
                 `styleBasic` [paddingL 12, paddingR 6, textColor mutedTextColor]
             , textFieldV (maybe "" tshow (minWords (libraryWordFilter query))) GuiLibraryMinWordsChanged
@@ -712,6 +722,15 @@ libraryControls model =
                 `styleBasic` [paddingL 12, paddingR 6, textColor mutedTextColor]
             , textFieldV (maybe "" tshow (maxWords (libraryWordFilter query))) GuiLibraryMaxWordsChanged
                 `styleBasic` (inputStyle <> [width 70])
+            , label "Sort"
+                `styleBasic` [paddingL 12, paddingR 6, textColor mutedTextColor]
+            , textDropdownV_
+                (librarySort query)
+                GuiLibrarySortChanged
+                allLibrarySorts
+                librarySortLabel
+                []
+                `styleBasic` (inputStyle <> [width 130])
             ]
         , librarySectionControls model
         , hstack
@@ -785,6 +804,24 @@ librarySectionControls model =
     sectionText "" = "All sections"
     sectionText sectionName =
       sectionName <> maybe "" (\total -> " (" <> tshow total <> ")") (Map.lookup sectionName (Map.fromList sections))
+
+allLibrarySorts :: [LibrarySort]
+allLibrarySorts =
+  [ LibrarySortNewest
+  , LibrarySortOldest
+  , LibrarySortLongest
+  , LibrarySortShortest
+  , LibrarySortTitle
+  ]
+
+librarySortLabel :: LibrarySort -> Text
+librarySortLabel sortMode =
+  case sortMode of
+    LibrarySortNewest -> "Newest"
+    LibrarySortOldest -> "Oldest"
+    LibrarySortLongest -> "Longest"
+    LibrarySortShortest -> "Shortest"
+    LibrarySortTitle -> "Title"
 
 toggle :: Text -> Bool -> (Bool -> GuiEvent) -> WidgetNode Model GuiEvent
 toggle text value handler =
@@ -1031,7 +1068,7 @@ articleRowsBlock _ [] =
     `styleBasic` [textColor mutedTextColor, paddingT 16]
 articleRowsBlock model rows =
   vscroll (vstack rowWidgets)
-    `styleBasic` [paddingT 8]
+    `styleBasic` [paddingT 6]
   where
     rowWidgets =
       case currentView model of
@@ -1059,14 +1096,14 @@ articleRowBlock model article =
     [ rowSelectionCheckbox model article
     , vstack
         [ label_ (rowTitle row) [ellipsis]
-            `styleBasic` [textSize 14, textColor mainTextColor]
+            `styleBasic` [textSize 13, textColor mainTextColor]
         , label_ (rowMeta row <> " | " <> rowKnownPct row <> " | " <> rowUploadStatus row) [ellipsis]
-            `styleBasic` [textSize 11, textColor mutedTextColor]
+            `styleBasic` [textSize 10, textColor mutedTextColor]
         , hstack (rowActions (currentView model) article)
-            `styleBasic` [paddingT 4]
+            `styleBasic` [paddingT 3]
         ]
     ]
-    `styleBasic` [height 70, padding 7, radius 10, bgColor panelAltColor, border 1 borderColor]
+    `styleBasic` [height 58, padding 6, radius 9, bgColor panelAltColor, border 1 borderColor]
   where
     row = articleRowView article
 
@@ -1215,6 +1252,13 @@ openExternalUrl url =
     "mingw32" -> callProcess "cmd" ["/c", "start", "", T.unpack url]
     "darwin" -> callProcess "open" [T.unpack url]
     _ -> callProcess "xdg-open" [T.unpack url]
+
+openExternalPath :: FilePath -> IO ()
+openExternalPath path =
+  case os of
+    "mingw32" -> callProcess "explorer" [path]
+    "darwin" -> callProcess "open" [path]
+    _ -> callProcess "xdg-open" [path]
 
 copyTextToClipboard :: Text -> IO ()
 copyTextToClipboard =

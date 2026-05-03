@@ -8,6 +8,7 @@ module ZeitLingq.Domain.Types
   , AuthStatus(..)
   , LibraryPage(..)
   , LibraryQuery(..)
+  , LibrarySort(..)
   , LibraryStats(..)
   , LingqCollection(..)
   , LingqLanguage(..)
@@ -70,9 +71,18 @@ data LibraryQuery = LibraryQuery
   , libraryIncludeIgnored :: Bool
   , libraryOnlyIgnored :: Bool
   , libraryOnlyNotUploaded :: Bool
+  , librarySort :: LibrarySort
   , libraryLimit :: Int
   , libraryOffset :: Int
   } deriving (Eq, Show, Generic)
+
+data LibrarySort
+  = LibrarySortNewest
+  | LibrarySortOldest
+  | LibrarySortLongest
+  | LibrarySortShortest
+  | LibrarySortTitle
+  deriving (Eq, Show, Enum, Bounded, Generic)
 
 data LibraryPage = LibraryPage
   { libraryPageArticles :: [ArticleSummary]
@@ -88,6 +98,7 @@ defaultLibraryQuery =
     , libraryIncludeIgnored = False
     , libraryOnlyIgnored = False
     , libraryOnlyNotUploaded = False
+    , librarySort = LibrarySortNewest
     , libraryLimit = 30
     , libraryOffset = 0
     }

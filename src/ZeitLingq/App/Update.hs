@@ -81,6 +81,7 @@ data Event
   | LibraryIncludeIgnoredChanged Bool
   | LibraryOnlyIgnoredChanged Bool
   | LibraryOnlyNotUploadedChanged Bool
+  | LibrarySortChanged LibrarySort
   | LibraryGroupBySectionChanged Bool
   | LibraryPageChanged Int
   | LibraryDeleteIgnoredRequested
@@ -454,6 +455,15 @@ update event model =
       let nextQuery =
             (libraryQuery model)
               { libraryOnlyNotUploaded = enabled
+              , libraryOffset = 0
+              }
+       in ( model {libraryQuery = nextQuery}
+          , [RefreshLibraryPage nextQuery]
+          )
+    LibrarySortChanged sortMode ->
+      let nextQuery =
+            (libraryQuery model)
+              { librarySort = sortMode
               , libraryOffset = 0
               }
        in ( model {libraryQuery = nextQuery}

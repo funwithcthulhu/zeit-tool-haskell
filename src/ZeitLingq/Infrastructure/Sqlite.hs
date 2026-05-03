@@ -221,7 +221,9 @@ getArticlesByQuerySqlite (LibraryDb conn) libraryQuery = do
           \ FROM articles\
           \ WHERE "
             <> whereClause
-            <> " ORDER BY fetched_at DESC LIMIT ? OFFSET ?"
+            <> " ORDER BY "
+            <> libraryOrderBy (librarySort libraryQuery)
+            <> " LIMIT ? OFFSET ?"
         )
     pageParams =
       whereParams
@@ -260,6 +262,15 @@ libraryWhere libraryQuery =
     notUploadedFragments
       | libraryOnlyNotUploaded libraryQuery = [("uploaded_to_lingq = 0", [])]
       | otherwise = []
+
+libraryOrderBy :: LibrarySort -> Text
+libraryOrderBy sortMode =
+  case sortMode of
+    LibrarySortNewest -> "fetched_at DESC, id DESC"
+    LibrarySortOldest -> "fetched_at ASC, id ASC"
+    LibrarySortLongest -> "word_count DESC, fetched_at DESC, id DESC"
+    LibrarySortShortest -> "word_count ASC, fetched_at DESC, id DESC"
+    LibrarySortTitle -> "lower(title) ASC, fetched_at DESC, id DESC"
 
 maybeFragment :: Maybe a -> (a -> [(Text, [SQLData])]) -> [(Text, [SQLData])]
 maybeFragment Nothing _ = []

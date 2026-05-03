@@ -171,6 +171,7 @@ main = hspec $ do
           (ignoredModel, ignoredCommands) = update (LibraryIncludeIgnoredChanged True) baseModel
           (onlyIgnoredModel, onlyIgnoredCommands) = update (LibraryOnlyIgnoredChanged True) baseModel
           (onlyNotUploadedModel, onlyNotUploadedCommands) = update (LibraryOnlyNotUploadedChanged True) baseModel
+          (sortModel, sortCommands) = update (LibrarySortChanged LibrarySortLongest) baseModel
           (groupModel, groupCommands) = update (LibraryGroupBySectionChanged True) baseModel
           (pageModel, pageCommands) = update (LibraryPageChanged 60) baseModel
       libraryQuery searchModel `shouldBe` baseQuery {librarySearch = Just "Alpha", libraryOffset = 0}
@@ -183,6 +184,8 @@ main = hspec $ do
       onlyIgnoredCommands `shouldBe` [RefreshLibraryPage (libraryQuery onlyIgnoredModel)]
       libraryQuery onlyNotUploadedModel `shouldBe` baseQuery {libraryOnlyNotUploaded = True, libraryOffset = 0}
       onlyNotUploadedCommands `shouldBe` [RefreshLibraryPage (libraryQuery onlyNotUploadedModel)]
+      libraryQuery sortModel `shouldBe` baseQuery {librarySort = LibrarySortLongest, libraryOffset = 0}
+      sortCommands `shouldBe` [RefreshLibraryPage (libraryQuery sortModel)]
       libraryGroupBySection groupModel `shouldBe` True
       libraryQuery groupModel `shouldBe` baseQuery {libraryLimit = 5000, libraryOffset = 0}
       groupCommands `shouldBe` [RefreshLibraryPage (libraryQuery groupModel)]
@@ -914,6 +917,7 @@ main = hspec $ do
               , libraryIncludeIgnored = True
               , libraryOnlyIgnored = False
               , libraryOnlyNotUploaded = True
+              , librarySort = LibrarySortNewest
               , libraryLimit = 10
               , libraryOffset = 0
               }
@@ -929,6 +933,7 @@ main = hspec $ do
               , libraryIncludeIgnored = False
               , libraryOnlyIgnored = True
               , libraryOnlyNotUploaded = False
+              , librarySort = LibrarySortNewest
               , libraryLimit = 10
               , libraryOffset = 0
               }
@@ -943,11 +948,15 @@ main = hspec $ do
               , libraryIncludeIgnored = True
               , libraryOnlyIgnored = False
               , libraryOnlyNotUploaded = False
+              , librarySort = LibrarySortNewest
               , libraryLimit = 1
               , libraryOffset = 1
               }
         libraryPageTotal paged `shouldBe` 3
         map summaryId (libraryPageArticles paged) `shouldBe` [Just betaId]
+
+        sortedByLength <- getArticlesByQuerySqlite db defaultLibraryQuery {libraryIncludeIgnored = True, librarySort = LibrarySortLongest}
+        map summaryId (libraryPageArticles sortedByLength) `shouldBe` [Just betaId, Just ignoredId, Just alphaId]
 
     it "stores known-word stems and computes cached known percentages" $ do
       withLibrary ":memory:" $ \db -> do
