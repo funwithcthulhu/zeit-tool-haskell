@@ -20,11 +20,13 @@ data ZeitPort m = ZeitPort
   , fetchArticleList :: Text -> Int -> m [ArticleSummary]
   , fetchArticleContent :: Text -> m Article
   , loginToZeit :: m AuthStatus
+  , loginToZeitWithCookie :: Text -> m AuthStatus
   , logoutFromZeit :: m ()
   }
 
 data LingqPort m = LingqPort
   { loginToLingq :: Text -> Text -> m AuthStatus
+  , loginToLingqWithApiKey :: Text -> m AuthStatus
   , logoutFromLingq :: m ()
   , uploadLessonToLingq :: Text -> Maybe Text -> Article -> m LingqLesson
   , fetchCollections :: Text -> m [LingqCollection]
@@ -62,6 +64,10 @@ data LibraryPort m = LibraryPort
 data SettingsPort m = SettingsPort
   { loadCurrentView :: m View
   , saveCurrentView :: View -> m ()
+  , loadZeitCookie :: m Text
+  , saveZeitCookie :: Text -> m ()
+  , loadLingqApiKey :: m Text
+  , saveLingqApiKey :: Text -> m ()
   , loadBrowseSection :: m Text
   , saveBrowseSection :: Text -> m ()
   , loadBrowseFilter :: m WordFilter

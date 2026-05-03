@@ -19,6 +19,15 @@ data Event
   = Navigate View
   | ZeitStatusChanged AuthStatus
   | LingqStatusChanged AuthStatus
+  | ZeitCookieChanged Text
+  | ZeitCookieLoginRequested Text
+  | ZeitLogoutRequested
+  | LingqApiKeyChanged Text
+  | LingqUsernameChanged Text
+  | LingqPasswordChanged Text
+  | LingqApiKeyLoginRequested Text
+  | LingqPasswordLoginRequested Text Text
+  | LingqLogoutRequested
   | ArticleOpened ArticleSummary
   | ArticleContentLoaded Article
   | ArticleClosed
@@ -70,6 +79,11 @@ data Event
 
 data Command
   = PersistCurrentView View
+  | LoginZeitWithCookie Text
+  | LogoutZeit
+  | LoginLingqWithApiKey Text
+  | LoginLingqWithPassword Text Text
+  | LogoutLingq
   | PersistBrowseSection Text
   | PersistBrowseFilter WordFilter
   | PersistDatePrefix Bool
@@ -116,6 +130,42 @@ update event model =
     LingqStatusChanged status ->
       ( model {lingqStatus = status}
       , []
+      )
+    ZeitCookieChanged cookie ->
+      ( model {zeitCookieText = cookie}
+      , []
+      )
+    ZeitCookieLoginRequested cookie ->
+      ( model {zeitCookieText = cookie}
+      , [LoginZeitWithCookie cookie]
+      )
+    ZeitLogoutRequested ->
+      ( model
+      , [LogoutZeit]
+      )
+    LingqApiKeyChanged apiKey ->
+      ( model {lingqApiKeyText = apiKey}
+      , []
+      )
+    LingqUsernameChanged username ->
+      ( model {lingqUsernameText = username}
+      , []
+      )
+    LingqPasswordChanged password ->
+      ( model {lingqPasswordText = password}
+      , []
+      )
+    LingqApiKeyLoginRequested apiKey ->
+      ( model {lingqApiKeyText = apiKey}
+      , [LoginLingqWithApiKey apiKey]
+      )
+    LingqPasswordLoginRequested username password ->
+      ( model {lingqUsernameText = username, lingqPasswordText = password}
+      , [LoginLingqWithPassword username password]
+      )
+    LingqLogoutRequested ->
+      ( model
+      , [LogoutLingq]
       )
     ArticleOpened article ->
       ( model

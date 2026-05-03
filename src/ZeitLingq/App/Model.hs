@@ -18,6 +18,10 @@ data Model = Model
   , articleReturnView :: View
   , zeitStatus :: AuthStatus
   , lingqStatus :: AuthStatus
+  , zeitCookieText :: Text
+  , lingqApiKeyText :: Text
+  , lingqUsernameText :: Text
+  , lingqPasswordText :: Text
   , selectedArticle :: Maybe ArticleSummary
   , selectedArticleContent :: Maybe Article
   , browseArticles :: [ArticleSummary]
@@ -51,6 +55,10 @@ initialModel =
     , articleReturnView = LibraryView
     , zeitStatus = emptyAuth
     , lingqStatus = emptyAuth
+    , zeitCookieText = ""
+    , lingqApiKeyText = ""
+    , lingqUsernameText = ""
+    , lingqPasswordText = ""
     , selectedArticle = Nothing
     , selectedArticleContent = Nothing
     , browseArticles = []

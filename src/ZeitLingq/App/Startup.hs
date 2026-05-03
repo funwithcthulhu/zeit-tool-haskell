@@ -8,6 +8,8 @@ import ZeitLingq.Ports (SettingsPort(..))
 loadInitialModel :: Monad m => SettingsPort m -> m Model
 loadInitialModel settings = do
   view <- loadCurrentView settings
+  zeitCookie <- loadZeitCookie settings
+  lingqApiKey <- loadLingqApiKey settings
   sectionId <- loadBrowseSection settings
   browseWords <- loadBrowseFilter settings
   datePrefix <- loadDatePrefixEnabled settings
@@ -16,6 +18,8 @@ loadInitialModel settings = do
   pure
     initialModel
       { currentView = view
+      , zeitCookieText = zeitCookie
+      , lingqApiKeyText = lingqApiKey
       , browseSectionId = sectionId
       , browseFilter = browseWords
       , datePrefixEnabled = datePrefix

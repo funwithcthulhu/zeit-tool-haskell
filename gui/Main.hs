@@ -32,6 +32,15 @@ data GuiEvent
   | GuiFailed Text
   | GuiNavigate View
   | GuiRefresh
+  | GuiZeitCookieChanged Text
+  | GuiZeitCookieLogin
+  | GuiZeitLogout
+  | GuiLingqApiKeyChanged Text
+  | GuiLingqUsernameChanged Text
+  | GuiLingqPasswordChanged Text
+  | GuiLingqApiKeyLogin
+  | GuiLingqPasswordLogin
+  | GuiLingqLogout
   | GuiSectionSelected Text
   | GuiBrowsePreviousPage
   | GuiBrowseNextPage
@@ -117,6 +126,24 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (Navigate view))]
     GuiRefresh ->
       [Task (runAppEvent ports model RefreshCurrentView)]
+    GuiZeitCookieChanged cookie ->
+      [Task (runAppEvent ports model (ZeitCookieChanged cookie))]
+    GuiZeitCookieLogin ->
+      [Task (runAppEvent ports model (ZeitCookieLoginRequested (zeitCookieText model)))]
+    GuiZeitLogout ->
+      [Task (runAppEvent ports model ZeitLogoutRequested)]
+    GuiLingqApiKeyChanged apiKey ->
+      [Task (runAppEvent ports model (LingqApiKeyChanged apiKey))]
+    GuiLingqUsernameChanged username ->
+      [Task (runAppEvent ports model (LingqUsernameChanged username))]
+    GuiLingqPasswordChanged password ->
+      [Task (runAppEvent ports model (LingqPasswordChanged password))]
+    GuiLingqApiKeyLogin ->
+      [Task (runAppEvent ports model (LingqApiKeyLoginRequested (lingqApiKeyText model)))]
+    GuiLingqPasswordLogin ->
+      [Task (runAppEvent ports model (LingqPasswordLoginRequested (lingqUsernameText model) (lingqPasswordText model)))]
+    GuiLingqLogout ->
+      [Task (runAppEvent ports model LingqLogoutRequested)]
     GuiSectionSelected sectionIdent ->
       [Task (runAppEvent ports model (BrowseSectionSelected sectionIdent))]
     GuiBrowsePreviousPage ->
@@ -266,6 +293,7 @@ contentBlock model vm =
     [ label ("Browse section: " <> vmBrowseSection vm)
     , label ("Filter: " <> vmActiveFilter vm)
     , label (vmDatePrefix vm)
+    , zeitControls model
     , browseControls model
     , libraryControls model
     , lingqControls model
@@ -274,6 +302,28 @@ contentBlock model vm =
     , articleRowsBlock model (rowsForCurrentView model)
     ]
     `styleBasic` [padding 16]
+
+zeitControls :: Model -> WidgetNode Model GuiEvent
+zeitControls model =
+  case currentView model of
+    ZeitLoginView ->
+      vstack
+        [ label "Zeit cookie session"
+            `styleBasic` [textSize 16, paddingT 8]
+        , label "Paste your zeit.de Cookie header here. This keeps credentials out of the app while still making paid article fetches GUI-configurable."
+            `styleBasic` [textSize 12, paddingB 6]
+        , textAreaV_
+            (zeitCookieText model)
+            GuiZeitCookieChanged
+            [maxLines 5]
+            `styleBasic` [height 110]
+        , hstack
+            [ button "Save cookie session" GuiZeitCookieLogin
+            , button "Disconnect Zeit" GuiZeitLogout
+            ]
+            `styleBasic` [paddingT 6]
+        ]
+    _ -> spacer
 
 browseControls :: Model -> WidgetNode Model GuiEvent
 browseControls model =
@@ -391,7 +441,8 @@ lingqControls model =
   case currentView model of
     LingqView ->
       vstack
-        [ hstack
+        [ lingqLoginControls model
+        , hstack
             [ button ("Upload visible (" <> T.pack (show (length uploadable)) <> ")") (GuiUploadVisible (lingqArticles model))
             , button "Sync known words" GuiSyncKnownWords
             , button "Refresh %" GuiComputeKnownWords
@@ -447,6 +498,43 @@ lingqControls model =
             `styleBasic` [width 220]
         ]
         `styleBasic` [paddingB 4]
+
+lingqLoginControls :: Model -> WidgetNode Model GuiEvent
+lingqLoginControls model =
+  vstack
+    [ label "LingQ connection"
+        `styleBasic` [textSize 16, paddingT 8]
+    , hstack
+        [ label "API key"
+            `styleBasic` [paddingR 8]
+        , textFieldV_
+            (lingqApiKeyText model)
+            GuiLingqApiKeyChanged
+            [placeholder "LingQ API key"]
+            `styleBasic` [width 360]
+        , button "Connect API key" GuiLingqApiKeyLogin
+        , button "Disconnect" GuiLingqLogout
+        ]
+    , hstack
+        [ label "Username"
+            `styleBasic` [paddingR 8]
+        , textFieldV_
+            (lingqUsernameText model)
+            GuiLingqUsernameChanged
+            [placeholder "LingQ username or email"]
+            `styleBasic` [width 230]
+        , label "Password"
+            `styleBasic` [paddingL 12, paddingR 8]
+        , textFieldV_
+            (lingqPasswordText model)
+            GuiLingqPasswordChanged
+            [placeholder "Password", textFieldDisplayChar '*']
+            `styleBasic` [width 220]
+        , button "Login with password" GuiLingqPasswordLogin
+        ]
+        `styleBasic` [paddingT 6]
+    ]
+    `styleBasic` [paddingB 10]
 
 collectionList :: Model -> WidgetNode Model GuiEvent
 collectionList model
@@ -642,60 +730,123 @@ safeGuiTask action = do
 
 makePorts :: IO (AppPorts IO)
 makePorts = do
-  maybeCookie <- lookupEnv "ZEIT_COOKIE"
-  maybeLingqKey <- lookupEnv "LINGQ_API_KEY"
-  let session = ZeitSession (maybe "" T.pack maybeCookie)
-      lingqToken = LingqToken . T.pack <$> maybeLingqKey
   pure
     AppPorts
-      { zeitPort = guiZeitPort session
-      , lingqPort = guiLingqPort lingqToken
+      { zeitPort = guiZeitPort settingsPath
+      , lingqPort = guiLingqPort settingsPath
       , audioPort = guiAudioPort
       , libraryPort = guiLibraryPort
       , settingsPort = jsonSettingsPort settingsPath
       }
 
-guiZeitPort :: ZeitSession -> ZeitPort IO
-guiZeitPort session =
+guiZeitPort :: FilePath -> ZeitPort IO
+guiZeitPort path =
   ZeitPort
     { fetchSections = pure allSections
-    , fetchArticleList = \sectionIdent page ->
+    , fetchArticleList = \sectionIdent page -> do
+        session <- loadZeitSession path
         either failWithShow pure =<< fetchArticleListZeit session sectionIdent page
-    , fetchArticleContent = \url ->
+    , fetchArticleContent = \url -> do
+        session <- loadZeitSession path
         either failWithShow pure =<< fetchArticleContentZeit session url
-    , loginToZeit =
-        pure
-          AuthStatus
-            { authLoggedIn = not (T.null (zeitCookies session))
-            , authLabel =
-                if T.null (zeitCookies session)
-                  then Just "set ZEIT_COOKIE"
-                  else Just "cookie session"
-            }
-    , logoutFromZeit = pure ()
+    , loginToZeit = zeitStatusFromSettings path
+    , loginToZeitWithCookie = \cookie -> do
+        saveSettings path . (\settings -> settings {settingsZeitCookie = T.strip cookie}) =<< loadSettings path
+        zeitStatusFromSettings path
+    , logoutFromZeit =
+        saveSettings path . (\settings -> settings {settingsZeitCookie = ""}) =<< loadSettings path
     }
 
-guiLingqPort :: Maybe LingqToken -> LingqPort IO
-guiLingqPort maybeToken =
+guiLingqPort :: FilePath -> LingqPort IO
+guiLingqPort path =
   LingqPort
-    { loginToLingq = \_ _ -> pure lingqStatusFromEnv
-    , logoutFromLingq = pure ()
+    { loginToLingq = \username password ->
+        if T.null (T.strip username) && T.null (T.strip password)
+          then lingqStatusFromSettings path
+          else do
+            token <- either failWithShow pure =<< loginWithPasswordLingq username password
+            saveLingqToken path token
+            pure AuthStatus {authLoggedIn = True, authLabel = Just (nonEmptyOr "password login" username)}
+    , loginToLingqWithApiKey = \apiKey -> do
+        token <- either failWithShow pure =<< loginWithApiKeyLingq (T.strip apiKey)
+        saveLingqToken path token
+        pure AuthStatus {authLoggedIn = True, authLabel = Just "API key"}
+    , logoutFromLingq =
+        saveSettings path . (\settings -> settings {settingsLingqApiKey = ""}) =<< loadSettings path
     , uploadLessonToLingq = \languageCode collectionId article -> do
-        token <- maybe (fail "Set LINGQ_API_KEY before uploading to LingQ.") pure maybeToken
+        token <- loadLingqToken path
         either failWithShow pure =<< uploadLessonLingq token languageCode collectionId article
     , fetchCollections = \languageCode -> do
-        token <- maybe (fail "Set LINGQ_API_KEY before loading LingQ collections.") pure maybeToken
+        token <- loadLingqToken path
         either failWithShow pure =<< fetchCollectionsLingq token languageCode
     , fetchKnownWords = \languageCode -> do
-        token <- maybe (fail "Set LINGQ_API_KEY before syncing known words.") pure maybeToken
+        token <- loadLingqToken path
         either failWithShow pure =<< fetchKnownWordsLingq token languageCode
     }
+
+loadZeitSession :: FilePath -> IO ZeitSession
+loadZeitSession path =
+  ZeitSession <$> loadConfiguredText path settingsZeitCookie "ZEIT_COOKIE"
+
+zeitStatusFromSettings :: FilePath -> IO AuthStatus
+zeitStatusFromSettings path = do
+  cookie <- loadConfiguredText path settingsZeitCookie "ZEIT_COOKIE"
+  pure
+    AuthStatus
+      { authLoggedIn = not (T.null cookie)
+      , authLabel =
+          if T.null cookie
+            then Just "paste cookie"
+            else Just "cookie session"
+      }
+
+loadLingqToken :: FilePath -> IO LingqToken
+loadLingqToken path = do
+  apiKey <- loadConfiguredText path settingsLingqApiKey "LINGQ_API_KEY"
+  if T.null apiKey
+    then fail "Connect a LingQ API key before using LingQ actions."
+    else pure (LingqToken apiKey)
+
+lingqStatusFromSettings :: FilePath -> IO AuthStatus
+lingqStatusFromSettings path = do
+  apiKey <- loadConfiguredText path settingsLingqApiKey "LINGQ_API_KEY"
+  pure
+    AuthStatus
+      { authLoggedIn = not (T.null apiKey)
+      , authLabel =
+          if T.null apiKey
+            then Just "connect API key"
+            else Just "API key"
+      }
+
+saveLingqToken :: FilePath -> LingqToken -> IO ()
+saveLingqToken path (LingqToken token) =
+  saveSettings path . (\settings -> settings {settingsLingqApiKey = token}) =<< loadSettings path
+
+loadConfiguredText :: FilePath -> (Settings -> Text) -> String -> IO Text
+loadConfiguredText path select envName = do
+  settings <- loadSettings path
+  envValue <- fmap T.pack <$> lookupEnv envName
+  pure (maybe "" id (nonEmptyMaybe (select settings) <|> envValueMaybe envValue))
   where
-    lingqStatusFromEnv =
-      AuthStatus
-        { authLoggedIn = maybe False (const True) maybeToken
-        , authLabel = maybe (Just "set LINGQ_API_KEY") (const (Just "API key")) maybeToken
-        }
+    envValueMaybe maybeValue =
+      case T.strip <$> maybeValue of
+        Just value | not (T.null value) -> Just value
+        _ -> Nothing
+
+nonEmptyMaybe :: Text -> Maybe Text
+nonEmptyMaybe value
+  | T.null stripped = Nothing
+  | otherwise = Just stripped
+  where
+    stripped = T.strip value
+
+nonEmptyOr :: Text -> Text -> Text
+nonEmptyOr fallback value
+  | T.null stripped = fallback
+  | otherwise = stripped
+  where
+    stripped = T.strip value
 
 guiAudioPort :: AudioPort IO
 guiAudioPort =

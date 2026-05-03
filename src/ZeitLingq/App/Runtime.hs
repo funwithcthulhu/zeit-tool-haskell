@@ -23,6 +23,25 @@ runCommand ports command =
   case command of
     PersistCurrentView view ->
       [] <$ saveCurrentView settings view
+    LoginZeitWithCookie cookie -> do
+      status <- loginToZeitWithCookie zeit cookie
+      pure [ZeitStatusChanged status, Notify SuccessNotice "Saved Zeit cookie session."]
+    LogoutZeit -> do
+      logoutFromZeit zeit
+      pure [ZeitStatusChanged (AuthStatus False (Just "disconnected")), ZeitCookieChanged "", Notify SuccessNotice "Disconnected Zeit session."]
+    LoginLingqWithApiKey apiKey -> do
+      status <- loginToLingqWithApiKey lingq apiKey
+      pure [LingqStatusChanged status, Notify SuccessNotice "Connected LingQ API key.", RefreshCurrentView]
+    LoginLingqWithPassword username password -> do
+      status <- loginToLingq lingq username password
+      pure [LingqStatusChanged status, Notify SuccessNotice "Connected LingQ account.", RefreshCurrentView]
+    LogoutLingq -> do
+      logoutFromLingq lingq
+      pure [ LingqStatusChanged (AuthStatus False (Just "disconnected"))
+           , LingqApiKeyChanged ""
+           , LingqPasswordChanged ""
+           , Notify SuccessNotice "Disconnected LingQ."
+           ]
     PersistBrowseSection sectionId ->
       [] <$ saveBrowseSection settings sectionId
     PersistBrowseFilter filters ->

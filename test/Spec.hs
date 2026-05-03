@@ -93,6 +93,10 @@ main = hspec $ do
             SettingsPort
               { loadCurrentView = Identity LingqView
               , saveCurrentView = \_ -> Identity ()
+              , loadZeitCookie = Identity "cookie=value"
+              , saveZeitCookie = \_ -> Identity ()
+              , loadLingqApiKey = Identity "lingq-key"
+              , saveLingqApiKey = \_ -> Identity ()
               , loadBrowseSection = Identity "wissen"
               , saveBrowseSection = \_ -> Identity ()
               , loadBrowseFilter = Identity (WordFilter (Just 300) (Just 2000))
@@ -106,6 +110,8 @@ main = hspec $ do
               }
           model = runIdentity (loadInitialModel port)
       currentView model `shouldBe` LingqView
+      zeitCookieText model `shouldBe` "cookie=value"
+      lingqApiKeyText model `shouldBe` "lingq-key"
       browseSectionId model `shouldBe` "wissen"
       browsePage model `shouldBe` 1
       browseFilter model `shouldBe` WordFilter (Just 300) (Just 2000)
@@ -178,7 +184,17 @@ main = hspec $ do
               , summaryIgnored = False
               , summaryUploaded = False
               , summaryKnownPct = Nothing
-              }
+          }
+      snd (update (ZeitCookieLoginRequested "cookie=value") initialModel)
+        `shouldBe` [LoginZeitWithCookie "cookie=value"]
+      snd (update ZeitLogoutRequested initialModel)
+        `shouldBe` [LogoutZeit]
+      snd (update (LingqApiKeyLoginRequested "api-key") initialModel)
+        `shouldBe` [LoginLingqWithApiKey "api-key"]
+      snd (update (LingqPasswordLoginRequested "user" "pass") initialModel)
+        `shouldBe` [LoginLingqWithPassword "user" "pass"]
+      snd (update LingqLogoutRequested initialModel)
+        `shouldBe` [LogoutLingq]
       snd (update (BrowseArticleFetchRequested summary) initialModel)
         `shouldBe` [FetchAndSaveArticle summary]
       snd (update (BrowseArticlePreviewRequested summary) initialModel)
@@ -243,6 +259,32 @@ main = hspec $ do
         `shouldBe` [ArticleContentLoaded demoArticle]
       runIdentity (Runtime.runCommand ports (PreviewArticle "https://example.com/runtime"))
         `shouldBe` [ArticleContentLoaded demoArticle]
+
+    it "connects and disconnects account settings through runtime ports" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 12)
+              , summaryUrl = "https://example.com/auth"
+              , summaryTitle = "Auth"
+              , summarySection = "Wissen"
+              , summaryWordCount = 555
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          ports = testPorts summary
+      runIdentity (Runtime.runCommand ports (LoginZeitWithCookie "cookie=value"))
+        `shouldBe` [ZeitStatusChanged (AuthStatus True (Just "cookie session")), Notify SuccessNotice "Saved Zeit cookie session."]
+      runIdentity (Runtime.runCommand ports LogoutZeit)
+        `shouldBe` [ZeitStatusChanged (AuthStatus False (Just "disconnected")), ZeitCookieChanged "", Notify SuccessNotice "Disconnected Zeit session."]
+      runIdentity (Runtime.runCommand ports (LoginLingqWithApiKey "api-key"))
+        `shouldBe` [LingqStatusChanged (AuthStatus True (Just "API key")), Notify SuccessNotice "Connected LingQ API key.", RefreshCurrentView]
+      runIdentity (Runtime.runCommand ports LogoutLingq)
+        `shouldBe` [ LingqStatusChanged (AuthStatus False (Just "disconnected"))
+                   , LingqApiKeyChanged ""
+                   , LingqPasswordChanged ""
+                   , Notify SuccessNotice "Disconnected LingQ."
+                   ]
 
     it "reports a missing article when content cannot be loaded" $ do
       let summary =
@@ -965,6 +1007,8 @@ main = hspec $ do
       withTempSettingsPath $ \path -> do
         let port = jsonSettingsPort path
         saveCurrentView port LingqView
+        saveZeitCookie port " cookie=value "
+        saveLingqApiKey port " api-key "
         saveBrowseSection port "wissen"
         saveBrowseFilter port (WordFilter (Just 250) (Just 1500))
         saveDatePrefixEnabled port False
@@ -972,6 +1016,8 @@ main = hspec $ do
         saveSectionCollections port (Map.fromList [("Wissen", "course-1")])
 
         loadCurrentView port `shouldReturn` LingqView
+        loadZeitCookie port `shouldReturn` "cookie=value"
+        loadLingqApiKey port `shouldReturn` "api-key"
         loadBrowseSection port `shouldReturn` "wissen"
         loadBrowseFilter port `shouldReturn` WordFilter (Just 250) (Just 1500)
         loadDatePrefixEnabled port `shouldReturn` False
@@ -1069,11 +1115,13 @@ testPorts summary =
           , fetchArticleList = \sectionId _ -> Identity [summary {summarySection = sectionId}]
           , fetchArticleContent = \_ -> Identity demoArticle
           , loginToZeit = Identity (AuthStatus True Nothing)
+          , loginToZeitWithCookie = \_ -> Identity (AuthStatus True (Just "cookie session"))
           , logoutFromZeit = Identity ()
           }
     , lingqPort =
         LingqPort
           { loginToLingq = \_ _ -> Identity (AuthStatus True Nothing)
+          , loginToLingqWithApiKey = \_ -> Identity (AuthStatus True (Just "API key"))
           , logoutFromLingq = Identity ()
           , uploadLessonToLingq = \_ _ _ -> Identity (LingqLesson "lesson" "https://lingq.example/lesson")
           , fetchCollections = \_ -> Identity []
@@ -1119,6 +1167,10 @@ testPorts summary =
         SettingsPort
           { loadCurrentView = Identity BrowseView
           , saveCurrentView = \_ -> Identity ()
+          , loadZeitCookie = Identity ""
+          , saveZeitCookie = \_ -> Identity ()
+          , loadLingqApiKey = Identity ""
+          , saveLingqApiKey = \_ -> Identity ()
           , loadBrowseSection = Identity "index"
           , saveBrowseSection = \_ -> Identity ()
           , loadBrowseFilter = Identity (WordFilter Nothing Nothing)

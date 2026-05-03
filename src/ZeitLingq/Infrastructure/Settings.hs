@@ -25,6 +25,8 @@ import ZeitLingq.Ports (SettingsPort(..))
 
 data Settings = Settings
   { settingsCurrentView :: View
+  , settingsZeitCookie :: Text
+  , settingsLingqApiKey :: Text
   , settingsBrowseSection :: Text
   , settingsBrowseFilter :: WordFilter
   , settingsDatePrefixEnabled :: Bool
@@ -36,6 +38,8 @@ defaultSettings :: Settings
 defaultSettings =
   Settings
     { settingsCurrentView = BrowseView
+    , settingsZeitCookie = ""
+    , settingsLingqApiKey = ""
     , settingsBrowseSection = "index"
     , settingsBrowseFilter = WordFilter Nothing Nothing
     , settingsDatePrefixEnabled = True
@@ -48,6 +52,10 @@ jsonSettingsPort path =
   SettingsPort
     { loadCurrentView = settingsCurrentView <$> loadSettings path
     , saveCurrentView = updateSettings path . setCurrentView
+    , loadZeitCookie = settingsZeitCookie <$> loadSettings path
+    , saveZeitCookie = updateSettings path . setZeitCookie
+    , loadLingqApiKey = settingsLingqApiKey <$> loadSettings path
+    , saveLingqApiKey = updateSettings path . setLingqApiKey
     , loadBrowseSection = settingsBrowseSection <$> loadSettings path
     , saveBrowseSection = updateSettings path . setBrowseSection
     , loadBrowseFilter = settingsBrowseFilter <$> loadSettings path
@@ -82,6 +90,12 @@ updateSettings path change = do
 setCurrentView :: View -> Settings -> Settings
 setCurrentView value settings = settings {settingsCurrentView = value}
 
+setZeitCookie :: Text -> Settings -> Settings
+setZeitCookie value settings = settings {settingsZeitCookie = T.strip value}
+
+setLingqApiKey :: Text -> Settings -> Settings
+setLingqApiKey value settings = settings {settingsLingqApiKey = T.strip value}
+
 setBrowseSection :: Text -> Settings -> Settings
 setBrowseSection value settings = settings {settingsBrowseSection = value}
 
@@ -101,6 +115,8 @@ instance ToJSON Settings where
   toJSON settings =
     object
       [ "currentView" .= viewToText (settingsCurrentView settings)
+      , "zeitCookie" .= settingsZeitCookie settings
+      , "lingqApiKey" .= settingsLingqApiKey settings
       , "browseSection" .= settingsBrowseSection settings
       , "browseFilter" .= wordFilterToJson (settingsBrowseFilter settings)
       , "datePrefixEnabled" .= settingsDatePrefixEnabled settings
@@ -113,6 +129,8 @@ instance FromJSON Settings where
     withObject "Settings" $ \obj ->
       Settings
         <$> parseView obj
+        <*> obj .:? "zeitCookie" .!= settingsZeitCookie defaultSettings
+        <*> obj .:? "lingqApiKey" .!= settingsLingqApiKey defaultSettings
         <*> obj .:? "browseSection" .!= settingsBrowseSection defaultSettings
         <*> (obj .:? "browseFilter" >>= maybe (pure (settingsBrowseFilter defaultSettings)) parseWordFilter)
         <*> obj .:? "datePrefixEnabled" .!= settingsDatePrefixEnabled defaultSettings
