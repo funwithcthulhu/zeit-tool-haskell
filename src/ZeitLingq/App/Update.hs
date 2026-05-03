@@ -83,6 +83,7 @@ data Event
   | LibraryOnlyNotUploadedChanged Bool
   | LibrarySortChanged LibrarySort
   | LibraryGroupBySectionChanged Bool
+  | LibraryDeleteDaysChanged Text
   | LibraryPageChanged Int
   | LibraryDeleteIgnoredRequested
   | LibraryDeleteOlderRequested UTCTime Bool Bool
@@ -481,6 +482,10 @@ update event model =
        in ( model {libraryGroupBySection = enabled, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
+    LibraryDeleteDaysChanged daysText ->
+      ( model {libraryDeleteDaysText = daysText}
+      , []
+      )
     LibraryPageChanged offset ->
       let nextQuery =
             (libraryQuery model)

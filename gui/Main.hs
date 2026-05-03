@@ -102,10 +102,11 @@ data GuiEvent
   | GuiLibraryOnlyNotUploadedChanged Bool
   | GuiLibrarySortChanged LibrarySort
   | GuiLibraryGroupBySectionChanged Bool
+  | GuiLibraryDeleteDaysChanged Text
   | GuiLibraryPreviousPage
   | GuiLibraryNextPage
   | GuiDeleteIgnoredArticles
-  | GuiDeleteOldArticles Int Bool Bool
+  | GuiDeleteOldArticles Bool Bool
   | GuiDeleteArticle ArticleId
   | GuiOpenDataFolder
   | GuiCloseArticle
@@ -347,14 +348,18 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (LibrarySortChanged sortMode))]
     GuiLibraryGroupBySectionChanged enabled ->
       [Task (runAppEvent ports model (LibraryGroupBySectionChanged enabled))]
+    GuiLibraryDeleteDaysChanged daysText ->
+      [Task (runAppEvent ports model (LibraryDeleteDaysChanged daysText))]
     GuiLibraryPreviousPage ->
       [Task (runAppEvent ports model (LibraryPageChanged (libraryOffset (libraryQuery model) - libraryLimit (libraryQuery model))))]
     GuiLibraryNextPage ->
       [Task (runAppEvent ports model (LibraryPageChanged (libraryOffset (libraryQuery model) + libraryLimit (libraryQuery model))))]
     GuiDeleteIgnoredArticles ->
       [Task (runAppEvent ports model LibraryDeleteIgnoredRequested)]
-    GuiDeleteOldArticles days onlyUploaded onlyUnuploaded ->
-      [Task (runDeleteOlderAppEvent ports model days onlyUploaded onlyUnuploaded)]
+    GuiDeleteOldArticles onlyUploaded onlyUnuploaded ->
+      case parsePositiveInt (libraryDeleteDaysText model) of
+        Nothing -> [Task (runAppEvent ports model (Notify ErrorNotice "Enter a positive day count before deleting old articles."))]
+        Just days -> [Task (runDeleteOlderAppEvent ports model days onlyUploaded onlyUnuploaded)]
     GuiDeleteArticle ident ->
       [Task (runAppEvent ports model (ArticleDeleteRequested ident))]
     GuiOpenDataFolder ->
@@ -783,8 +788,14 @@ libraryControls model =
             ]
         , hstack
             [ dangerButton "Delete ignored" GuiDeleteIgnoredArticles
-            , dangerButton "Delete old 30d" (GuiDeleteOldArticles 30 False False)
-            , dangerButton "Delete old uploaded 30d" (GuiDeleteOldArticles 30 True False)
+            , label "Older than"
+                `styleBasic` [paddingL 10, paddingR 6, textColor mutedTextColor]
+            , textFieldV (libraryDeleteDaysText model) GuiLibraryDeleteDaysChanged
+                `styleBasic` (inputStyle <> [width 56])
+            , mutedLabel "days"
+            , dangerButton "Delete old" (GuiDeleteOldArticles False False)
+            , dangerButton "Delete uploaded" (GuiDeleteOldArticles True False)
+            , dangerButton "Delete unuploaded" (GuiDeleteOldArticles False True)
             ]
             `styleBasic` [paddingT 8]
         ]
@@ -1507,6 +1518,12 @@ parseOptionalInt raw =
       case reads value of
         [(parsed, "")] | parsed >= (0 :: Int) -> Just parsed
         _ -> Nothing
+
+parsePositiveInt :: Text -> Maybe Int
+parsePositiveInt raw =
+  case reads (T.unpack (T.strip raw)) of
+    [(parsed, "")] | parsed > (0 :: Int) -> Just parsed
+    _ -> Nothing
 
 tshow :: Show a => a -> Text
 tshow = T.pack . show
