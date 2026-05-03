@@ -73,6 +73,7 @@ data Event
   | BatchFetchFinished [(Text, Text)]
   | BatchUploadFinished [(ArticleId, Text)]
   | FailureListsCleared
+  | ProgressChanged (Maybe ProgressStatus)
   | RefreshCurrentView
   | Notify NotificationLevel Text
   | NotificationCleared
@@ -403,15 +404,19 @@ update event model =
       , []
       )
     BatchFetchFinished failures ->
-      ( model {failedFetches = failures}
+      ( model {failedFetches = failures, activeProgress = Nothing}
       , []
       )
     BatchUploadFinished failures ->
-      ( model {failedUploads = failures}
+      ( model {failedUploads = failures, activeProgress = Nothing}
       , []
       )
     FailureListsCleared ->
       ( model {failedFetches = [], failedUploads = []}
+      , []
+      )
+    ProgressChanged progress ->
+      ( model {activeProgress = progress}
       , []
       )
     RefreshCurrentView ->

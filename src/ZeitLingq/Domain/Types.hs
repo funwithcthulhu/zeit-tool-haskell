@@ -15,6 +15,7 @@ module ZeitLingq.Domain.Types
   , LingqLesson(..)
   , Notification(..)
   , NotificationLevel(..)
+  , ProgressStatus(..)
   , Section(..)
   , View(..)
   , WordFilter(..)
@@ -46,6 +47,13 @@ data NotificationLevel
 data Notification = Notification
   { notificationLevel :: NotificationLevel
   , notificationMessage :: Text
+  } deriving (Eq, Show, Generic)
+
+data ProgressStatus = ProgressStatus
+  { progressLabel :: Text
+  , progressCurrent :: Int
+  , progressTotal :: Int
+  , progressDetail :: Text
   } deriving (Eq, Show, Generic)
 
 data AuthStatus = AuthStatus

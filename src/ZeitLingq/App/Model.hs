@@ -46,6 +46,7 @@ data Model = Model
   , knownStemTotal :: Int
   , knownImportText :: Text
   , notification :: Maybe Notification
+  , activeProgress :: Maybe ProgressStatus
   , failedFetches :: [(Text, Text)]
   , failedUploads :: [(ArticleId, Text)]
   , browseSectionId :: Text
@@ -96,6 +97,7 @@ initialModel =
     , knownStemTotal = 0
     , knownImportText = ""
     , notification = Nothing
+    , activeProgress = Nothing
     , failedFetches = []
     , failedUploads = []
     , browseSectionId = "index"

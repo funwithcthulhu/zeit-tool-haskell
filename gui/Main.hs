@@ -19,12 +19,12 @@ import System.Process (CreateProcess(std_in), StdStream(CreatePipe), callProcess
 import Data.Text.IO qualified as TIO
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.Core.Batch (BatchFetchResult(..))
-import ZeitLingq.Core.Upload (BatchUploadResult(..), batchUploadArticles)
-import ZeitLingq.Domain.Article (BatchDecision(..), applyWordFilter)
+import ZeitLingq.Core.Upload (BatchUploadConfig(..), BatchUploadResult(..), targetCollectionFor)
+import ZeitLingq.Domain.Article (BatchDecision(..), applyWordFilter, lessonTitle)
 import ZeitLingq.App.Driver (dispatchEvent, dispatchEvents)
 import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.Startup (loadInitialModel)
-import ZeitLingq.App.Update (Event(..))
+import ZeitLingq.App.Update (Event(..), update)
 import ZeitLingq.App.ViewModel
 import ZeitLingq.Domain.Section (allSections)
 import ZeitLingq.Domain.Types
@@ -84,6 +84,7 @@ data GuiEvent
   | GuiRetryFailedFetches
   | GuiRetryFailedUploads
   | GuiClearFailures
+  | GuiProgress (Maybe ProgressStatus)
   | GuiSyncKnownWords
   | GuiKnownImportTextChanged Text
   | GuiImportKnownWords
@@ -165,6 +166,7 @@ buildUI _ model =
     , vstack
         [ titleBlock vm
         , notificationBlock model
+        , progressNoticeBlock model
         , contentBlock model vm
         ]
         `styleBasic` [padding 12]
@@ -250,15 +252,17 @@ handleEvent ports _ _ model event =
       case selectedBrowseArticles model articles of
         [] -> [Task (runAppEvent ports model (Notify ErrorNotice "Select at least one article to fetch."))]
         selected ->
-          withPendingNotice
+          withProgressProducer
             model
-            ("Fetching " <> tshow (length selected) <> " selected article(s)...")
-            (runFetchBatchAppEvent ports model selected)
+            "Fetching selected articles"
+            (length selected)
+            (runFetchBatchProducer ports model selected)
     GuiFetchVisible articles ->
-      withPendingNotice
+      withProgressProducer
         model
-        ("Fetching " <> tshow (length articles) <> " visible article(s)...")
-        (runFetchBatchAppEvent ports model articles)
+        "Fetching visible articles"
+        (length articles)
+        (runFetchBatchProducer ports model articles)
     GuiToggleIgnored article ->
       case summaryId article of
         Just ident -> [Task (runAppEvent ports model (ArticleIgnoredChanged ident (not (summaryIgnored article))))]
@@ -275,15 +279,17 @@ handleEvent ports _ _ model event =
       case selectedLingqArticles model articles of
         [] -> [Task (runAppEvent ports model (Notify ErrorNotice "Select at least one article to upload."))]
         selected ->
-          withPendingNotice
+          withProgressProducer
             model
-            ("Uploading " <> tshow (length selected) <> " selected article(s) to LingQ...")
-            (runUploadBatchAppEvent ports model selected)
+            "Uploading selected articles"
+            (length selected)
+            (runUploadBatchProducer ports model selected)
     GuiUploadVisible articles ->
-      withPendingNotice
+      withProgressProducer
         model
-        ("Uploading " <> tshow (length articles) <> " visible article(s) to LingQ...")
-        (runUploadBatchAppEvent ports model articles)
+        "Uploading visible articles"
+        (length articles)
+        (runUploadBatchProducer ports model articles)
     GuiDownloadAudio ident ->
       withPendingNotice model "Downloading article audio..." (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))
     GuiOpenAudio ident ->
@@ -296,20 +302,25 @@ handleEvent ports _ _ model event =
       case failedFetches model of
         [] -> [Task (runAppEvent ports model (Notify InfoNotice "No failed fetches to retry."))]
         failures ->
-          withPendingNotice
+          withProgressProducer
             model
-            ("Retrying " <> tshow (length failures) <> " failed fetch(es)...")
-            (runFetchBatchAppEvent ports model (map failedFetchSummary failures))
+            "Retrying failed fetches"
+            (length failures)
+            (runFetchBatchProducer ports model (map failedFetchSummary failures))
     GuiRetryFailedUploads ->
       case failedUploads model of
         [] -> [Task (runAppEvent ports model (Notify InfoNotice "No failed uploads to retry."))]
         failures ->
-          withPendingNotice
+          withProgressProducer
             model
-            ("Retrying " <> tshow (length failures) <> " failed upload(s)...")
-            (runUploadBatchAppEvent ports model (map failedUploadSummary failures))
+            "Retrying failed uploads"
+            (length failures)
+            (runUploadBatchProducer ports model (map failedUploadSummary failures))
     GuiClearFailures ->
       [Task (runAppEvent ports model FailureListsCleared)]
+    GuiProgress progress ->
+      let (nextModel, _) = update (ProgressChanged progress) model
+       in [M.Model nextModel]
     GuiSyncKnownWords ->
       withPendingNotice model "Syncing known words from LingQ..." (runAppEvent ports model (KnownWordsSyncRequested (lingqLanguage model)))
     GuiKnownImportTextChanged text ->
@@ -385,6 +396,16 @@ withPendingNotice model message task =
   , Task task
   ]
 
+withProgressProducer :: Model -> Text -> Int -> ((GuiEvent -> IO ()) -> IO ()) -> [AppEventResponse Model GuiEvent]
+withProgressProducer model labelText total producer =
+  [ M.Model
+      model
+        { notification = Just (Notification InfoNotice labelText)
+        , activeProgress = Just (ProgressStatus labelText 0 total "")
+        }
+  , Producer producer
+  ]
+
 titleBlock :: AppViewModel -> WidgetNode Model GuiEvent
 titleBlock vm =
   hstack
@@ -407,6 +428,8 @@ sidebarBlock model vm =
     , sidebarStatusBlock vm
         `styleBasic` [paddingT 12]
     , sidebarLibraryStats model
+        `styleBasic` [paddingT 12]
+    , sidebarProgressBlock model
         `styleBasic` [paddingT 12]
     , sidebarFailureBlock model
         `styleBasic` [paddingT 12]
@@ -463,6 +486,24 @@ sidebarStat name value =
         `styleBasic` [textSize 13, textColor mainTextColor]
     ]
     `styleBasic` [paddingT 4]
+
+sidebarProgressBlock :: Model -> WidgetNode Model GuiEvent
+sidebarProgressBlock model =
+  case activeProgress model of
+    Nothing -> emptyBlock
+    Just progress ->
+      vstack
+        [ mutedLabel "Current job"
+        , label_ (progressLabel progress) [ellipsis]
+            `styleBasic` [textSize 12, textColor mainTextColor, paddingT 4]
+        , progressMeter 158 progress
+            `styleBasic` [paddingT 7]
+        , label (progressCountText progress)
+            `styleBasic` [textSize 11, textColor mutedTextColor, paddingT 5]
+        , label_ (progressDetail progress) [ellipsis]
+            `styleBasic` [textSize 10, textColor mutedTextColor, paddingT 3]
+        ]
+        `styleBasic` [padding 10, radius 12, bgColor panelBgColor, border 1 borderColor]
 
 sidebarFailureBlock :: Model -> WidgetNode Model GuiEvent
 sidebarFailureBlock model
@@ -527,6 +568,50 @@ notificationBlock model =
         , secondaryButton "Clear" GuiClearNotice
         ]
         `styleBasic` [padding 10, bgColor panelBgColor, radius 10, border 1 borderColor, paddingB 8]
+
+progressNoticeBlock :: Model -> WidgetNode Model GuiEvent
+progressNoticeBlock model =
+  case activeProgress model of
+    Nothing -> emptyBlock
+    Just progress ->
+      vstack
+        [ hstack
+            [ label (progressLabel progress)
+                `styleBasic` [textColor mainTextColor]
+            , filler
+            , label (progressCountText progress)
+                `styleBasic` [textColor mutedTextColor, textSize 12]
+            ]
+        , progressMeter 360 progress
+            `styleBasic` [paddingT 7]
+        , label_ (progressDetail progress) [ellipsis]
+            `styleBasic` [textColor mutedTextColor, textSize 11, paddingT 5]
+        ]
+        `styleBasic` [padding 10, bgColor panelBgColor, radius 10, border 1 borderColor, paddingB 8]
+
+progressMeter :: Double -> ProgressStatus -> WidgetNode Model GuiEvent
+progressMeter meterWidth progress =
+  zstack
+    [ spacer
+        `styleBasic` [height 7, width meterWidth, radius 4, bgColor borderColor]
+    , spacer
+        `styleBasic` [height 7, width fillWidth, radius 4, bgColor primaryColor]
+    ]
+  where
+    fillWidth =
+      if progressTotal progress <= 0
+        then 0
+        else max 6 (meterWidth * progressFraction progress)
+
+progressFraction :: ProgressStatus -> Double
+progressFraction progress
+  | progressTotal progress <= 0 = 0
+  | otherwise =
+      min 1 (fromIntegral (max 0 (progressCurrent progress)) / fromIntegral (progressTotal progress))
+
+progressCountText :: ProgressStatus -> Text
+progressCountText progress =
+  tshow (progressCurrent progress) <> " / " <> tshow (progressTotal progress)
 
 primaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 primaryButton caption event =
@@ -1301,20 +1386,30 @@ runAppEvent :: AppPorts IO -> Model -> Event -> IO GuiEvent
 runAppEvent ports model event =
   safeGuiTask (dispatchEvent ports model event)
 
-runFetchBatchAppEvent :: AppPorts IO -> Model -> [ArticleSummary] -> IO GuiEvent
-runFetchBatchAppEvent ports model articles =
-  safeGuiTask $ do
-    results <- traverse fetchOne articles
-    dispatchEvents
-      ports
-      model
-      [ BatchFetchFinished (guiBatchFetchFailures results)
-      , Notify (guiBatchFetchLevel results) (guiBatchFetchSummary results)
-      , RefreshCurrentView
-      ]
+runFetchBatchProducer :: AppPorts IO -> Model -> [ArticleSummary] -> (GuiEvent -> IO ()) -> IO ()
+runFetchBatchProducer ports model articles send =
+  safeGuiProducer send $ do
+    results <- traverse fetchOne (zip [1 ..] articles)
+    sendProgress (length articles) "Updating the local library..."
+    finalModel <-
+      dispatchEvents
+        ports
+        model
+        [ BatchFetchFinished (guiBatchFetchFailures results)
+        , Notify (guiBatchFetchLevel results) (guiBatchFetchSummary results)
+        , RefreshCurrentView
+        ]
+    send (GuiModelLoaded finalModel)
   where
-    filters = browseFilter model
-    fetchOne article = do
+    total = length articles
+    sendProgress current detail =
+      send (GuiProgress (Just (ProgressStatus "Fetching articles" current total detail)))
+    fetchOne (index, article) = do
+      sendProgress (index - 1) (summaryTitle article)
+      result <- fetchArticleForBatch article
+      sendProgress index (batchFetchProgressDetail result)
+      pure result
+    fetchArticleForBatch article = do
       let url = summaryUrl article
       fetched <- tryText (fetchArticleContent (zeitPort ports) url)
       case fetched of
@@ -1328,18 +1423,11 @@ runFetchBatchAppEvent ports model articles =
                   Left err -> BatchFailed url err
                   Right savedId -> BatchSaved url savedId
             decision -> pure (BatchSkipped url decision)
+    filters = browseFilter model
 
-runUploadAppEvent :: AppPorts IO -> Model -> ArticleId -> IO GuiEvent
-runUploadAppEvent ports model ident =
-  safeGuiTask $ do
-    now <- getCurrentTime
-    envFallback <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
-    let fallbackCollection = lingqFallbackCollection model <|> envFallback
-    dispatchEvent ports model (ArticleUploadRequested (utctDay now) fallbackCollection ident)
-
-runUploadBatchAppEvent :: AppPorts IO -> Model -> [ArticleSummary] -> IO GuiEvent
-runUploadBatchAppEvent ports model articles =
-  safeGuiTask $ do
+runUploadBatchProducer :: AppPorts IO -> Model -> [ArticleSummary] -> (GuiEvent -> IO ()) -> IO ()
+runUploadBatchProducer ports model articles send =
+  safeGuiProducer send $ do
     now <- getCurrentTime
     envFallback <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
     let fallbackCollection = lingqFallbackCollection model <|> envFallback
@@ -1352,25 +1440,28 @@ runUploadBatchAppEvent ports model articles =
             (datePrefixEnabled model)
             (sectionCollections model)
     if null uploadIds
-      then dispatchEvent ports model (Notify ErrorNotice "No uploadable articles selected.")
+      then do
+        finalModel <- dispatchEvent ports model (Notify ErrorNotice "No uploadable articles selected.")
+        send (GuiModelLoaded finalModel)
       else do
+        sendProgress (ProgressStatus "Uploading articles" 0 (length uploadIds) "Preparing selected articles...")
         loaded <- traverse loadOne uploadIds
         let loadFailures = [failure | Left failure <- loaded]
             uploadArticles = [article | Right article <- loaded]
-        uploadResults <-
-          batchUploadArticles
-            safeUpload
-            (markArticleUploaded (libraryPort ports))
-            config
-            uploadArticles
-        dispatchEvents
-          ports
-          model
-          ( BatchUploadFinished (loadFailures <> guiBatchUploadFailures uploadResults)
-              : guiBatchUploadResultEvents loadFailures uploadResults
-                <> [RefreshCurrentView]
-          )
+        sendProgress (ProgressStatus "Uploading articles" 0 (length uploadArticles) "Uploading to LingQ...")
+        uploadResults <- traverse (uploadOne config (length uploadArticles)) (zip [1 ..] uploadArticles)
+        finalModel <-
+          dispatchEvents
+            ports
+            model
+            ( BatchUploadFinished (loadFailures <> guiBatchUploadFailures uploadResults)
+                : guiBatchUploadResultEvents loadFailures uploadResults
+                  <> [RefreshCurrentView]
+            )
+        send (GuiModelLoaded finalModel)
   where
+    sendProgress progress =
+      send (GuiProgress (Just progress))
     loadOne ident = do
       loaded <- tryText (loadArticle (libraryPort ports) ident)
       pure $
@@ -1378,8 +1469,41 @@ runUploadBatchAppEvent ports model articles =
           Left err -> Left (ident, err)
           Right Nothing -> Left (ident, "Article not found.")
           Right (Just article) -> Right article
-    safeUpload languageCode collectionId article =
-      tryText (uploadLessonToLingq (lingqPort ports) languageCode collectionId article)
+    uploadOne config total (index, article) = do
+      let titledArticle =
+            article
+              { articleTitle =
+                  lessonTitle
+                    (uploadDay config)
+                    (uploadDatePrefixEnabled config)
+                    (articleTitle article)
+              }
+          targetCollection = targetCollectionFor config article
+          title = articleTitle titledArticle
+      sendProgress (ProgressStatus "Uploading articles" (index - 1) total title)
+      result <- tryText (uploadLessonToLingq (lingqPort ports) (uploadLanguageCode config) targetCollection titledArticle)
+      uploadResult <-
+        case result of
+          Left err -> pure (UploadFailed (articleId article) title err)
+          Right lesson ->
+            case articleId article of
+              Nothing -> pure (UploadSucceededUntracked title lesson)
+              Just ident -> do
+                markResult <- tryText (markArticleUploaded (libraryPort ports) ident lesson)
+                pure $
+                  case markResult of
+                    Left err -> UploadFailed (Just ident) title ("Uploaded to LingQ, but local status update failed: " <> err)
+                    Right () -> UploadSucceeded ident title lesson
+      sendProgress (ProgressStatus "Uploading articles" index total (batchUploadProgressDetail uploadResult))
+      pure uploadResult
+
+runUploadAppEvent :: AppPorts IO -> Model -> ArticleId -> IO GuiEvent
+runUploadAppEvent ports model ident =
+  safeGuiTask $ do
+    now <- getCurrentTime
+    envFallback <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
+    let fallbackCollection = lingqFallbackCollection model <|> envFallback
+    dispatchEvent ports model (ArticleUploadRequested (utctDay now) fallbackCollection ident)
 
 runDeleteOlderAppEvent :: AppPorts IO -> Model -> Int -> Bool -> Bool -> IO GuiEvent
 runDeleteOlderAppEvent ports model days onlyUploaded onlyUnuploaded =
@@ -1395,6 +1519,15 @@ safeGuiTask action = do
     case result of
       Right model -> GuiModelLoaded model
       Left err -> GuiFailed (T.pack (displayException (err :: SomeException)))
+
+safeGuiProducer :: (GuiEvent -> IO ()) -> IO () -> IO ()
+safeGuiProducer send action = do
+  result <- try action
+  case result of
+    Right () -> pure ()
+    Left err -> do
+      send (GuiProgress Nothing)
+      send (GuiFailed (T.pack (displayException (err :: SomeException))))
 
 tryText :: IO a -> IO (Either Text a)
 tryText action = do
@@ -1472,6 +1605,13 @@ guiBatchFetchSummary results =
     skipped = length [() | BatchSkipped {} <- results]
     failed = length [() | BatchFailed {} <- results]
 
+batchFetchProgressDetail :: BatchFetchResult -> Text
+batchFetchProgressDetail result =
+  case result of
+    BatchSaved url _ -> "Saved " <> url
+    BatchSkipped url decision -> "Skipped " <> url <> " (" <> tshow decision <> ")"
+    BatchFailed url err -> "Failed " <> url <> ": " <> err
+
 guiBatchFetchFailures :: [BatchFetchResult] -> [(Text, Text)]
 guiBatchFetchFailures results =
   [ (url, err)
@@ -1508,6 +1648,13 @@ guiBatchUploadFailures results =
   [ (ident, title <> ": " <> err)
   | UploadFailed (Just ident) title err <- results
   ]
+
+batchUploadProgressDetail :: BatchUploadResult -> Text
+batchUploadProgressDetail result =
+  case result of
+    UploadSucceeded _ title _ -> "Uploaded " <> title
+    UploadSucceededUntracked title _ -> "Uploaded " <> title
+    UploadFailed _ title err -> "Failed " <> title <> ": " <> err
 
 makePorts :: IO (AppPorts IO)
 makePorts = do

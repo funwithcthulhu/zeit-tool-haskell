@@ -92,7 +92,7 @@ The GUI currently supports:
 
 - The Haskell core covers Zeit browsing/fetching, SQLite persistence, library maintenance, known-word import/sync/estimation, article audio download/open, and LingQ upload.
 - The Monomer GUI is functional and launched by `run-zeit-tool.ps1` or the Windows desktop shortcut.
-- Batch fetch and batch upload keep per-item failures retryable from the sidebar.
+- Batch fetch and batch upload show live progress and keep per-item failures retryable from the sidebar.
 - JSON settings persist the current view, Zeit cookie, LingQ API key, LingQ language, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
 - The CLI harness remains available for quick verification and scripting.
 
