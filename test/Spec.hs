@@ -9,10 +9,12 @@ import Control.Monad (when)
 import Data.Aeson (Value, eitherDecode)
 import Data.ByteString.Lazy qualified as BL
 import Data.Either (isLeft)
+import Data.Functor.Identity (Identity(..), runIdentity)
 import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
 import Test.Hspec
 import ZeitLingq.App.Model (Model(..), initialModel)
+import ZeitLingq.App.Startup
 import ZeitLingq.App.UploadConfig
 import ZeitLingq.App.Update
 import ZeitLingq.Cli
@@ -71,6 +73,24 @@ main = hspec $ do
       currentView nextModel `shouldBe` ArticleView
       selectedArticle nextModel `shouldBe` Just summary
       commands `shouldBe` [PersistCurrentView ArticleView]
+
+    it "hydrates startup model from the settings port" $ do
+      let port =
+            SettingsPort
+              { loadCurrentView = Identity LingqView
+              , saveCurrentView = \_ -> Identity ()
+              , loadBrowseSection = Identity "wissen"
+              , saveBrowseSection = \_ -> Identity ()
+              , loadDatePrefixEnabled = Identity False
+              , saveDatePrefixEnabled = \_ -> Identity ()
+              , loadSectionCollections = Identity (Map.fromList [("Wissen", "course-1")])
+              , saveSectionCollections = \_ -> Identity ()
+              }
+          model = runIdentity (loadInitialModel port)
+      currentView model `shouldBe` LingqView
+      browseSectionId model `shouldBe` "wissen"
+      datePrefixEnabled model `shouldBe` False
+      sectionCollections model `shouldBe` Map.fromList [("Wissen", "course-1")]
 
   describe "CLI argument parsing" $ do
     it "defaults to the demo command" $ do
