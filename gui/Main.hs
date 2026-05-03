@@ -8,12 +8,13 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Time (addUTCTime, getCurrentTime, utctDay)
+import Data.Time (UTCTime, addUTCTime, getCurrentTime, utctDay)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Monomer hiding (Model)
 import Monomer qualified as M
-import System.Directory (createDirectoryIfMissing, getCurrentDirectory)
+import System.Directory (copyFile, createDirectoryIfMissing, doesFileExist, getCurrentDirectory)
 import System.Environment (lookupEnv)
-import System.FilePath (takeDirectory)
+import System.FilePath ((</>), takeDirectory)
 import System.Info (os)
 import System.IO (hClose)
 import System.Process (CreateProcess(std_in), StdStream(CreatePipe), callProcess, proc, waitForProcess, withCreateProcess)
@@ -121,6 +122,7 @@ data GuiEvent
   | GuiDeleteArticle ArticleId
   | GuiOpenDataFolder
   | GuiOpenLogs
+  | GuiCreateSupportBundle
   | GuiCloseArticle
   | GuiClearNotice
   deriving (Eq, Show)
@@ -407,6 +409,8 @@ handleEvent ports _ _ model event =
       [Task (runSideEffect model (getCurrentDirectory >>= openExternalPath) "Opened project data folder.")]
     GuiOpenLogs ->
       [Task (runSideEffect model (ensureLogFile >> openExternalPath logPath) "Opened log file.")]
+    GuiCreateSupportBundle ->
+      [Task (runCreateSupportBundle model)]
     GuiCloseArticle ->
       [Task (runAppEvent ports model ArticleClosed)]
     GuiClearNotice ->
@@ -467,6 +471,8 @@ sidebarBlock model vm =
     , filler
     , secondaryButton "Open data folder" GuiOpenDataFolder
     , secondaryButton "Open logs" GuiOpenLogs
+        `styleBasic` [paddingT 6]
+    , secondaryButton "Support bundle" GuiCreateSupportBundle
         `styleBasic` [paddingT 6]
     , secondaryButton "Refresh" GuiRefresh
         `styleBasic` [paddingT 6]
@@ -1684,6 +1690,49 @@ runSideEffect model action message =
   safeGuiTask $ do
     action
     pure model {notification = Just (Notification SuccessNotice message)}
+
+runCreateSupportBundle :: Model -> IO GuiEvent
+runCreateSupportBundle model =
+  safeGuiTask $ do
+    bundlePath <- createSupportBundle model
+    openExternalPath bundlePath
+    pure model {notification = Just (Notification SuccessNotice ("Created support bundle: " <> T.pack bundlePath))}
+
+createSupportBundle :: Model -> IO FilePath
+createSupportBundle model = do
+  now <- getCurrentTime
+  let stamp = formatTime defaultTimeLocale "%Y%m%d-%H%M%S" now
+      bundlePath = "support_bundles" </> ("support-bundle-" <> stamp)
+  createDirectoryIfMissing True bundlePath
+  copyIfExists settingsPath (bundlePath </> "settings.json")
+  copyIfExists dbPath (bundlePath </> "zeit-tool.db")
+  copyIfExists logPath (bundlePath </> "app.log")
+  TIO.writeFile (bundlePath </> "summary.txt") (supportBundleSummary now model)
+  logInfo ("Created support bundle at " <> T.pack bundlePath)
+  pure bundlePath
+
+copyIfExists :: FilePath -> FilePath -> IO ()
+copyIfExists source target = do
+  exists <- doesFileExist source
+  if exists
+    then copyFile source target
+    else pure ()
+
+supportBundleSummary :: UTCTime -> Model -> Text
+supportBundleSummary timestamp model =
+  T.unlines
+    [ "Zeit Tool Haskell support bundle"
+    , "Created: " <> tshow timestamp
+    , "View: " <> tshow (currentView model)
+    , "Row density: " <> tshow (rowDensity model)
+    , "Browse section: " <> browseSectionId model
+    , "Browse loaded: " <> tshow (length (browseArticles model))
+    , "Library loaded: " <> tshow (length (libraryArticles model)) <> " of " <> tshow (libraryTotal model)
+    , "LingQ loaded: " <> tshow (length (lingqArticles model))
+    , "Failed fetches: " <> tshow (length (failedFetches model))
+    , "Failed uploads: " <> tshow (length (failedUploads model))
+    , "Known stems: " <> tshow (knownStemTotal model)
+    ]
 
 openExternalUrl :: Text -> IO ()
 openExternalUrl url =

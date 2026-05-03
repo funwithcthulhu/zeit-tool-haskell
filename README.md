@@ -86,7 +86,7 @@ The GUI currently supports:
 - Browsing Zeit sections with topic dropdown, search, hidden-url filtering, only-new filtering, paging, preview, original-link opening, single fetch, selected fetch, visible fetch, and retryable failed fetches.
 - Managing the local library with presets for common reading/upload workflows and duplicate review, compact or comfortable row density, search, section and word filters, ignored/not-uploaded filters, grouping, sorting, paging, article open/copy/original/audio actions, and configurable cleanup of ignored, old, uploaded, or unuploaded articles.
 - Uploading saved articles to LingQ with API key or password login, language selection, collection refresh, fallback collection selection, per-section collection mapping, date-prefixed lesson titles, existing-lesson updates, upload-status sync from an existing LingQ course, known-word sync/import/clear/recompute, selected/visible upload, and retryable failed uploads.
-- Opening the project data folder, the GUI log file, and the Zeit login page from the GUI.
+- Opening the project data folder, the GUI log file, timestamped support bundles, and the Zeit login page from the GUI.
 
 ## Current Status
 
