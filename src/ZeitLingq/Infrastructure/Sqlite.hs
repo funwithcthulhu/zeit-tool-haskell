@@ -207,7 +207,7 @@ unignoreUrlSqlite (LibraryDb conn) url =
 
 getIgnoredUrlsSqlite :: LibraryDb -> IO [Text]
 getIgnoredUrlsSqlite (LibraryDb conn) = do
-  rows <- query_ conn "SELECT url FROM ignored_urls ORDER BY ignored_at DESC"
+  rows <- query_ conn "SELECT url FROM ignored_urls ORDER BY url ASC"
   pure [url | Only url <- rows]
 
 markUploadedSqlite :: LibraryDb -> ArticleId -> LingqLesson -> IO ()

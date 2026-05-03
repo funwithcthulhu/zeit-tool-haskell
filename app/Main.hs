@@ -124,6 +124,20 @@ runCommand (DownloadAudio ident audioDir dbPath) =
           Right path -> do
             setAudioPathSqlite db (ArticleId ident) (Just path)
             putStrLn ("Saved audio: " <> path)
+runCommand (IgnoreUrl url dbPath) =
+  withLibrary dbPath $ \db -> do
+    ignoreUrlSqlite db url
+    putStrLn ("Ignored: " <> T.unpack url)
+runCommand (UnignoreUrl url dbPath) =
+  withLibrary dbPath $ \db -> do
+    unignoreUrlSqlite db url
+    putStrLn ("Unignored: " <> T.unpack url)
+runCommand (ListIgnored dbPath) =
+  withLibrary dbPath $ \db -> do
+    urls <- getIgnoredUrlsSqlite db
+    if null urls
+      then putStrLn "No ignored URLs."
+      else for_ urls (putStrLn . T.unpack)
 
 sessionFromEnv :: IO ZeitSession
 sessionFromEnv = do

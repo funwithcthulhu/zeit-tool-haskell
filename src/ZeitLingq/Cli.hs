@@ -23,6 +23,9 @@ data CliCommand
   | ComputeKnownPct FilePath
   | UploadLingq Int FilePath
   | DownloadAudio Int FilePath FilePath
+  | IgnoreUrl Text FilePath
+  | UnignoreUrl Text FilePath
+  | ListIgnored FilePath
   deriving (Eq, Show)
 
 defaultDbPath :: FilePath
@@ -61,6 +64,12 @@ parseArgs ["audio-download", articleId, audioDir] =
   DownloadAudio <$> parsePositiveInt "article-id" articleId <*> pure audioDir <*> pure defaultDbPath
 parseArgs ["audio-download", articleId, audioDir, dbPath] =
   DownloadAudio <$> parsePositiveInt "article-id" articleId <*> pure audioDir <*> pure dbPath
+parseArgs ["ignore-url", url] = Right (IgnoreUrl (T.pack url) defaultDbPath)
+parseArgs ["ignore-url", url, dbPath] = Right (IgnoreUrl (T.pack url) dbPath)
+parseArgs ["unignore-url", url] = Right (UnignoreUrl (T.pack url) defaultDbPath)
+parseArgs ["unignore-url", url, dbPath] = Right (UnignoreUrl (T.pack url) dbPath)
+parseArgs ["ignored"] = Right (ListIgnored defaultDbPath)
+parseArgs ["ignored", dbPath] = Right (ListIgnored dbPath)
 parseArgs _ = Left usageText
 
 usageText :: String
@@ -79,6 +88,9 @@ usageText =
     , "  zeit-lingq-tool known-compute [db-path]"
     , "  zeit-lingq-tool lingq-upload <article-id> [db-path]"
     , "  zeit-lingq-tool audio-download <article-id> [audio-dir] [db-path]"
+    , "  zeit-lingq-tool ignore-url <url> [db-path]"
+    , "  zeit-lingq-tool unignore-url <url> [db-path]"
+    , "  zeit-lingq-tool ignored [db-path]"
     , ""
     , "Set ZEIT_COOKIE to pass an authenticated zeit.de cookie header for paid articles."
     , "Set LINGQ_API_KEY, and optionally LINGQ_COLLECTION_ID, before uploading to LingQ."

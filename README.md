@@ -44,6 +44,8 @@ cabal run zeit-lingq-tool -- known-compute
 cabal run zeit-lingq-tool -- known-info
 cabal run zeit-lingq-tool -- lingq-upload 1
 cabal run zeit-lingq-tool -- audio-download 1 audio
+cabal run zeit-lingq-tool -- ignore-url https://www.zeit.de/wissen/2026-05/example
+cabal run zeit-lingq-tool -- ignored
 ```
 
 Set `ZEIT_COOKIE` before running `fetch` if an article needs an authenticated Zeit session.

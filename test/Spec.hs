@@ -84,6 +84,9 @@ main = hspec $ do
       parseArgs ["known-compute", "custom.db"] `shouldBe` Right (ComputeKnownPct "custom.db")
       parseArgs ["lingq-upload", "42", "custom.db"] `shouldBe` Right (UploadLingq 42 "custom.db")
       parseArgs ["audio-download", "42", "audio-cache", "custom.db"] `shouldBe` Right (DownloadAudio 42 "audio-cache" "custom.db")
+      parseArgs ["ignore-url", "https://example.com", "custom.db"] `shouldBe` Right (IgnoreUrl "https://example.com" "custom.db")
+      parseArgs ["unignore-url", "https://example.com"] `shouldBe` Right (UnignoreUrl "https://example.com" defaultDbPath)
+      parseArgs ["ignored"] `shouldBe` Right (ListIgnored defaultDbPath)
 
   describe "Batch fetch use case" $ do
     it "saves successful articles and skips articles outside the word filter" $ do
@@ -196,7 +199,7 @@ main = hspec $ do
       withLibrary ":memory:" $ \db -> do
         ignoreUrlSqlite db "https://www.zeit.de/wissen/2026-05/a"
         ignoreUrlSqlite db "https://www.zeit.de/wissen/2026-05/b"
-        getIgnoredUrlsSqlite db `shouldReturn` ["https://www.zeit.de/wissen/2026-05/b", "https://www.zeit.de/wissen/2026-05/a"]
+        getIgnoredUrlsSqlite db `shouldReturn` ["https://www.zeit.de/wissen/2026-05/a", "https://www.zeit.de/wissen/2026-05/b"]
 
         unignoreUrlSqlite db "https://www.zeit.de/wissen/2026-05/a"
         getIgnoredUrlsSqlite db `shouldReturn` ["https://www.zeit.de/wissen/2026-05/b"]
