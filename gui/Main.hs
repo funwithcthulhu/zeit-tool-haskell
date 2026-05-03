@@ -12,6 +12,10 @@ import Data.Time (addUTCTime, getCurrentTime, utctDay)
 import Monomer hiding (Model)
 import Monomer qualified as M
 import System.Environment (lookupEnv)
+import System.Info (os)
+import System.IO (hClose)
+import System.Process (CreateProcess(std_in), StdStream(CreatePipe), callProcess, proc, waitForProcess, withCreateProcess)
+import Data.Text.IO qualified as TIO
 import ZeitLingq.App.Driver (dispatchEvent, dispatchEvents)
 import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.Startup (loadInitialModel)
@@ -68,6 +72,8 @@ data GuiEvent
   | GuiUploadVisible [ArticleSummary]
   | GuiDownloadAudio ArticleId
   | GuiOpenAudio ArticleId
+  | GuiOpenExternal Text
+  | GuiCopyText Text
   | GuiSyncKnownWords
   | GuiKnownImportTextChanged Text
   | GuiImportKnownWords
@@ -247,6 +253,10 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))]
     GuiOpenAudio ident ->
       [Task (runAppEvent ports model (ArticleAudioOpenRequested ident))]
+    GuiOpenExternal url ->
+      [Task (runSideEffect model (openExternalUrl url) "Opened original article.")]
+    GuiCopyText text ->
+      [Task (runSideEffect model (copyTextToClipboard text) "Copied article text to clipboard.")]
     GuiSyncKnownWords ->
       [Task (runAppEvent ports model (KnownWordsSyncRequested "de"))]
     GuiKnownImportTextChanged text ->
@@ -937,7 +947,9 @@ articleButtons :: Maybe ArticleSummary -> Maybe Article -> [WidgetNode Model Gui
 articleButtons Nothing _ = [secondaryButton "Back to library" GuiCloseArticle]
 articleButtons (Just article) maybeContent =
   [ secondaryButton "Back to library" GuiCloseArticle
+  , secondaryButton "Original" (GuiOpenExternal (summaryUrl article))
   ]
+    <> maybe [] (\content -> [secondaryButton "Copy text" (GuiCopyText (articleCopyText content))]) maybeContent
     <> maybe [] (\ident -> uploadAction ident article) (summaryId article)
     <> audioButtons article maybeContent
     <> maybe [] (\ident -> [dangerButton "Delete" (GuiDeleteArticle ident)]) (summaryId article)
@@ -1031,6 +1043,7 @@ rowActions :: View -> ArticleSummary -> [WidgetNode Model GuiEvent]
 rowActions BrowseView article =
   [ rowSecondaryButton "Preview" (GuiPreviewArticle article)
   , rowPrimaryButton "Fetch" (GuiFetchArticle article)
+  , rowSecondaryButton "Original" (GuiOpenExternal (summaryUrl article))
   , rowSecondaryButton
       (if summaryIgnored article then "Unhide" else "Hide")
       (if summaryIgnored article then GuiUnhideBrowseArticle article else GuiHideBrowseArticle article)
@@ -1041,6 +1054,7 @@ rowActions _ article =
     []
     (\ident ->
       [ rowSecondaryButton "Open" (GuiOpenArticle article)
+      , rowSecondaryButton "Original" (GuiOpenExternal (summaryUrl article))
       ]
         <> uploadAction ident article
         <> [ rowSecondaryButton
@@ -1139,6 +1153,47 @@ safeGuiTask action = do
     case result of
       Right model -> GuiModelLoaded model
       Left err -> GuiFailed (T.pack (displayException (err :: SomeException)))
+
+runSideEffect :: Model -> IO () -> Text -> IO GuiEvent
+runSideEffect model action message =
+  safeGuiTask $ do
+    action
+    pure model {notification = Just (Notification SuccessNotice message)}
+
+openExternalUrl :: Text -> IO ()
+openExternalUrl url =
+  case os of
+    "mingw32" -> callProcess "cmd" ["/c", "start", "", T.unpack url]
+    "darwin" -> callProcess "open" [T.unpack url]
+    _ -> callProcess "xdg-open" [T.unpack url]
+
+copyTextToClipboard :: Text -> IO ()
+copyTextToClipboard =
+  case os of
+    "mingw32" -> pipeToProcess "powershell" ["-NoProfile", "-Command", "Set-Clipboard"]
+    "darwin" -> pipeToProcess "pbcopy" []
+    _ -> pipeToProcess "xclip" ["-selection", "clipboard"]
+
+pipeToProcess :: FilePath -> [String] -> Text -> IO ()
+pipeToProcess command args text =
+  withCreateProcess (proc command args) {std_in = CreatePipe} $ \maybeInput _ _ processHandle -> do
+    case maybeInput of
+      Nothing -> pure ()
+      Just input -> do
+        TIO.hPutStr input text
+        hClose input
+    _ <- waitForProcess processHandle
+    pure ()
+
+articleCopyText :: Article -> Text
+articleCopyText article =
+  T.intercalate "\n\n" (filter (not . T.null) blocks)
+  where
+    blocks =
+      [ articleTitle article
+      , articleSubtitle article
+      ]
+        <> articleParagraphs article
 
 makePorts :: IO (AppPorts IO)
 makePorts = do
