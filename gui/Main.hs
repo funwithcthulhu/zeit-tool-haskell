@@ -424,19 +424,26 @@ withPendingNotice model message task =
 
 withProgressProducer :: Model -> Text -> Int -> ((GuiEvent -> IO ()) -> IO ()) -> [AppEventResponse Model GuiEvent]
 withProgressProducer model labelText total producer =
-  [ M.Model
-      model
-        { notification = Just (Notification InfoNotice labelText)
-        , activeProgress = Just (ProgressStatus labelText 0 total "")
-        }
-  , Producer producer
-  ]
+  if modelBusy model
+    then [M.Model model {notification = Just (Notification InfoNotice "A batch job is already running. Let it finish before starting another one.")}]
+    else
+      [ M.Model
+          model
+            { notification = Just (Notification InfoNotice labelText)
+            , activeProgress = Just (ProgressStatus labelText 0 total "")
+            }
+      , Producer producer
+      ]
+
+modelBusy :: Model -> Bool
+modelBusy model =
+  activeProgress model /= Nothing
 
 titleBlock :: Model -> AppViewModel -> WidgetNode Model GuiEvent
 titleBlock model vm =
   hstack
     [ label (vmTitle vm)
-        `styleBasic` [textSize 20, textColor mainTextColor, paddingR 14]
+        `styleBasic` [textSize 18, textColor mainTextColor, paddingR 12]
     , filler
     , statusBlock vm
     , label "Density"
@@ -456,7 +463,7 @@ sidebarBlock :: Model -> AppViewModel -> WidgetNode Model GuiEvent
 sidebarBlock model vm =
   vstack
     [ label "Zeit Reader"
-        `styleBasic` [textSize 20, textColor mainTextColor, paddingB 2]
+        `styleBasic` [textSize 18, textColor mainTextColor, paddingB 1]
     , mutedLabel "Haskell workflow"
         `styleBasic` [paddingB 14]
     , vstack (map sideNavButton (vmNavItems vm))
@@ -477,18 +484,18 @@ sidebarBlock model vm =
     , secondaryButton "Refresh" GuiRefresh
         `styleBasic` [paddingT 6]
     ]
-    `styleBasic` [width 202, padding 12, bgColor panelAltColor, border 1 borderColor]
+    `styleBasic` [width 188, padding 10, bgColor panelAltColor, border 1 borderColor]
 
 sideNavButton :: NavItem -> WidgetNode Model GuiEvent
 sideNavButton item =
   button (navLabel item) (GuiNavigate (navView item))
     `styleBasic`
       [ paddingH 10
-      , paddingV 3
-      , height 30
-      , width 176
+      , paddingV 2
+      , height 28
+      , width 166
       , radius 8
-      , textSize 13
+      , textSize 12
       , textColor (if navActive item then primaryTextColor else mainTextColor)
       , bgColor (if navActive item then primaryColor else panelBgColor)
       , border 1 (if navActive item then primaryColor else borderColor)
@@ -656,9 +663,9 @@ primaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 primaryButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 8
+      [ paddingH 7
       , paddingV 2
-      , height 28
+      , height 26
       , radius 7
       , textSize 12
       , textColor primaryTextColor
@@ -670,9 +677,9 @@ secondaryButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 secondaryButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 8
+      [ paddingH 7
       , paddingV 2
-      , height 28
+      , height 26
       , radius 7
       , textSize 12
       , textColor mainTextColor
@@ -684,9 +691,9 @@ dangerButton :: Text -> GuiEvent -> WidgetNode Model GuiEvent
 dangerButton caption event =
   button caption event
     `styleBasic`
-      [ paddingH 8
+      [ paddingH 7
       , paddingV 2
-      , height 28
+      , height 26
       , radius 7
       , textSize 12
       , textColor mainTextColor
@@ -738,9 +745,9 @@ rowDangerButton caption event =
 
 inputStyle :: [StyleState]
 inputStyle =
-  [ paddingH 8
+  [ paddingH 7
   , paddingV 2
-  , height 28
+  , height 26
   , radius 7
   , textSize 12
   , textColor mainTextColor
