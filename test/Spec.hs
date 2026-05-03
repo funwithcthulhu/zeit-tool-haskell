@@ -832,8 +832,11 @@ main = hspec $ do
       vmSelectedArticleParagraphs viewModel `shouldBe` ["eins zwei", "drei vier"]
 
   describe "CLI argument parsing" $ do
-    it "defaults to the demo command" $ do
-      parseArgs [] `shouldBe` Right ShowDemo
+    it "shows help by default and keeps the demo explicit" $ do
+      parseArgs [] `shouldBe` Right ShowHelp
+      parseArgs ["help"] `shouldBe` Right ShowHelp
+      parseArgs ["--help"] `shouldBe` Right ShowHelp
+      parseArgs ["demo"] `shouldBe` Right ShowDemo
 
     it "parses browse, fetch and library commands" $ do
       parseArgs ["browse", "wissen", "2"] `shouldBe` Right (BrowseZeit "wissen" 2 defaultDbPath)
@@ -867,6 +870,35 @@ main = hspec $ do
       parseArgs ["settings", "set-date-prefix", "off", "settings.dev.json"] `shouldBe` Right (SetSettingsDatePrefix False "settings.dev.json")
       parseArgs ["settings", "set-collection", "Wissen", "course-1"] `shouldBe` Right (SetSettingsSectionCollection "Wissen" "course-1" defaultSettingsPath)
       parseArgs ["settings", "clear-collection", "Wissen"] `shouldBe` Right (ClearSettingsSectionCollection "Wissen" defaultSettingsPath)
+
+    it "parses the simplified grouped commands and named flags" $ do
+      parseArgs ["topics"] `shouldBe` Right ListSections
+      parseArgs ["browse", "--page", "3", "--db", "custom.db"] `shouldBe` Right (BrowseZeit "index" 3 "custom.db")
+      parseArgs ["browse", "wissen", "--page=3", "--db=custom.db"] `shouldBe` Right (BrowseZeit "wissen" 3 "custom.db")
+      parseArgs ["read", "https://www.zeit.de/wissen/2026-05/beispiel", "--db", "custom.db"] `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" "custom.db")
+      parseArgs ["fetch-list", "urls.txt", "--min", "500", "--max", "2000", "--db", "custom.db"] `shouldBe` Right (BatchFetch "urls.txt" "custom.db" (WordFilter (Just 500) (Just 2000)))
+      parseArgs ["list", "--db", "custom.db"] `shouldBe` Right (ShowLibrary "custom.db")
+      parseArgs ["hide", "article", "42", "--db", "custom.db"] `shouldBe` Right (IgnoreArticle 42 "custom.db")
+      parseArgs ["show", "article", "42"] `shouldBe` Right (UnignoreArticle 42 defaultDbPath)
+      parseArgs ["hide", "url", "https://example.com", "--db", "custom.db"] `shouldBe` Right (IgnoreUrl "https://example.com" "custom.db")
+      parseArgs ["show", "https://example.com"] `shouldBe` Right (UnignoreUrl "https://example.com" defaultDbPath)
+      parseArgs ["hidden", "--db", "custom.db"] `shouldBe` Right (ListIgnored "custom.db")
+      parseArgs ["delete", "article", "42", "--db", "custom.db"] `shouldBe` Right (DeleteArticle 42 "custom.db")
+      parseArgs ["delete", "old", "30", "--uploaded", "--db", "custom.db"] `shouldBe` Right (DeleteOlderThan 30 True False "custom.db")
+      parseArgs ["delete", "old", "30", "--unuploaded"] `shouldBe` Right (DeleteOlderThan 30 False True defaultDbPath)
+      parseArgs ["delete", "ignored", "--db", "custom.db"] `shouldBe` Right (DeleteIgnored "custom.db")
+      parseArgs ["known", "sync", "--db", "custom.db"] `shouldBe` Right (SyncKnownWords "custom.db")
+      parseArgs ["known", "import", "words.txt", "--db", "custom.db"] `shouldBe` Right (ImportKnownWords "words.txt" "custom.db")
+      parseArgs ["known", "recompute"] `shouldBe` Right (ComputeKnownPct defaultDbPath)
+      parseArgs ["known"] `shouldBe` Right (KnownWordsInfo defaultDbPath)
+      parseArgs ["lingq", "upload", "42", "--db", "custom.db", "--settings", "settings.dev.json"] `shouldBe` Right (UploadLingq 42 "custom.db" "settings.dev.json")
+      parseArgs ["audio", "download", "42", "--to", "audio-cache", "--db", "custom.db"] `shouldBe` Right (DownloadAudio 42 "audio-cache" "custom.db")
+      parseArgs ["settings", "--settings", "settings.dev.json"] `shouldBe` Right (ShowSettings "settings.dev.json")
+      parseArgs ["settings", "view", "library", "--settings", "settings.dev.json"] `shouldBe` Right (SetSettingsView LibraryView "settings.dev.json")
+      parseArgs ["settings", "topic", "wissen"] `shouldBe` Right (SetSettingsBrowseSection "wissen" defaultSettingsPath)
+      parseArgs ["settings", "date-prefix", "off"] `shouldBe` Right (SetSettingsDatePrefix False defaultSettingsPath)
+      parseArgs ["settings", "collection", "Wissen", "course-1", "--settings", "settings.dev.json"] `shouldBe` Right (SetSettingsSectionCollection "Wissen" "course-1" "settings.dev.json")
+      parseArgs ["settings", "forget-collection", "Wissen"] `shouldBe` Right (ClearSettingsSectionCollection "Wissen" defaultSettingsPath)
 
     it "rejects invalid settings values" $ do
       parseArgs ["settings", "set-view", "nope"] `shouldSatisfy` isLeft

@@ -9,6 +9,8 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as TIO
 import Data.Time (addUTCTime, fromGregorian, getCurrentTime, utctDay)
 import System.Environment (getArgs, lookupEnv)
+import System.Exit (exitFailure)
+import System.IO (hPutStr, stderr)
 import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.App.Update (Event(..), update)
@@ -30,10 +32,11 @@ main :: IO ()
 main = do
   args <- getArgs
   case parseArgs args of
-    Left err -> putStr err
+    Left err -> hPutStr stderr err >> exitFailure
     Right command -> runCommand command
 
 runCommand :: CliCommand -> IO ()
+runCommand ShowHelp = putStr usageText
 runCommand ShowDemo = runDemo
 runCommand ListSections =
   for_ allSections $ \section ->

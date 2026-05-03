@@ -33,7 +33,7 @@ Zeit Tool Haskell is a Haskell-native desktop workflow for reading Die Zeit arti
 ```powershell
 cd C:\projects\zeit-tool-haskell
 cabal test
-cabal run
+cabal run zeit-lingq-tool -- help
 ```
 
 On Windows, `run-zeit-tool.ps1` launches the Monomer GUI from the project directory:
@@ -42,17 +42,19 @@ On Windows, `run-zeit-tool.ps1` launches the Monomer GUI from the project direct
 .\run-zeit-tool.ps1
 ```
 
-Use `-Cli` when you want the terminal harness instead:
+Use `cli` when you want the terminal harness instead:
 
 ```powershell
-.\run-zeit-tool.ps1 -Cli sections
+.\run-zeit-tool.ps1 cli topics
 ```
+
+The old `-Cli` switch still works for existing scripts.
 
 The desktop shortcut uses `launch-zeit-tool-gui.vbs` so the GUI opens without leaving a PowerShell window on screen. The launcher prepares the MSYS2 UCRT `pkg-config` paths needed by Monomer, GLEW, FreeType, and SDL2.
 
 ## Windows Installer
 
-The repository includes an Inno Setup packaging script for a per-user Windows install. It installs the GUI, CLI harness, runtime DLLs, browser-login helper, and docs under `%LOCALAPPDATA%\Zeit Tool Haskell`, so the app can write `settings.json`, `zeit-tool.db`, logs, audio, and support bundles without administrator rights.
+The repository includes an Inno Setup packaging script for a per-user Windows install. It installs the GUI, CLI, runtime DLLs, browser-login helper, and docs under `%LOCALAPPDATA%\Zeit Tool Haskell`, so the app can write `settings.json`, `zeit-tool.db`, logs, audio, and support bundles without administrator rights.
 
 To rebuild the installer from existing optimized GUI/CLI binaries:
 
@@ -68,34 +70,37 @@ For a fresh optimized release build plus installer:
 
 The script writes `dist\ZeitToolHaskellSetup-<version>.exe` and prints its SHA256 hash. If Inno Setup 6 is not installed, the script still creates a portable staging folder at `dist\installer-staging` and tells you how to install the compiler.
 
-## CLI Harness
+## CLI
+
+The CLI is meant for quick checks, automation, and library maintenance. Commands now use plain grouped verbs and named flags; the older hyphenated commands still work.
+
+If you are developing from source, prefix commands with `cabal run zeit-lingq-tool --`. If you installed the app, run `zeit-lingq-tool.exe` from the install folder or Start Menu shortcut.
+
+Common examples:
 
 ```powershell
-cabal run zeit-lingq-tool -- sections
-cabal run zeit-lingq-tool -- browse wissen 1 zeit-tool.db
-cabal run zeit-lingq-tool -- fetch https://www.zeit.de/wissen/2026-05/example
-cabal run zeit-lingq-tool -- batch-fetch urls.txt zeit-tool.db 500 2000
+cabal run zeit-lingq-tool -- help
+cabal run zeit-lingq-tool -- topics
+cabal run zeit-lingq-tool -- browse wissen --page 2
+cabal run zeit-lingq-tool -- read https://www.zeit.de/wissen/2026-05/example
+cabal run zeit-lingq-tool -- fetch-list urls.txt --min 500 --max 2000
 cabal run zeit-lingq-tool -- library
-cabal run zeit-lingq-tool -- stats
-cabal run zeit-lingq-tool -- ignore-article 1
-cabal run zeit-lingq-tool -- unignore-article 1
-cabal run zeit-lingq-tool -- delete-article 1
-cabal run zeit-lingq-tool -- known-sync
-cabal run zeit-lingq-tool -- known-import known-words.txt
-cabal run zeit-lingq-tool -- known-compute
-cabal run zeit-lingq-tool -- known-info
-cabal run zeit-lingq-tool -- lingq-upload 1 zeit-tool.db settings.json
-cabal run zeit-lingq-tool -- audio-download 1 audio
-cabal run zeit-lingq-tool -- ignore-url https://www.zeit.de/wissen/2026-05/example
-cabal run zeit-lingq-tool -- ignored
-cabal run zeit-lingq-tool -- settings
-cabal run zeit-lingq-tool -- settings set-browse-section wissen
-cabal run zeit-lingq-tool -- settings set-date-prefix off
-cabal run zeit-lingq-tool -- settings set-collection Wissen 12345
+cabal run zeit-lingq-tool -- hide article 1
+cabal run zeit-lingq-tool -- show article 1
+cabal run zeit-lingq-tool -- delete old 30 --uploaded
+cabal run zeit-lingq-tool -- known sync
+cabal run zeit-lingq-tool -- known import known-words.txt
+cabal run zeit-lingq-tool -- lingq upload 1
+cabal run zeit-lingq-tool -- audio download 1 --to audio
+cabal run zeit-lingq-tool -- settings topic wissen
+cabal run zeit-lingq-tool -- settings date-prefix off
+cabal run zeit-lingq-tool -- settings collection Wissen 12345
 ```
 
-Set `ZEIT_COOKIE` before running `fetch` if an article needs an authenticated Zeit session. If you are scripting authenticated fetches outside the GUI, you can also set `ZEIT_USER_AGENT` to the browser user-agent that produced the cookie.
-Set `LINGQ_API_KEY` before running `lingq-upload` or `known-sync`; optionally set `LINGQ_COLLECTION_ID` as an upload fallback. Section-specific LingQ collection mappings and the date-prefix toggle are read from `settings.json`.
+Use `--db FILE` for a different SQLite library and `--settings FILE` for a different settings file. Full command reference: [COMMANDS.md](COMMANDS.md).
+
+Set `ZEIT_COOKIE` before running `read` if an article needs an authenticated Zeit session. If you are scripting authenticated fetches outside the GUI, you can also set `ZEIT_USER_AGENT` to the browser user-agent that produced the cookie.
+Set `LINGQ_API_KEY` before running `lingq upload` or `known sync`; optionally set `LINGQ_COLLECTION_ID` as an upload fallback. Section-specific LingQ collection mappings and the date-prefix toggle are read from `settings.json`.
 
 ## GUI
 
@@ -116,7 +121,7 @@ The GUI currently supports:
 - The Windows installer packages the GUI, CLI, runtime DLLs, docs, and browser-session helper into a per-user install under LocalAppData.
 - Batch fetch and batch upload show live progress, queue overlapping work instead of rejecting it, and keep per-item failures retryable from the sidebar and Diagnostics view.
 - JSON settings persist the current view, row density, UI theme, Zeit cookie, Zeit browser user-agent, LingQ API key, LingQ language, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
-- The CLI harness remains available for quick verification and scripting.
+- The CLI remains available for quick verification and scripting, with friendly grouped commands and named flags.
 
 Known limits:
 

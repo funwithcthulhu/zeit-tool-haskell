@@ -206,6 +206,7 @@ Copy-IfExists -Source (Join-Path $repoRoot 'LICENSE') -Destination (Join-Path $s
 Copy-IfExists -Source (Join-Path $repoRoot 'README.md') -Destination (Join-Path $stageDir 'docs\README.md')
 Copy-IfExists -Source (Join-Path $repoRoot 'ARCHITECTURE.md') -Destination (Join-Path $stageDir 'docs\ARCHITECTURE.md')
 Copy-IfExists -Source (Join-Path $repoRoot 'CHANGELOG.md') -Destination (Join-Path $stageDir 'docs\CHANGELOG.md')
+Copy-IfExists -Source (Join-Path $repoRoot 'COMMANDS.md') -Destination (Join-Path $stageDir 'docs\COMMANDS.md')
 
 $installerReadme = @"
 Zeit Tool Haskell $Version
@@ -213,7 +214,18 @@ Zeit Tool Haskell $Version
 Launch:
 - Start Menu: Zeit Tool Haskell
 - Desktop shortcut, if selected during setup
-- CLI: zeit-lingq-tool.exe from the install folder
+- CLI: zeit-lingq-tool.exe from the install folder or Start Menu CLI shortcut
+
+Friendly CLI examples:
+- zeit-lingq-tool.exe help
+- zeit-lingq-tool.exe topics
+- zeit-lingq-tool.exe browse wissen --page 2
+- zeit-lingq-tool.exe read https://www.zeit.de/wissen/2026-05/example
+- zeit-lingq-tool.exe known sync
+- zeit-lingq-tool.exe lingq upload 42
+
+Full CLI reference:
+- docs\COMMANDS.md
 
 Data storage:
 - settings.json, zeit-tool.db, logs, audio, and support bundles are written beside the installed executable.

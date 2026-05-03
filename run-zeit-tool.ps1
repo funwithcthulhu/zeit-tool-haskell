@@ -8,6 +8,14 @@ $ErrorActionPreference = 'Stop'
 
 Set-Location -LiteralPath $PSScriptRoot
 
+if (-not $Cli -and $ToolArgs.Count -gt 0) {
+  $firstArg = $ToolArgs[0].ToLowerInvariant()
+  if ($firstArg -in @('cli', '--cli', '-cli')) {
+    $Cli = $true
+    $ToolArgs = @($ToolArgs | Select-Object -Skip 1)
+  }
+}
+
 $ucrtBin = 'C:\msys64\ucrt64\bin'
 $msysBin = 'C:\msys64\usr\bin'
 $localPkgConfig = Join-Path $PSScriptRoot 'pkgconfig'

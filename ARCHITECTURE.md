@@ -33,15 +33,17 @@ The project uses four layers:
 
 The desktop GUI uses Monomer because the app state fits a pure model/update flow. Monomer stays as an adapter, not as the center of the architecture, so replacing it later would not touch scraping, persistence, or domain rules.
 
-The optional `zeit-lingq-tool-gui` executable is guarded by the `gui` Cabal flag. The default build keeps native GUI dependencies out of CI and CLI workflows, while `run-zeit-tool.ps1` prepares the Windows UCRT `pkg-config` paths and launches the Monomer shell. The desktop shortcut invokes `launch-zeit-tool-gui.vbs` so the GUI opens without a visible terminal.
+The optional `zeit-lingq-tool-gui` executable is guarded by the `gui` Cabal flag. The default build keeps native GUI dependencies out of CI and CLI workflows, while `run-zeit-tool.ps1` prepares the Windows UCRT `pkg-config` paths and launches the Monomer shell. The launcher also accepts `.\run-zeit-tool.ps1 cli <command>` for terminal work. The desktop shortcut invokes `launch-zeit-tool-gui.vbs` so the GUI opens without a visible terminal.
 
 The Windows installer uses the same GUI executable and stages the runtime DLLs discovered from the MSYS2 UCRT dependency graph. It installs per-user under LocalAppData so the app can keep its SQLite database, JSON settings, logs, audio, and support bundles beside the executable without elevation.
 
-## CLI harness
+## CLI
 
-The executable provides a terminal harness around the adapters. It is useful for verifying scraper, persistence, settings, known-word, audio, and LingQ behavior without opening the GUI.
+The executable provides a terminal interface around the adapters. It is useful for verifying scraper, persistence, settings, known-word, audio, and LingQ behavior without opening the GUI.
 
-The CLI also exposes the JSON settings adapter so view preferences, browse section, date-prefix behavior, Zeit browser identity, and section-specific LingQ collection mappings can be exercised from scripts or terminal workflows.
+The public CLI grammar is intentionally friendlier than the internal command constructors: user-facing commands are grouped by task, such as `known sync`, `lingq upload`, `audio download`, and `delete old`. Named flags such as `--db`, `--settings`, `--page`, `--min`, and `--max` keep paths and filters readable in scripts. The older hyphenated commands still parse so existing automations do not break.
+
+The CLI also exposes the JSON settings adapter so view preferences, browse section, date-prefix behavior, Zeit browser identity, and section-specific LingQ collection mappings can be exercised from scripts or terminal workflows. The canonical user reference lives in `COMMANDS.md`.
 
 ## App runtime
 

@@ -12,6 +12,8 @@ build-type:      Simple
 extra-doc-files:
     ARCHITECTURE.md
     CHANGELOG.md
+    COMMANDS.md
+    README.md
 
 source-repository head
     type:     git
