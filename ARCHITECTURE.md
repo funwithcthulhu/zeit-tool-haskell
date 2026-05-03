@@ -32,7 +32,7 @@ The project uses four layers:
 
 The most sensible first GUI remains Monomer because the app state already fits a pure model/update flow. Monomer should stay as an adapter, not as the center of the architecture, so replacing it later would not touch scraping, persistence, or domain rules.
 
-The optional `zeit-lingq-tool-gui` executable is guarded by the `gui` Cabal flag. The default build keeps native GUI dependencies out of CI and CLI workflows, while `cabal run -fgui zeit-lingq-tool-gui` enables the Monomer shell. Monomer depends on native graphics packages, including GLEW through `pkg-config`.
+The optional `zeit-lingq-tool-gui` executable is guarded by the `gui` Cabal flag. The default build keeps native GUI dependencies out of CI and CLI workflows, while `run-zeit-tool.ps1` prepares the Windows UCRT `pkg-config` paths and launches the Monomer shell. The desktop shortcut invokes `launch-zeit-tool-gui.vbs` so the GUI opens without a visible terminal.
 
 ## CLI harness
 

@@ -123,6 +123,8 @@ main =
   where
     config =
       [ appWindowTitle "Zeit Tool Haskell"
+      , appWindowState (MainWindowNormal (1180, 760))
       , appTheme darkTheme
+      , appFontDef "Regular" "C:\\Windows\\Fonts\\segoeui.ttf"
       , appInitEvent GuiInit
       ]

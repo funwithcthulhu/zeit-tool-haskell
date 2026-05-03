@@ -1,0 +1,19 @@
+# Local Windows launcher shim.
+#
+# MSYS2's SDL2 pkg-config file links SDL2main and rewrites main to SDL_main.
+# That is useful for C programs, but it breaks GHC's SDL2 hsc helper link step
+# on this Windows UCRT toolchain. The Haskell GUI does not need SDL2main.
+
+prefix=C:/msys64/ucrt64
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: sdl2
+Description: Simple DirectMedia Layer without SDL2main for the Haskell GUI launcher
+Version: 2.32.10
+Requires.private:
+Conflicts:
+Libs: -L${libdir} -lSDL2
+Libs.private: -lm -lkernel32 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -ladvapi32 -lsetupapi -lshell32 -ldinput8
+Cflags: -I${includedir} -I${includedir}/SDL2 -DSDL_MAIN_HANDLED

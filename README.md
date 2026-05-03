@@ -34,19 +34,19 @@ cabal test
 cabal run
 ```
 
-On Windows, `run-zeit-tool.ps1` launches the CLI from the project directory:
+On Windows, `run-zeit-tool.ps1` launches the Monomer GUI from the project directory:
 
 ```powershell
-.\run-zeit-tool.ps1 sections
+.\run-zeit-tool.ps1
 ```
 
-The GUI shell is optional so native Monomer dependencies do not affect the default CLI and CI path:
+Use `-Cli` when you want the terminal harness instead:
 
 ```powershell
-cabal run -fgui zeit-lingq-tool-gui
+.\run-zeit-tool.ps1 -Cli sections
 ```
 
-Monomer requires native graphics dependencies. On Windows, make sure GLEW is visible through `pkg-config`; otherwise Cabal will report that `glew-any` is missing.
+The desktop shortcut uses `launch-zeit-tool-gui.vbs` so the GUI opens without leaving a PowerShell window on screen. The launcher prepares the MSYS2 UCRT `pkg-config` paths needed by Monomer, GLEW, FreeType, and SDL2.
 
 ## CLI Harness
 
@@ -82,7 +82,7 @@ Set `LINGQ_API_KEY` before running `lingq-upload` or `known-sync`; optionally se
 The current recommendation is:
 
 1. Keep the core library pure and adapter-free.
-2. Add a `Monomer` executable once we are happy with the state model.
+2. Keep the `Monomer` executable as a thin adapter over the app model.
 3. Treat scraping, SQLite, logging, and LingQ as infrastructure ports that the GUI drives.
 
 That gives us a Haskell-native application without forcing the whole codebase to depend on the first GUI choice we try.
@@ -108,8 +108,8 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - JSON user settings are exposed through the CLI for GUI-ready configuration.
 - App startup can hydrate the pure model from `SettingsPort`, ready for a Monomer shell.
 - Pure view-model projection is available for a Monomer shell, including current-screen article rows.
-- An optional Monomer executable shell is available behind the `gui` Cabal flag.
+- A Monomer executable shell is available behind the `gui` Cabal flag and is launched by the Windows shortcut.
 - LingQ login, collection fetch, lesson upload, and known-word fetch helpers are scaffolded in Haskell.
 - Zeit article-list and article-content extraction is scaffolded in Haskell.
 - The executable includes a CLI harness for sections, browse, fetch, library maintenance, settings, known words, audio, and LingQ uploads.
-- Next target is the first GUI shell.
+- Next target is filling the GUI shell with the full browse, library, detail, and LingQ workflows.
