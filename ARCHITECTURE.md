@@ -35,6 +35,8 @@ The desktop GUI uses Monomer because the app state fits a pure model/update flow
 
 The optional `zeit-lingq-tool-gui` executable is guarded by the `gui` Cabal flag. The default build keeps native GUI dependencies out of CI and CLI workflows, while `run-zeit-tool.ps1` prepares the Windows UCRT `pkg-config` paths and launches the Monomer shell. The desktop shortcut invokes `launch-zeit-tool-gui.vbs` so the GUI opens without a visible terminal.
 
+The Windows installer uses the same GUI executable and stages the runtime DLLs discovered from the MSYS2 UCRT dependency graph. It installs per-user under LocalAppData so the app can keep its SQLite database, JSON settings, logs, audio, and support bundles beside the executable without elevation.
+
 ## CLI harness
 
 The executable provides a terminal harness around the adapters. It is useful for verifying scraper, persistence, settings, known-word, audio, and LingQ behavior without opening the GUI.
@@ -50,3 +52,5 @@ The pure app update loop has a command interpreter for persisted settings, refre
 Startup hydration is port-driven: a GUI adapter can load `SettingsPort` into the pure `Model` before rendering its first frame.
 
 Batch fetch/upload queue state is also represented in the pure model. The Monomer adapter owns the actual background producers and a small cooperative cancellation flag, but queuing, pausing, clearing, and completed-job history are modeled as regular app events so the behavior remains testable and renderer-independent.
+
+Zeit login is deliberately browser-session based instead of headless. The GUI opens the user's installed Edge or Chrome for interactive login, imports the authenticated cookie header and matching user-agent, then feeds those values through the `ZeitSession` port boundary.

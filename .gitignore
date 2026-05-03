@@ -15,3 +15,7 @@ cabal.sandbox.config
 *.db-wal
 settings.json
 settings.*.json
+dist/
+installer/output/
+installer/staging/
+installer/*.tmp
