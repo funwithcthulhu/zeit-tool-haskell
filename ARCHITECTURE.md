@@ -42,6 +42,6 @@ The CLI also exposes the JSON settings adapter so view preferences, browse secti
 
 ## App runtime
 
-The pure app update loop has a small command interpreter for persisted settings. That keeps Monomer or any other GUI layer focused on rendering and event wiring.
+The pure app update loop has a command interpreter for persisted settings and refresh effects. Refresh commands load browse, library, and LingQ article rows through ports and return pure loaded events. That keeps Monomer or any other GUI layer focused on rendering and event wiring.
 
 Startup hydration is port-driven: a GUI adapter can load `SettingsPort` into the pure `Model` before rendering its first frame.

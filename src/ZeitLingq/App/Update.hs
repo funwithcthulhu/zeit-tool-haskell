@@ -35,9 +35,9 @@ data Command
   | PersistBrowseSection Text
   | PersistDatePrefix Bool
   | PersistSectionCollections (Map Text Text)
-  | RefreshBrowse
-  | RefreshLibrary
-  | RefreshLingqLibrary
+  | RefreshBrowse Text Int
+  | RefreshLibrary WordFilter
+  | RefreshLingqLibrary WordFilter
   deriving (Eq, Show)
 
 update :: Event -> Model -> (Model, [Command])
@@ -91,19 +91,19 @@ update event model =
       )
     BrowseSectionSelected sectionIdValue ->
       ( model {browseSectionId = sectionIdValue}
-      , [PersistBrowseSection sectionIdValue, RefreshBrowse]
+      , [PersistBrowseSection sectionIdValue, RefreshBrowse sectionIdValue 1]
       )
     BrowseFilterChanged filters ->
       ( model {browseFilter = filters}
-      , [RefreshBrowse]
+      , [RefreshBrowse (browseSectionId model) 1]
       )
     LibraryFilterChanged filters ->
       ( model {libraryFilter = filters}
-      , [RefreshLibrary]
+      , [RefreshLibrary filters]
       )
     LingqFilterChanged filters ->
       ( model {lingqFilter = filters}
-      , [RefreshLingqLibrary]
+      , [RefreshLingqLibrary filters]
       )
     DatePrefixToggled enabled ->
       ( model {datePrefixEnabled = enabled}

@@ -14,6 +14,7 @@ import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
 import Test.Hspec
 import ZeitLingq.App.Model (Model(..), initialModel)
+import ZeitLingq.App.Runtime qualified as Runtime
 import ZeitLingq.App.Startup
 import ZeitLingq.App.UploadConfig
 import ZeitLingq.App.Update
@@ -30,7 +31,7 @@ import ZeitLingq.Infrastructure.Audio
 import ZeitLingq.Infrastructure.Sqlite
 import ZeitLingq.Infrastructure.Lingq
 import ZeitLingq.Infrastructure.Zeit
-import ZeitLingq.Ports (SettingsPort(..))
+import ZeitLingq.Ports (AppPorts(..), LibraryPort(..), LingqPort(..), SettingsPort(..), ZeitPort(..))
 import ZeitLingq.Text.German
 
 main :: IO ()
@@ -113,6 +114,40 @@ main = hspec $ do
       libraryArticles libraryModel `shouldBe` [summary]
       lingqArticles lingqModel `shouldBe` [summary]
       browseCommands <> libraryCommands <> lingqCommands `shouldBe` []
+
+    it "emits refresh commands with screen context" $ do
+      let filters = WordFilter (Just 400) (Just 1200)
+          browseModel = initialModel {browseSectionId = "wissen"}
+      snd (update (BrowseSectionSelected "kultur") initialModel)
+        `shouldBe` [PersistBrowseSection "kultur", RefreshBrowse "kultur" 1]
+      snd (update (BrowseFilterChanged filters) browseModel)
+        `shouldBe` [RefreshBrowse "wissen" 1]
+      snd (update (LibraryFilterChanged filters) initialModel)
+        `shouldBe` [RefreshLibrary filters]
+      snd (update (LingqFilterChanged filters) initialModel)
+        `shouldBe` [RefreshLingqLibrary filters]
+
+  describe "App command runtime" $ do
+    it "turns refresh commands into loaded events" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 12)
+              , summaryUrl = "https://example.com/runtime"
+              , summaryTitle = "Runtime Item"
+              , summarySection = "Wissen"
+              , summaryWordCount = 555
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          ports = testPorts summary
+          filters = WordFilter Nothing Nothing
+      runIdentity (Runtime.runCommand ports (RefreshBrowse "kultur" 2))
+        `shouldBe` [BrowseArticlesLoaded [summary {summarySection = "kultur"}]]
+      runIdentity (Runtime.runCommand ports (RefreshLibrary filters))
+        `shouldBe` [LibraryArticlesLoaded [summary]]
+      runIdentity (Runtime.runCommand ports (RefreshLingqLibrary filters))
+        `shouldBe` [LingqArticlesLoaded [summary]]
 
   describe "Pure app view model" $ do
     it "projects navigation and status badges for a GUI adapter" $ do
@@ -473,3 +508,50 @@ decodeValue raw =
   case eitherDecode raw of
     Right value -> value
     Left err -> error err
+
+testPorts :: ArticleSummary -> AppPorts Identity
+testPorts summary =
+  AppPorts
+    { zeitPort =
+        ZeitPort
+          { fetchSections = Identity []
+          , fetchArticleList = \sectionId _ -> Identity [summary {summarySection = sectionId}]
+          , fetchArticleContent = \_ -> Identity demoArticle
+          , loginToZeit = Identity (AuthStatus True Nothing)
+          , logoutFromZeit = Identity ()
+          }
+    , lingqPort =
+        LingqPort
+          { loginToLingq = \_ _ -> Identity (AuthStatus True Nothing)
+          , logoutFromLingq = Identity ()
+          , uploadLessonToLingq = \_ _ _ -> Identity (LingqLesson "lesson" "https://lingq.example/lesson")
+          , fetchKnownWords = \_ -> Identity []
+          }
+    , libraryPort =
+        LibraryPort
+          { loadLibrary = \_ -> Identity [summary]
+          , loadArticle = \_ -> Identity (Just demoArticle)
+          , saveArticle = \_ -> Identity (ArticleId 1)
+          , deleteArticle = \_ -> Identity ()
+          , loadStats =
+              Identity
+                ( LibraryStats
+                    { totalArticles = 1
+                    , uploadedArticles = 0
+                    , averageWordCount = summaryWordCount summary
+                    , sectionCounts = Map.singleton (summarySection summary) 1
+                    }
+                )
+          }
+    , settingsPort =
+        SettingsPort
+          { loadCurrentView = Identity BrowseView
+          , saveCurrentView = \_ -> Identity ()
+          , loadBrowseSection = Identity "index"
+          , saveBrowseSection = \_ -> Identity ()
+          , loadDatePrefixEnabled = Identity True
+          , saveDatePrefixEnabled = \_ -> Identity ()
+          , loadSectionCollections = Identity Map.empty
+          , saveSectionCollections = \_ -> Identity ()
+          }
+    }
