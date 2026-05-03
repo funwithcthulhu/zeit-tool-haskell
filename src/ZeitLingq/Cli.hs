@@ -194,6 +194,7 @@ usageText =
     , "  zeit-lingq-tool settings clear-collection <section-name> [settings-path]"
     , ""
     , "Set ZEIT_COOKIE to pass an authenticated zeit.de cookie header for paid articles."
+    , "Set ZEIT_USER_AGENT too when scripting with cookies imported from a browser."
     , "Set LINGQ_API_KEY, and optionally LINGQ_COLLECTION_ID, before uploading to LingQ."
     ]
 

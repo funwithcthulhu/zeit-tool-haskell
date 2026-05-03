@@ -19,6 +19,7 @@ data Model = Model
   , zeitStatus :: AuthStatus
   , lingqStatus :: AuthStatus
   , zeitCookieText :: Text
+  , zeitUserAgentText :: Text
   , lingqApiKeyText :: Text
   , lingqUsernameText :: Text
   , lingqPasswordText :: Text
@@ -73,6 +74,7 @@ initialModel =
     , zeitStatus = emptyAuth
     , lingqStatus = emptyAuth
     , zeitCookieText = ""
+    , zeitUserAgentText = ""
     , lingqApiKeyText = ""
     , lingqUsernameText = ""
     , lingqPasswordText = ""

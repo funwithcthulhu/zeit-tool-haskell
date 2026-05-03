@@ -4,11 +4,13 @@ module ZeitLingq.Infrastructure.Zeit
   ( ZeitError(..)
   , ZeitSession(..)
   , absoluteZeitUrl
+  , defaultZeitUserAgent
   , extractArticleContent
   , extractArticleList
   , fetchArticleContentZeit
   , fetchArticleListZeit
   , looksLikeArticleUrl
+  , normalizeZeitUserAgent
   ) where
 
 import Control.Applicative ((<|>), asum)
@@ -32,6 +34,7 @@ import ZeitLingq.Domain.Types
 
 data ZeitSession = ZeitSession
   { zeitCookies :: Text
+  , zeitUserAgent :: Text
   } deriving (Eq, Show)
 
 data ZeitError
@@ -312,7 +315,13 @@ addZeitHeaders :: ZeitSession -> Request -> IO Request
 addZeitHeaders session request =
   pure $
     maybe id (\cookie -> setRequestHeader "Cookie" [cookie]) (cookieHeader session)
-      . setRequestHeader "User-Agent" [zeitUserAgent]
+      . setRequestHeader "User-Agent" [encodeUtf8 (normalizeZeitUserAgent (zeitUserAgent session))]
+      . setRequestHeader "Accept" ["text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"]
+      . setRequestHeader "Accept-Language" ["de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7"]
+      . setRequestHeader "Upgrade-Insecure-Requests" ["1"]
+      . setRequestHeader "Sec-Fetch-Dest" ["document"]
+      . setRequestHeader "Sec-Fetch-Mode" ["navigate"]
+      . setRequestHeader "Sec-Fetch-Site" ["none"]
       $ request
 
 cookieHeader :: ZeitSession -> Maybe ByteString
@@ -320,5 +329,13 @@ cookieHeader session
   | T.null (zeitCookies session) = Nothing
   | otherwise = Just (encodeUtf8 (zeitCookies session))
 
-zeitUserAgent :: ByteString
-zeitUserAgent = "Mozilla/5.0 ZeitToolHaskell/0.1"
+defaultZeitUserAgent :: Text
+defaultZeitUserAgent =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+normalizeZeitUserAgent :: Text -> Text
+normalizeZeitUserAgent value
+  | T.null stripped = defaultZeitUserAgent
+  | otherwise = stripped
+  where
+    stripped = T.strip value

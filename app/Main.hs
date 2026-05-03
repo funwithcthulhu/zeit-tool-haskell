@@ -224,7 +224,12 @@ runCommand (ClearSettingsSectionCollection sectionName settingsPath) = do
 sessionFromEnv :: IO ZeitSession
 sessionFromEnv = do
   cookie <- lookupEnv "ZEIT_COOKIE"
-  pure (ZeitSession (maybe "" T.pack cookie))
+  userAgent <- lookupEnv "ZEIT_USER_AGENT"
+  pure
+    ( ZeitSession
+        (maybe "" T.pack cookie)
+        (maybe defaultZeitUserAgent T.pack userAgent)
+    )
 
 showSummary :: ArticleSummary -> String
 showSummary article =
@@ -277,6 +282,7 @@ formatSettings settings =
   T.unlines
     ( [ "currentView: " <> viewToText (settingsCurrentView settings)
       , "uiTheme: " <> uiThemeToText (settingsUiTheme settings)
+      , "zeitUserAgent: " <> settingsZeitUserAgent settings
       , "browseSection: " <> settingsBrowseSection settings
       , "datePrefixEnabled: " <> boolText (settingsDatePrefixEnabled settings)
       , "sectionCollections:"

@@ -74,7 +74,7 @@ cabal run zeit-lingq-tool -- settings set-date-prefix off
 cabal run zeit-lingq-tool -- settings set-collection Wissen 12345
 ```
 
-Set `ZEIT_COOKIE` before running `fetch` if an article needs an authenticated Zeit session.
+Set `ZEIT_COOKIE` before running `fetch` if an article needs an authenticated Zeit session. If you are scripting authenticated fetches outside the GUI, you can also set `ZEIT_USER_AGENT` to the browser user-agent that produced the cookie.
 Set `LINGQ_API_KEY` before running `lingq-upload` or `known-sync`; optionally set `LINGQ_COLLECTION_ID` as an upload fallback. Section-specific LingQ collection mappings and the date-prefix toggle are read from `settings.json`.
 
 ## GUI
@@ -86,17 +86,17 @@ The GUI currently supports:
 - Browsing Zeit sections with topic dropdown, search, hidden-url filtering, only-new filtering, paging, preview, original-link opening, single fetch, selected fetch, visible fetch, and retryable failed fetches.
 - Managing the local library with presets for common reading/upload workflows and duplicate review, compact or comfortable row density, persisted light/dark theme selection, search, section and word filters, ignored/not-uploaded filters, grouping, sorting, paging, article open/copy/original/audio actions, and configurable cleanup of ignored, old, uploaded, or unuploaded articles.
 - Uploading saved articles to LingQ with API key or password login, language selection, collection refresh, fallback collection selection, per-section collection mapping, date-prefixed lesson titles, existing-lesson updates, upload-status sync from an existing LingQ course, known-word sync/import/clear/recompute, selected/visible upload, and retryable failed uploads.
-- Zeit authentication through manual cookie paste or browser-assisted Edge/Chrome login import, plus opening the project data folder, the GUI log file, timestamped support bundles, and the Zeit login page from the GUI.
+- Zeit authentication through manual cookie paste or browser-assisted Edge/Chrome login import. The browser import uses a real installed browser, stores the matching browser user-agent with the cookies, and reuses browser-like request headers for article fetches. The GUI also opens the project data folder, the GUI log file, timestamped support bundles, and the Zeit login page.
 
 ## Current Status
 
 - The Haskell core covers Zeit browsing/fetching, SQLite persistence, library maintenance, known-word import/sync/estimation, article audio download/open, LingQ upload, and LingQ course status reconciliation.
 - The Monomer GUI is functional and launched by `run-zeit-tool.ps1` or the Windows desktop shortcut.
 - Batch fetch and batch upload show live progress, prevent overlapping batch jobs, and keep per-item failures retryable from the sidebar.
-- JSON settings persist the current view, row density, UI theme, Zeit cookie, LingQ API key, LingQ language, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
+- JSON settings persist the current view, row density, UI theme, Zeit cookie, Zeit browser user-agent, LingQ API key, LingQ language, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
 - The CLI harness remains available for quick verification and scripting.
 
 Known limits:
 
-- Zeit authentication is cookie-session based. On Windows, the GUI can launch Edge/Chrome for an interactive login and import the resulting Zeit cookies; on other platforms, paste a Cookie header manually.
+- Zeit authentication is cookie-session based. On Windows, the GUI can launch a real Edge/Chrome window for interactive login and import the resulting cookies plus browser user-agent; this is intentionally closer to a normal human browser session than an embedded/headless login flow. On other platforms, paste a Cookie header manually.
 - Long-running operations show pending status, live batch progress, and final retry lists, but they do not yet expose a cancellable persisted job queue.

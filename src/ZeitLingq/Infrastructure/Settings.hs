@@ -25,11 +25,13 @@ import Data.Text qualified as T
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.FilePath (takeDirectory)
 import ZeitLingq.Domain.Types (RowDensity(..), UiTheme(..), View(..), WordFilter(..))
+import ZeitLingq.Infrastructure.Zeit (defaultZeitUserAgent, normalizeZeitUserAgent)
 import ZeitLingq.Ports (SettingsPort(..))
 
 data Settings = Settings
   { settingsCurrentView :: View
   , settingsZeitCookie :: Text
+  , settingsZeitUserAgent :: Text
   , settingsLingqApiKey :: Text
   , settingsLingqLanguage :: Text
   , settingsBrowseSection :: Text
@@ -49,6 +51,7 @@ defaultSettings =
   Settings
     { settingsCurrentView = BrowseView
     , settingsZeitCookie = ""
+    , settingsZeitUserAgent = defaultZeitUserAgent
     , settingsLingqApiKey = ""
     , settingsLingqLanguage = "de"
     , settingsBrowseSection = "index"
@@ -70,6 +73,8 @@ jsonSettingsPort path =
     , saveCurrentView = updateSettings path . setCurrentView
     , loadZeitCookie = settingsZeitCookie <$> loadSettings path
     , saveZeitCookie = updateSettings path . setZeitCookie
+    , loadZeitUserAgent = settingsZeitUserAgent <$> loadSettings path
+    , saveZeitUserAgent = updateSettings path . setZeitUserAgent
     , loadLingqApiKey = settingsLingqApiKey <$> loadSettings path
     , saveLingqApiKey = updateSettings path . setLingqApiKey
     , loadLingqLanguage = settingsLingqLanguage <$> loadSettings path
@@ -121,6 +126,9 @@ setCurrentView value settings = settings {settingsCurrentView = value}
 setZeitCookie :: Text -> Settings -> Settings
 setZeitCookie value settings = settings {settingsZeitCookie = T.strip value}
 
+setZeitUserAgent :: Text -> Settings -> Settings
+setZeitUserAgent value settings = settings {settingsZeitUserAgent = normalizeZeitUserAgent value}
+
 setLingqApiKey :: Text -> Settings -> Settings
 setLingqApiKey value settings = settings {settingsLingqApiKey = T.strip value}
 
@@ -162,6 +170,7 @@ instance ToJSON Settings where
     object
       [ "currentView" .= viewToText (settingsCurrentView settings)
       , "zeitCookie" .= settingsZeitCookie settings
+      , "zeitUserAgent" .= settingsZeitUserAgent settings
       , "lingqApiKey" .= settingsLingqApiKey settings
       , "lingqLanguage" .= settingsLingqLanguage settings
       , "browseSection" .= settingsBrowseSection settings
@@ -182,6 +191,7 @@ instance FromJSON Settings where
       Settings
         <$> parseView obj
         <*> obj .:? "zeitCookie" .!= settingsZeitCookie defaultSettings
+        <*> (normalizeZeitUserAgent <$> (obj .:? "zeitUserAgent" .!= settingsZeitUserAgent defaultSettings))
         <*> obj .:? "lingqApiKey" .!= settingsLingqApiKey defaultSettings
         <*> (normalizeLingqLanguage <$> (obj .:? "lingqLanguage" .!= settingsLingqLanguage defaultSettings))
         <*> obj .:? "browseSection" .!= settingsBrowseSection defaultSettings

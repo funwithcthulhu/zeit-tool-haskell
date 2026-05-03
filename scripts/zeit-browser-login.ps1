@@ -72,7 +72,7 @@ function Invoke-Cdp {
   }
 }
 
-function Get-ZeitCookieHeader {
+function Get-ZeitBrowserSession {
   $targets = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/json" -TimeoutSec 2
   $target = @($targets | Where-Object {
       $_.type -eq 'page' -and
@@ -97,7 +97,16 @@ function Get-ZeitCookieHeader {
     return $null
   }
 
-  return (($cookies | ForEach-Object { "$($_.name)=$($_.value)" }) -join '; ')
+  $versionResponse = Invoke-Cdp -WebSocketUrl $target.webSocketDebuggerUrl -Method 'Browser.getVersion'
+  $userAgent = $versionResponse.result.userAgent
+  if (-not $userAgent) {
+    $userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+  }
+
+  return @{
+    cookieHeader = (($cookies | ForEach-Object { "$($_.name)=$($_.value)" }) -join '; ')
+    userAgent = $userAgent
+  }
 }
 
 New-Item -ItemType Directory -Force -Path $ProfileDir | Out-Null
@@ -116,9 +125,9 @@ Start-Process -FilePath $browser -ArgumentList $args | Out-Null
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 while ((Get-Date) -lt $deadline) {
   try {
-    $cookieHeader = Get-ZeitCookieHeader
-    if ($cookieHeader) {
-      Write-Output $cookieHeader
+    $session = Get-ZeitBrowserSession
+    if ($session) {
+      Write-Output ($session | ConvertTo-Json -Compress)
       exit 0
     }
   } catch {

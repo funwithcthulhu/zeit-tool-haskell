@@ -17,6 +17,7 @@ The project uses four layers:
 ## Core modules
 
 - `ZeitLingq.Infrastructure.Zeit` handles Zeit HTTP requests and HTML extraction.
+- Zeit sessions are represented as cookie header plus browser user-agent, so GUI imports can reuse the identity of the real browser session that produced the cookies.
 - `ZeitLingq.Core.Batch` handles batch article fetch/save workflows over effect callbacks.
 - `ZeitLingq.Core.Upload` handles LingQ upload workflows over effect callbacks.
 - `ZeitLingq.Infrastructure.Lingq` handles LingQ authentication, collections, known words, and lesson uploads.
@@ -38,7 +39,7 @@ The optional `zeit-lingq-tool-gui` executable is guarded by the `gui` Cabal flag
 
 The executable provides a terminal harness around the adapters. It is useful for verifying scraper, persistence, settings, known-word, audio, and LingQ behavior without opening the GUI.
 
-The CLI also exposes the JSON settings adapter so view preferences, browse section, date-prefix behavior, and section-specific LingQ collection mappings can be exercised from scripts or terminal workflows.
+The CLI also exposes the JSON settings adapter so view preferences, browse section, date-prefix behavior, Zeit browser identity, and section-specific LingQ collection mappings can be exercised from scripts or terminal workflows.
 
 ## App runtime
 

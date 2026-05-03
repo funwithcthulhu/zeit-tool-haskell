@@ -4,10 +4,12 @@ module Main (main) where
 
 import Control.Exception (SomeException, displayException, try)
 import Control.Applicative ((<|>))
+import Data.Aeson (FromJSON(..), eitherDecodeStrict', withObject, (.:))
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time (UTCTime, addUTCTime, getCurrentTime, utctDay)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Monomer hiding (Model)
@@ -37,6 +39,18 @@ import ZeitLingq.Infrastructure.Settings
 import ZeitLingq.Infrastructure.Sqlite
 import ZeitLingq.Infrastructure.Zeit
 import ZeitLingq.Ports
+
+data BrowserZeitSession = BrowserZeitSession
+  { browserCookieHeader :: Text
+  , browserUserAgent :: Text
+  } deriving (Eq, Show)
+
+instance FromJSON BrowserZeitSession where
+  parseJSON =
+    withObject "BrowserZeitSession" $ \obj ->
+      BrowserZeitSession
+        <$> obj .: "cookieHeader"
+        <*> obj .: "userAgent"
 
 data GuiEvent
   = GuiInit
@@ -888,8 +902,10 @@ zeitControls model =
       vstack
         [ label "Zeit cookie session"
             `styleBasic` [textSize 16, paddingT 8]
-        , label "Paste your zeit.de Cookie header here. This keeps credentials out of the app while still making paid article fetches GUI-configurable."
+        , label "Use Browser login & import first. It opens real Edge/Chrome, imports the zeit.de cookies, and reuses that browser user-agent for article requests."
             `styleBasic` [textSize 12, paddingB 6]
+        , label_ ("Fetch identity: " <> compactUserAgent (zeitUserAgentText model)) [ellipsis]
+            `styleBasic` [textSize 11, textColor (mutedTextColor model), paddingB 6]
         , textAreaV_
             (zeitCookieText model)
             GuiZeitCookieChanged
@@ -904,6 +920,13 @@ zeitControls model =
             `styleBasic` [paddingT 6]
         ]
     _ -> emptyBlock
+
+compactUserAgent :: Text -> Text
+compactUserAgent raw
+  | T.null stripped = "default browser-like request headers"
+  | otherwise = stripped
+  where
+    stripped = T.strip raw
 
 browseControls :: Model -> WidgetNode Model GuiEvent
 browseControls model =
@@ -1716,11 +1739,14 @@ runUploadAppEvent ports model ident =
 runZeitBrowserLogin :: AppPorts IO -> Model -> IO GuiEvent
 runZeitBrowserLogin ports model =
   safeGuiTask $ do
-    cookie <- importZeitCookiesViaBrowser
-    dispatchEvent ports model (ZeitCookieLoginRequested cookie)
+    session <- importZeitSessionViaBrowser
+    dispatchEvent
+      ports
+      model
+      (ZeitBrowserSessionLoginRequested (browserCookieHeader session) (browserUserAgent session))
 
-importZeitCookiesViaBrowser :: IO Text
-importZeitCookiesViaBrowser
+importZeitSessionViaBrowser :: IO BrowserZeitSession
+importZeitSessionViaBrowser
   | os /= "mingw32" =
       fail "Browser-assisted Zeit login is currently implemented for Windows Edge/Chrome only. Paste a Cookie header instead."
   | otherwise = do
@@ -1734,14 +1760,31 @@ importZeitCookiesViaBrowser
             readCreateProcessWithExitCode
               (proc "powershell.exe" ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script])
               ""
-          let cookie = T.strip (T.pack out)
+          let session = parseBrowserZeitSession (T.strip (T.pack out))
               details = T.strip (T.pack err)
           case exitCode of
             ExitSuccess
-              | not (T.null cookie) -> pure cookie
+              | not (T.null (browserCookieHeader session)) -> pure session
               | otherwise -> fail "Browser login finished without returning Zeit cookies."
             ExitFailure code ->
               fail (T.unpack ("Browser-assisted Zeit login failed (" <> tshow code <> "): " <> details))
+
+parseBrowserZeitSession :: Text -> BrowserZeitSession
+parseBrowserZeitSession raw =
+  case eitherDecodeStrict' (encodeUtf8 raw) of
+    Right session -> normalizeBrowserZeitSession session
+    Left _ ->
+      BrowserZeitSession
+        { browserCookieHeader = T.strip raw
+        , browserUserAgent = defaultZeitUserAgent
+        }
+
+normalizeBrowserZeitSession :: BrowserZeitSession -> BrowserZeitSession
+normalizeBrowserZeitSession session =
+  session
+    { browserCookieHeader = T.strip (browserCookieHeader session)
+    , browserUserAgent = normalizeZeitUserAgent (browserUserAgent session)
+    }
 
 runDeleteOlderAppEvent :: AppPorts IO -> Model -> Int -> Bool -> Bool -> IO GuiEvent
 runDeleteOlderAppEvent ports model days onlyUploaded onlyUnuploaded =
@@ -1983,6 +2026,16 @@ guiZeitPort path =
     , loginToZeitWithCookie = \cookie -> do
         saveSettings path . (\settings -> settings {settingsZeitCookie = T.strip cookie}) =<< loadSettings path
         zeitStatusFromSettings path
+    , loginToZeitWithBrowserSession = \cookie userAgent -> do
+        saveSettings path
+          . ( \settings ->
+                settings
+                  { settingsZeitCookie = T.strip cookie
+                  , settingsZeitUserAgent = normalizeZeitUserAgent userAgent
+                  }
+            )
+          =<< loadSettings path
+        zeitStatusFromSettings path
     , logoutFromZeit =
         saveSettings path . (\settings -> settings {settingsZeitCookie = ""}) =<< loadSettings path
     }
@@ -2025,7 +2078,9 @@ guiLingqPort path =
 
 loadZeitSession :: FilePath -> IO ZeitSession
 loadZeitSession path =
-  ZeitSession <$> loadConfiguredText path settingsZeitCookie "ZEIT_COOKIE"
+  ZeitSession
+    <$> loadConfiguredText path settingsZeitCookie "ZEIT_COOKIE"
+    <*> loadConfiguredText path settingsZeitUserAgent "ZEIT_USER_AGENT"
 
 zeitStatusFromSettings :: FilePath -> IO AuthStatus
 zeitStatusFromSettings path = do

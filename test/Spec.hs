@@ -95,6 +95,8 @@ main = hspec $ do
               , saveCurrentView = \_ -> Identity ()
               , loadZeitCookie = Identity "cookie=value"
               , saveZeitCookie = \_ -> Identity ()
+              , loadZeitUserAgent = Identity "Browser UA"
+              , saveZeitUserAgent = \_ -> Identity ()
               , loadLingqApiKey = Identity "lingq-key"
               , saveLingqApiKey = \_ -> Identity ()
               , loadLingqLanguage = Identity "es"
@@ -123,6 +125,7 @@ main = hspec $ do
           model = runIdentity (loadInitialModel port)
       currentView model `shouldBe` LingqView
       zeitCookieText model `shouldBe` "cookie=value"
+      zeitUserAgentText model `shouldBe` "Browser UA"
       lingqApiKeyText model `shouldBe` "lingq-key"
       lingqLanguage model `shouldBe` "es"
       browseSectionId model `shouldBe` "wissen"
@@ -232,6 +235,8 @@ main = hspec $ do
           }
       snd (update (ZeitCookieLoginRequested "cookie=value") initialModel)
         `shouldBe` [LoginZeitWithCookie "cookie=value"]
+      snd (update (ZeitBrowserSessionLoginRequested "cookie=value" "Browser UA") initialModel)
+        `shouldBe` [LoginZeitWithBrowserSession "cookie=value" "Browser UA"]
       snd (update ZeitLogoutRequested initialModel)
         `shouldBe` [LogoutZeit]
       snd (update (LingqApiKeyLoginRequested "api-key") initialModel)
@@ -346,6 +351,12 @@ main = hspec $ do
           ports = testPorts summary
       runIdentity (Runtime.runCommand ports (LoginZeitWithCookie "cookie=value"))
         `shouldBe` [ZeitStatusChanged (AuthStatus True (Just "cookie session")), Notify SuccessNotice "Saved Zeit cookie session."]
+      runIdentity (Runtime.runCommand ports (LoginZeitWithBrowserSession "cookie=value" "Browser UA"))
+        `shouldBe` [ ZeitStatusChanged (AuthStatus True (Just "browser session"))
+                   , ZeitCookieChanged "cookie=value"
+                   , ZeitUserAgentChanged "Browser UA"
+                   , Notify SuccessNotice "Imported Zeit browser session."
+                   ]
       runIdentity (Runtime.runCommand ports LogoutZeit)
         `shouldBe` [ZeitStatusChanged (AuthStatus False (Just "disconnected")), ZeitCookieChanged "", Notify SuccessNotice "Disconnected Zeit session."]
       runIdentity (Runtime.runCommand ports (LoginLingqWithApiKey "api-key"))
@@ -1176,6 +1187,7 @@ main = hspec $ do
         let port = jsonSettingsPort path
         saveCurrentView port LingqView
         saveZeitCookie port " cookie=value "
+        saveZeitUserAgent port " Browser UA "
         saveLingqApiKey port " api-key "
         saveLingqLanguage port " ES "
         saveBrowseSection port "wissen"
@@ -1191,6 +1203,7 @@ main = hspec $ do
 
         loadCurrentView port `shouldReturn` LingqView
         loadZeitCookie port `shouldReturn` "cookie=value"
+        loadZeitUserAgent port `shouldReturn` "Browser UA"
         loadLingqApiKey port `shouldReturn` "api-key"
         loadLingqLanguage port `shouldReturn` "es"
         loadBrowseSection port `shouldReturn` "wissen"
@@ -1321,6 +1334,7 @@ testPorts summary =
           , fetchArticleContent = \_ -> Identity demoArticle
           , loginToZeit = Identity (AuthStatus True Nothing)
           , loginToZeitWithCookie = \_ -> Identity (AuthStatus True (Just "cookie session"))
+          , loginToZeitWithBrowserSession = \_ _ -> Identity (AuthStatus True (Just "browser session"))
           , logoutFromZeit = Identity ()
           }
     , lingqPort =
@@ -1377,6 +1391,8 @@ testPorts summary =
           , saveCurrentView = \_ -> Identity ()
           , loadZeitCookie = Identity ""
           , saveZeitCookie = \_ -> Identity ()
+          , loadZeitUserAgent = Identity defaultZeitUserAgent
+          , saveZeitUserAgent = \_ -> Identity ()
           , loadLingqApiKey = Identity ""
           , saveLingqApiKey = \_ -> Identity ()
           , loadLingqLanguage = Identity "de"

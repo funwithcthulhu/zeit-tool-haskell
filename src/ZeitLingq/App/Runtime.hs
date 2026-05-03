@@ -28,6 +28,14 @@ runCommand ports command =
     LoginZeitWithCookie cookie -> do
       status <- loginToZeitWithCookie zeit cookie
       pure [ZeitStatusChanged status, Notify SuccessNotice "Saved Zeit cookie session."]
+    LoginZeitWithBrowserSession cookie userAgent -> do
+      status <- loginToZeitWithBrowserSession zeit cookie userAgent
+      pure
+        [ ZeitStatusChanged status
+        , ZeitCookieChanged cookie
+        , ZeitUserAgentChanged userAgent
+        , Notify SuccessNotice "Imported Zeit browser session."
+        ]
     LogoutZeit -> do
       logoutFromZeit zeit
       pure [ZeitStatusChanged (AuthStatus False (Just "disconnected")), ZeitCookieChanged "", Notify SuccessNotice "Disconnected Zeit session."]

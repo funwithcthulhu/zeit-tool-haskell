@@ -21,6 +21,7 @@ data ZeitPort m = ZeitPort
   , fetchArticleContent :: Text -> m Article
   , loginToZeit :: m AuthStatus
   , loginToZeitWithCookie :: Text -> m AuthStatus
+  , loginToZeitWithBrowserSession :: Text -> Text -> m AuthStatus
   , logoutFromZeit :: m ()
   }
 
@@ -69,6 +70,8 @@ data SettingsPort m = SettingsPort
   , saveCurrentView :: View -> m ()
   , loadZeitCookie :: m Text
   , saveZeitCookie :: Text -> m ()
+  , loadZeitUserAgent :: m Text
+  , saveZeitUserAgent :: Text -> m ()
   , loadLingqApiKey :: m Text
   , saveLingqApiKey :: Text -> m ()
   , loadLingqLanguage :: m Text

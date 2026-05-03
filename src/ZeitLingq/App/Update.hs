@@ -21,7 +21,9 @@ data Event
   | ZeitStatusChanged AuthStatus
   | LingqStatusChanged AuthStatus
   | ZeitCookieChanged Text
+  | ZeitUserAgentChanged Text
   | ZeitCookieLoginRequested Text
+  | ZeitBrowserSessionLoginRequested Text Text
   | ZeitLogoutRequested
   | LingqApiKeyChanged Text
   | LingqUsernameChanged Text
@@ -104,6 +106,7 @@ data Event
 data Command
   = PersistCurrentView View
   | LoginZeitWithCookie Text
+  | LoginZeitWithBrowserSession Text Text
   | LogoutZeit
   | LoginLingqWithApiKey Text
   | LoginLingqWithPassword Text Text
@@ -168,9 +171,17 @@ update event model =
       ( model {zeitCookieText = cookie}
       , []
       )
+    ZeitUserAgentChanged userAgent ->
+      ( model {zeitUserAgentText = userAgent}
+      , []
+      )
     ZeitCookieLoginRequested cookie ->
       ( model {zeitCookieText = cookie}
       , [LoginZeitWithCookie cookie]
+      )
+    ZeitBrowserSessionLoginRequested cookie userAgent ->
+      ( model {zeitCookieText = cookie, zeitUserAgentText = userAgent}
+      , [LoginZeitWithBrowserSession cookie userAgent]
       )
     ZeitLogoutRequested ->
       ( model

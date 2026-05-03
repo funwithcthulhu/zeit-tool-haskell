@@ -9,6 +9,7 @@ loadInitialModel :: Monad m => SettingsPort m -> m Model
 loadInitialModel settings = do
   view <- loadCurrentView settings
   zeitCookie <- loadZeitCookie settings
+  zeitUserAgent <- loadZeitUserAgent settings
   lingqApiKey <- loadLingqApiKey settings
   languageCode <- loadLingqLanguage settings
   sectionId <- loadBrowseSection settings
@@ -25,6 +26,7 @@ loadInitialModel settings = do
     initialModel
       { currentView = view
       , zeitCookieText = zeitCookie
+      , zeitUserAgentText = zeitUserAgent
       , lingqApiKeyText = lingqApiKey
       , lingqLanguage = languageCode
       , browseSectionId = sectionId
