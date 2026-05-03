@@ -34,6 +34,7 @@ library
     exposed-modules:
         ZeitLingq.App.Model
         ZeitLingq.App.Update
+        ZeitLingq.Cli
         ZeitLingq.Core.KnownWords
         ZeitLingq.Domain.Article
         ZeitLingq.Domain.Section

@@ -10,3 +10,6 @@ cabal.sandbox.config
 *.hp
 *.eventlog
 *.exe
+*.db
+*.db-shm
+*.db-wal

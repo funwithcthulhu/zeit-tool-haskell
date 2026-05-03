@@ -28,6 +28,17 @@ cabal test
 cabal run
 ```
 
+## CLI Harness
+
+```powershell
+cabal run zeit-lingq-tool -- sections
+cabal run zeit-lingq-tool -- browse wissen 1
+cabal run zeit-lingq-tool -- fetch https://www.zeit.de/wissen/2026-05/example
+cabal run zeit-lingq-tool -- library
+```
+
+Set `ZEIT_COOKIE` before running `fetch` if an article needs an authenticated Zeit session.
+
 ## GUI Direction
 
 The current recommendation is:
@@ -45,4 +56,5 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - JSON user settings are available through `SettingsPort`.
 - LingQ login, collection fetch, lesson upload, and known-word fetch helpers are scaffolded in Haskell.
 - Zeit article-list and article-content extraction is scaffolded in Haskell.
-- Next target is wiring these adapters into a small CLI flow, then the first GUI shell.
+- The executable now includes a small CLI harness for sections, browse, fetch, and library commands.
+- Next target is the first GUI shell.

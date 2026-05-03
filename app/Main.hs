@@ -2,18 +2,74 @@
 
 module Main (main) where
 
+import Data.Foldable (for_)
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Data.Time (fromGregorian, getCurrentTime)
+import System.Environment (getArgs, lookupEnv)
 import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.Update (Event(..), update)
+import ZeitLingq.Cli
 import ZeitLingq.Core.KnownWords (estimateKnownPct, importKnownWordStems)
 import ZeitLingq.Domain.Article (composeCleanText, lessonTitle, wordCount)
 import ZeitLingq.Domain.Section (allSections)
 import ZeitLingq.Domain.Types
+import ZeitLingq.Infrastructure.Sqlite
+import ZeitLingq.Infrastructure.Zeit
 
 main :: IO ()
 main = do
+  args <- getArgs
+  case parseArgs args of
+    Left err -> putStr err
+    Right command -> runCommand command
+
+runCommand :: CliCommand -> IO ()
+runCommand ShowDemo = runDemo
+runCommand ListSections =
+  for_ allSections $ \section ->
+    putStrLn (T.unpack (sectionId section <> "\t" <> sectionLabel section))
+runCommand (BrowseZeit sectionIdent page) = do
+  session <- sessionFromEnv
+  result <- fetchArticleListZeit session sectionIdent page
+  case result of
+    Left err -> print err
+    Right articles ->
+      for_ articles $ \article ->
+        putStrLn (T.unpack (summaryTitle article <> "\n  " <> summaryUrl article))
+runCommand (FetchArticle url dbPath) = do
+  session <- sessionFromEnv
+  result <- fetchArticleContentZeit session url
+  case result of
+    Left err -> print err
+    Right article ->
+      withLibrary dbPath $ \db -> do
+        savedId <- saveArticleSqlite db article
+        putStrLn ("Saved article " <> show (unArticleId savedId) <> ": " <> T.unpack (articleTitle article))
+runCommand (ShowLibrary dbPath) =
+  withLibrary dbPath $ \db -> do
+    articles <- getArticlesSqlite db (WordFilter Nothing Nothing)
+    if null articles
+      then putStrLn "No saved articles."
+      else
+        for_ articles $ \article ->
+          putStrLn (showSummary article)
+
+sessionFromEnv :: IO ZeitSession
+sessionFromEnv = do
+  cookie <- lookupEnv "ZEIT_COOKIE"
+  pure (ZeitSession (maybe "" T.pack cookie))
+
+showSummary :: ArticleSummary -> String
+showSummary article =
+  maybe "-" (show . unArticleId) (summaryId article)
+    <> "\t"
+    <> show (summaryWordCount article)
+    <> " words\t"
+    <> T.unpack (summaryTitle article)
+
+runDemo :: IO ()
+runDemo = do
   now <- getCurrentTime
   let demoArticle =
         Article

@@ -36,3 +36,7 @@ The rewrite uses four layers:
 ## GUI recommendation
 
 The most sensible first GUI remains Monomer because the app state already fits a pure model/update flow. We should still keep Monomer as an adapter, not as the center of the architecture, so replacing it later would not touch scraping, persistence, or domain rules.
+
+## CLI harness
+
+The executable now provides a small terminal harness around the adapters. It is useful for verifying scraper, persistence, and library behavior before the GUI is ready.
