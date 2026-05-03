@@ -175,9 +175,11 @@ main = hspec $ do
           (onlyIgnoredModel, onlyIgnoredCommands) = update (LibraryOnlyIgnoredChanged True) baseModel
           (onlyNotUploadedModel, onlyNotUploadedCommands) = update (LibraryOnlyNotUploadedChanged True) baseModel
           (sortModel, sortCommands) = update (LibrarySortChanged LibrarySortLongest) baseModel
+          (presetModel, presetCommands) = update (LibraryPresetChanged LibraryPresetStandardReads) baseModel
           (groupModel, groupCommands) = update (LibraryGroupBySectionChanged True) baseModel
           (pageModel, pageCommands) = update (LibraryPageChanged 60) baseModel
       libraryQuery searchModel `shouldBe` baseQuery {librarySearch = Just "Alpha", libraryOffset = 0}
+      libraryPreset searchModel `shouldBe` LibraryPresetCustom
       searchCommands `shouldBe` [RefreshLibraryPage (libraryQuery searchModel)]
       libraryQuery sectionModel `shouldBe` baseQuery {librarySection = Just "Wissen", libraryOffset = 0}
       sectionCommands `shouldBe` [RefreshLibraryPage (libraryQuery sectionModel)]
@@ -189,6 +191,13 @@ main = hspec $ do
       onlyNotUploadedCommands `shouldBe` [RefreshLibraryPage (libraryQuery onlyNotUploadedModel)]
       libraryQuery sortModel `shouldBe` baseQuery {librarySort = LibrarySortLongest, libraryOffset = 0}
       sortCommands `shouldBe` [RefreshLibraryPage (libraryQuery sortModel)]
+      libraryPreset presetModel `shouldBe` LibraryPresetStandardReads
+      libraryQuery presetModel
+        `shouldBe` defaultLibraryQuery
+          { libraryWordFilter = WordFilter (Just 900) (Just 1800)
+          , libraryOnlyNotUploaded = True
+          }
+      presetCommands `shouldBe` [RefreshLibraryPage (libraryQuery presetModel)]
       libraryGroupBySection groupModel `shouldBe` True
       libraryQuery groupModel `shouldBe` baseQuery {libraryLimit = 5000, libraryOffset = 0}
       groupCommands `shouldBe` [RefreshLibraryPage (libraryQuery groupModel)]

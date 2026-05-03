@@ -108,6 +108,7 @@ data GuiEvent
   | GuiLibraryOnlyIgnoredChanged Bool
   | GuiLibraryOnlyNotUploadedChanged Bool
   | GuiLibrarySortChanged LibrarySort
+  | GuiLibraryPresetChanged LibraryPreset
   | GuiLibraryGroupBySectionChanged Bool
   | GuiLibraryDeleteDaysChanged Text
   | GuiLibraryPreviousPage
@@ -367,6 +368,8 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (LibraryOnlyNotUploadedChanged enabled))]
     GuiLibrarySortChanged sortMode ->
       [Task (runAppEvent ports model (LibrarySortChanged sortMode))]
+    GuiLibraryPresetChanged preset ->
+      [Task (runAppEvent ports model (LibraryPresetChanged preset))]
     GuiLibraryGroupBySectionChanged enabled ->
       [Task (runAppEvent ports model (LibraryGroupBySectionChanged enabled))]
     GuiLibraryDeleteDaysChanged daysText ->
@@ -845,8 +848,17 @@ libraryControls model =
       vstack
         [ libraryStatsBlock model
         , hstack
-            [ label "Search"
+            [ label "Preset"
                 `styleBasic` [paddingR 8, textColor mutedTextColor]
+            , textDropdownV_
+                (libraryPreset model)
+                GuiLibraryPresetChanged
+                allLibraryPresets
+                libraryPresetLabel
+                []
+                `styleBasic` (inputStyle <> [width 160])
+            , label "Search"
+                `styleBasic` [paddingL 12, paddingR 8, textColor mutedTextColor]
             , textFieldV_ (maybe "" id (librarySearch query)) GuiLibrarySearchChanged [placeholder "Title or article text"]
                 `styleBasic` (inputStyle <> [width 260])
             , label "Min"
@@ -963,6 +975,26 @@ librarySortLabel sortMode =
     LibrarySortLongest -> "Longest"
     LibrarySortShortest -> "Shortest"
     LibrarySortTitle -> "Title"
+
+allLibraryPresets :: [LibraryPreset]
+allLibraryPresets =
+  [ LibraryPresetAll
+  , LibraryPresetShortReads
+  , LibraryPresetStandardReads
+  , LibraryPresetLongReads
+  , LibraryPresetNotUploaded
+  , LibraryPresetCustom
+  ]
+
+libraryPresetLabel :: LibraryPreset -> Text
+libraryPresetLabel preset =
+  case preset of
+    LibraryPresetAll -> "All articles"
+    LibraryPresetShortReads -> "Short LingQ reads"
+    LibraryPresetStandardReads -> "Standard LingQ reads"
+    LibraryPresetLongReads -> "Long reads"
+    LibraryPresetNotUploaded -> "Not uploaded"
+    LibraryPresetCustom -> "Custom"
 
 toggle :: Text -> Bool -> (Bool -> GuiEvent) -> WidgetNode Model GuiEvent
 toggle text value handler =

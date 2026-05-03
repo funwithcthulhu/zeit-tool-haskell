@@ -7,6 +7,7 @@ module ZeitLingq.Domain.Types
   , ArticleSummary(..)
   , AuthStatus(..)
   , LibraryPage(..)
+  , LibraryPreset(..)
   , LibraryQuery(..)
   , LibrarySort(..)
   , LibraryStats(..)
@@ -90,6 +91,15 @@ data LibrarySort
   | LibrarySortLongest
   | LibrarySortShortest
   | LibrarySortTitle
+  deriving (Eq, Show, Enum, Bounded, Generic)
+
+data LibraryPreset
+  = LibraryPresetAll
+  | LibraryPresetShortReads
+  | LibraryPresetStandardReads
+  | LibraryPresetLongReads
+  | LibraryPresetNotUploaded
+  | LibraryPresetCustom
   deriving (Eq, Show, Enum, Bounded, Generic)
 
 data LibraryPage = LibraryPage

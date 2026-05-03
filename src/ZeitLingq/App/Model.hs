@@ -35,6 +35,7 @@ data Model = Model
   , libraryTotal :: Int
   , libraryStats :: Maybe LibraryStats
   , libraryGroupBySection :: Bool
+  , libraryPreset :: LibraryPreset
   , libraryDeleteDaysText :: Text
   , lingqArticles :: [ArticleSummary]
   , lingqSelectedIds :: Set ArticleId
@@ -86,6 +87,7 @@ initialModel =
     , libraryTotal = 0
     , libraryStats = Nothing
     , libraryGroupBySection = False
+    , libraryPreset = LibraryPresetAll
     , libraryDeleteDaysText = "30"
     , lingqArticles = []
     , lingqSelectedIds = Set.empty

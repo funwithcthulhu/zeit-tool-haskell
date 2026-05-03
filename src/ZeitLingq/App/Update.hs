@@ -87,6 +87,7 @@ data Event
   | LibraryOnlyIgnoredChanged Bool
   | LibraryOnlyNotUploadedChanged Bool
   | LibrarySortChanged LibrarySort
+  | LibraryPresetChanged LibraryPreset
   | LibraryGroupBySectionChanged Bool
   | LibraryDeleteDaysChanged Text
   | LibraryPageChanged Int
@@ -450,7 +451,7 @@ update event model =
               { libraryWordFilter = filters
               , libraryOffset = 0
               }
-       in ( model {libraryFilter = filters, libraryQuery = nextQuery}
+       in ( model {libraryFilter = filters, libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibrarySearchChanged search ->
@@ -459,7 +460,7 @@ update event model =
               { librarySearch = nonEmptyText search
               , libraryOffset = 0
               }
-       in ( model {libraryQuery = nextQuery}
+       in ( model {libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibrarySectionChanged sectionName ->
@@ -468,7 +469,7 @@ update event model =
               { librarySection = nonEmptyText sectionName
               , libraryOffset = 0
               }
-       in ( model {libraryQuery = nextQuery}
+       in ( model {libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibraryIncludeIgnoredChanged enabled ->
@@ -478,7 +479,7 @@ update event model =
               , libraryOnlyIgnored = libraryOnlyIgnored (libraryQuery model) && enabled
               , libraryOffset = 0
               }
-       in ( model {libraryQuery = nextQuery}
+       in ( model {libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibraryOnlyIgnoredChanged enabled ->
@@ -488,7 +489,7 @@ update event model =
               , libraryIncludeIgnored = enabled || libraryIncludeIgnored (libraryQuery model)
               , libraryOffset = 0
               }
-       in ( model {libraryQuery = nextQuery}
+       in ( model {libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibraryOnlyNotUploadedChanged enabled ->
@@ -497,7 +498,7 @@ update event model =
               { libraryOnlyNotUploaded = enabled
               , libraryOffset = 0
               }
-       in ( model {libraryQuery = nextQuery}
+       in ( model {libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibrarySortChanged sortMode ->
@@ -506,7 +507,20 @@ update event model =
               { librarySort = sortMode
               , libraryOffset = 0
               }
-       in ( model {libraryQuery = nextQuery}
+       in ( model {libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
+          , [RefreshLibraryPage nextQuery]
+          )
+    LibraryPresetChanged preset ->
+      let nextQuery =
+            if preset == LibraryPresetCustom
+              then (libraryQuery model) {libraryOffset = 0}
+              else libraryQueryForPreset preset
+       in ( model
+              { libraryPreset = preset
+              , libraryFilter = libraryWordFilter nextQuery
+              , libraryGroupBySection = False
+              , libraryQuery = nextQuery
+              }
           , [RefreshLibraryPage nextQuery]
           )
     LibraryGroupBySectionChanged enabled ->
@@ -518,7 +532,7 @@ update event model =
                     else libraryLimit defaultLibraryQuery
               , libraryOffset = 0
               }
-       in ( model {libraryGroupBySection = enabled, libraryQuery = nextQuery}
+       in ( model {libraryGroupBySection = enabled, libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibraryDeleteDaysChanged daysText ->
@@ -597,6 +611,31 @@ languagesWithCurrent :: Text -> [LingqLanguage] -> [LingqLanguage]
 languagesWithCurrent current languages
   | any ((== current) . languageCode) languages = languages
   | otherwise = LingqLanguage current current : languages
+
+libraryQueryForPreset :: LibraryPreset -> LibraryQuery
+libraryQueryForPreset preset =
+  case preset of
+    LibraryPresetAll ->
+      defaultLibraryQuery
+    LibraryPresetShortReads ->
+      defaultLibraryQuery
+        { libraryWordFilter = WordFilter (Just 300) (Just 900)
+        , libraryOnlyNotUploaded = True
+        }
+    LibraryPresetStandardReads ->
+      defaultLibraryQuery
+        { libraryWordFilter = WordFilter (Just 900) (Just 1800)
+        , libraryOnlyNotUploaded = True
+        }
+    LibraryPresetLongReads ->
+      defaultLibraryQuery
+        { libraryWordFilter = WordFilter (Just 1800) Nothing
+        , libraryOnlyNotUploaded = True
+        }
+    LibraryPresetNotUploaded ->
+      defaultLibraryQuery {libraryOnlyNotUploaded = True}
+    LibraryPresetCustom ->
+      defaultLibraryQuery
 
 toggleSetMember :: Ord a => a -> Set a -> Set a
 toggleSetMember value values
