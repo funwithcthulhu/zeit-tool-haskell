@@ -23,6 +23,7 @@ data Model = Model
   , lingqArticles :: [ArticleSummary]
   , notification :: Maybe Notification
   , browseSectionId :: Text
+  , browsePage :: Int
   , browseFilter :: WordFilter
   , libraryFilter :: WordFilter
   , libraryQuery :: LibraryQuery
@@ -48,6 +49,7 @@ initialModel =
     , lingqArticles = []
     , notification = Nothing
     , browseSectionId = "index"
+    , browsePage = 1
     , browseFilter = WordFilter Nothing Nothing
     , libraryFilter = WordFilter Nothing Nothing
     , libraryQuery = defaultLibraryQuery

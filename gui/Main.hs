@@ -30,6 +30,10 @@ data GuiEvent
   | GuiNavigate View
   | GuiRefresh
   | GuiSectionSelected Text
+  | GuiBrowsePreviousPage
+  | GuiBrowseNextPage
+  | GuiBrowseMinWordsChanged Text
+  | GuiBrowseMaxWordsChanged Text
   | GuiOpenArticle ArticleSummary
   | GuiFetchArticle ArticleSummary
   | GuiHideBrowseArticle ArticleSummary
@@ -94,6 +98,14 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model RefreshCurrentView)]
     GuiSectionSelected sectionIdent ->
       [Task (runAppEvent ports model (BrowseSectionSelected sectionIdent))]
+    GuiBrowsePreviousPage ->
+      [Task (runAppEvent ports model (BrowsePageChanged (browsePage model - 1)))]
+    GuiBrowseNextPage ->
+      [Task (runAppEvent ports model (BrowsePageChanged (browsePage model + 1)))]
+    GuiBrowseMinWordsChanged raw ->
+      [Task (runAppEvent ports model (BrowseFilterChanged ((browseFilter model) {minWords = parseOptionalInt raw})))]
+    GuiBrowseMaxWordsChanged raw ->
+      [Task (runAppEvent ports model (BrowseFilterChanged ((browseFilter model) {maxWords = parseOptionalInt raw})))]
     GuiOpenArticle article ->
       [Task (runAppEvent ports model (ArticleOpened article))]
     GuiFetchArticle article ->
@@ -211,13 +223,30 @@ browseControls model =
       vstack
         [ label "Quick sections"
             `styleBasic` [textSize 14, paddingT 8]
-        , hstack (map sectionButton quickSections)
+        , vstack (map (hstack . map sectionButton) sectionRows)
+            `styleBasic` [paddingV 6]
+        , hstack
+            [ button "Previous page" GuiBrowsePreviousPage
+            , label ("Page " <> tshow (browsePage model))
+                `styleBasic` [paddingH 12]
+            , button "Next page" GuiBrowseNextPage
+            ]
+        , hstack
+            [ label "Fetch min"
+                `styleBasic` [paddingR 6]
+            , textFieldV (maybe "" tshow (minWords (browseFilter model))) GuiBrowseMinWordsChanged
+                `styleBasic` [width 70]
+            , label "Fetch max"
+                `styleBasic` [paddingL 12, paddingR 6]
+            , textFieldV (maybe "" tshow (maxWords (browseFilter model))) GuiBrowseMaxWordsChanged
+                `styleBasic` [width 70]
+            ]
             `styleBasic` [paddingV 6]
         , button ("Fetch visible (" <> T.pack (show (length (browseArticles model))) <> ")") (GuiFetchVisible (browseArticles model))
         ]
     _ -> spacer
   where
-    quickSections = take 8 allSections
+    sectionRows = chunksOf 8 allSections
     sectionButton section =
       button (sectionLabel section) (GuiSectionSelected (sectionId section))
         `styleBasic` [paddingR 4]
@@ -555,6 +584,14 @@ parseOptionalInt raw =
 
 tshow :: Show a => a -> Text
 tshow = T.pack . show
+
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf size values
+  | size <= 0 = [values]
+chunksOf _ [] = []
+chunksOf size values =
+  let (chunk, rest) = splitAt size values
+   in chunk : chunksOf size rest
 
 main :: IO ()
 main = do

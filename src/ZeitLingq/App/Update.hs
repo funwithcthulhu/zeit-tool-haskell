@@ -37,6 +37,7 @@ data Event
   | Notify NotificationLevel Text
   | NotificationCleared
   | BrowseSectionSelected Text
+  | BrowsePageChanged Int
   | BrowseFilterChanged WordFilter
   | LibraryFilterChanged WordFilter
   | LibrarySearchChanged Text
@@ -176,12 +177,17 @@ update event model =
       , []
       )
     BrowseSectionSelected sectionIdValue ->
-      ( model {browseSectionId = sectionIdValue}
+      ( model {browseSectionId = sectionIdValue, browsePage = 1}
       , [PersistBrowseSection sectionIdValue, RefreshBrowse sectionIdValue 1]
       )
+    BrowsePageChanged page ->
+      let nextPage = max 1 page
+       in ( model {browsePage = nextPage}
+          , [RefreshBrowse (browseSectionId model) nextPage]
+          )
     BrowseFilterChanged filters ->
       ( model {browseFilter = filters}
-      , [RefreshBrowse (browseSectionId model) 1]
+      , []
       )
     LibraryFilterChanged filters ->
       let nextQuery =
@@ -254,7 +260,7 @@ update event model =
 refreshCommands :: Model -> [Command]
 refreshCommands model =
   case currentView model of
-    BrowseView -> [RefreshBrowse (browseSectionId model) 1]
+    BrowseView -> [RefreshBrowse (browseSectionId model) (browsePage model)]
     LibraryView -> [RefreshLibraryPage (libraryQuery model)]
     LingqView -> [RefreshLingqLibrary (lingqFilter model)]
     ZeitLoginView -> []

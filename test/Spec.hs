@@ -103,6 +103,7 @@ main = hspec $ do
           model = runIdentity (loadInitialModel port)
       currentView model `shouldBe` LingqView
       browseSectionId model `shouldBe` "wissen"
+      browsePage model `shouldBe` 1
       datePrefixEnabled model `shouldBe` False
       sectionCollections model `shouldBe` Map.fromList [("Wissen", "course-1")]
 
@@ -128,11 +129,14 @@ main = hspec $ do
 
     it "emits refresh commands with screen context" $ do
       let filters = WordFilter (Just 400) (Just 1200)
-          browseModel = initialModel {browseSectionId = "wissen"}
+          browseModel = initialModel {browseSectionId = "wissen", browsePage = 2}
       snd (update (BrowseSectionSelected "kultur") initialModel)
         `shouldBe` [PersistBrowseSection "kultur", RefreshBrowse "kultur" 1]
+      browsePage (fst (update (BrowseSectionSelected "kultur") browseModel)) `shouldBe` 1
+      snd (update (BrowsePageChanged 3) browseModel)
+        `shouldBe` [RefreshBrowse "wissen" 3]
       snd (update (BrowseFilterChanged filters) browseModel)
-        `shouldBe` [RefreshBrowse "wissen" 1]
+        `shouldBe` []
       snd (update (LibraryFilterChanged filters) initialModel)
         `shouldBe` [RefreshLibraryPage defaultLibraryQuery {libraryWordFilter = filters}]
       snd (update (LingqFilterChanged filters) initialModel)
