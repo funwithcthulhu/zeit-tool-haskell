@@ -5,6 +5,8 @@ module ZeitLingq.App.Runtime
   ) where
 
 import ZeitLingq.App.Update (Command(..), Event(..))
+import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
+import ZeitLingq.Core.Upload (BatchUploadResult(..), batchUploadArticles)
 import ZeitLingq.Domain.Article (wordCount)
 import ZeitLingq.Domain.Types
 import ZeitLingq.Ports
@@ -63,7 +65,32 @@ runCommand ports command =
         [ Notify SuccessNotice (if ignored then "Article ignored." else "Article unignored.")
         , RefreshCurrentView
         ]
+    UploadSavedArticle day fallbackCollection sectionCollections datePrefix ident -> do
+      maybeArticle <- loadArticle library ident
+      case maybeArticle of
+        Nothing ->
+          pure [Notify ErrorNotice "Article not found."]
+        Just article -> do
+          results <-
+            batchUploadArticles
+              (\languageCode collectionId titledArticle ->
+                Right <$> uploadLessonToLingq lingq languageCode collectionId titledArticle)
+              (markArticleUploaded library)
+              (uploadConfigFromPreferences day fallbackCollection datePrefix sectionCollections)
+              [article]
+          pure (concatMap uploadResultEvents results <> [RefreshCurrentView])
   where
     zeit = zeitPort ports
+    lingq = lingqPort ports
     library = libraryPort ports
     settings = settingsPort ports
+
+uploadResultEvents :: BatchUploadResult -> [Event]
+uploadResultEvents result =
+  case result of
+    UploadSucceeded _ title _ ->
+      [Notify SuccessNotice ("Uploaded " <> title <> " to LingQ.")]
+    UploadSucceededUntracked title _ ->
+      [Notify SuccessNotice ("Uploaded " <> title <> " to LingQ.")]
+    UploadFailed _ title err ->
+      [Notify ErrorNotice ("Could not upload " <> title <> ": " <> err)]

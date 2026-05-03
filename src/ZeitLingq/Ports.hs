@@ -33,6 +33,7 @@ data LibraryPort m = LibraryPort
   , saveArticle :: Article -> m ArticleId
   , deleteArticle :: ArticleId -> m ()
   , setArticleIgnored :: ArticleId -> Bool -> m ()
+  , markArticleUploaded :: ArticleId -> LingqLesson -> m ()
   , loadStats :: m LibraryStats
   }
 

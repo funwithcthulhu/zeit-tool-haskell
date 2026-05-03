@@ -5,6 +5,7 @@ module Main (main) where
 import Control.Exception (SomeException, displayException, try)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Time (getCurrentTime, utctDay)
 import Monomer hiding (Model)
 import Monomer qualified as M
 import System.Environment (lookupEnv)
@@ -31,6 +32,7 @@ data GuiEvent
   | GuiOpenArticle ArticleSummary
   | GuiFetchArticle ArticleSummary
   | GuiToggleIgnored ArticleSummary
+  | GuiUploadArticle ArticleId
   | GuiDeleteArticle ArticleId
   | GuiCloseArticle
   | GuiClearNotice
@@ -86,6 +88,8 @@ handleEvent ports _ _ model event =
       case summaryId article of
         Just ident -> [Task (runAppEvent ports model (ArticleIgnoredChanged ident (not (summaryIgnored article))))]
         Nothing -> [Task (runAppEvent ports model (Notify ErrorNotice "Cannot ignore an unsaved article."))]
+    GuiUploadArticle ident ->
+      [Task (runUploadAppEvent ports model ident)]
     GuiDeleteArticle ident ->
       [Task (runAppEvent ports model (ArticleDeleteRequested ident))]
     GuiCloseArticle ->
@@ -239,12 +243,19 @@ rowActions _ article =
     []
     (\ident ->
       [ button "Open" (GuiOpenArticle article)
-      , button
-          (if summaryIgnored article then "Unignore" else "Ignore")
-          (GuiToggleIgnored article)
-      , button "Delete" (GuiDeleteArticle ident)
-      ])
+      ]
+        <> uploadAction ident article
+        <> [ button
+               (if summaryIgnored article then "Unignore" else "Ignore")
+               (GuiToggleIgnored article)
+           , button "Delete" (GuiDeleteArticle ident)
+           ])
     (summaryId article)
+
+uploadAction :: ArticleId -> ArticleSummary -> [WidgetNode Model GuiEvent]
+uploadAction ident article
+  | summaryUploaded article || summaryIgnored article = []
+  | otherwise = [button "Upload" (GuiUploadArticle ident)]
 
 rowsForCurrentView :: Model -> [ArticleSummary]
 rowsForCurrentView model =
@@ -280,6 +291,13 @@ loadGuiInitialModel ports =
 runAppEvent :: AppPorts IO -> Model -> Event -> IO GuiEvent
 runAppEvent ports model event =
   safeGuiTask (dispatchEvent ports model event)
+
+runUploadAppEvent :: AppPorts IO -> Model -> ArticleId -> IO GuiEvent
+runUploadAppEvent ports model ident =
+  safeGuiTask $ do
+    now <- getCurrentTime
+    fallbackCollection <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
+    dispatchEvent ports model (ArticleUploadRequested (utctDay now) fallbackCollection ident)
 
 safeGuiTask :: IO Model -> IO GuiEvent
 safeGuiTask action = do
@@ -355,6 +373,8 @@ guiLibraryPort =
         withLibrary dbPath $ \db -> deleteArticleSqlite db ident
     , setArticleIgnored = \ident ignored ->
         withLibrary dbPath $ \db -> setIgnoredSqlite db ident ignored
+    , markArticleUploaded = \ident lesson ->
+        withLibrary dbPath $ \db -> markUploadedSqlite db ident lesson
     , loadStats =
         withLibrary dbPath getStatsSqlite
     }

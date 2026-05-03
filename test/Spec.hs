@@ -156,6 +156,8 @@ main = hspec $ do
         `shouldBe` [DeleteSavedArticle (ArticleId 15)]
       snd (update (ArticleIgnoredChanged (ArticleId 15) True) initialModel)
         `shouldBe` [SetArticleIgnored (ArticleId 15) True]
+      snd (update (ArticleUploadRequested (fromGregorian 2026 5 2) (Just "fallback") (ArticleId 15)) initialModel)
+        `shouldBe` [UploadSavedArticle (fromGregorian 2026 5 2) (Just "fallback") Map.empty True (ArticleId 15)]
 
   describe "App command runtime" $ do
     it "turns refresh commands into loaded events" $ do
@@ -226,6 +228,31 @@ main = hspec $ do
         `shouldBe` [Notify SuccessNotice "Deleted article.", ArticleClosed]
       runIdentity (Runtime.runCommand ports (SetArticleIgnored (ArticleId 1) True))
         `shouldBe` [Notify SuccessNotice "Article ignored.", RefreshCurrentView]
+
+    it "uploads saved articles and marks them uploaded" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 1)
+              , summaryUrl = "https://example.com/upload"
+              , summaryTitle = "Upload Me"
+              , summarySection = "Wissen"
+              , summaryWordCount = 4
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          basePorts = testPorts summary
+          ports =
+            basePorts
+              { libraryPort =
+                  (libraryPort basePorts)
+                    { loadArticle = \_ -> Identity (Just (demoArticle {articleId = Just (ArticleId 1)}))
+                    }
+              }
+      runIdentity (Runtime.runCommand ports (UploadSavedArticle (fromGregorian 2026 5 2) Nothing Map.empty True (ArticleId 1)))
+        `shouldBe` [ Notify SuccessNotice "Uploaded 2026-05-02 - Demo to LingQ."
+                   , RefreshCurrentView
+                   ]
 
   describe "App event driver" $ do
     it "dispatches refresh commands and folds loaded events back into the model" $ do
@@ -782,6 +809,7 @@ testPorts summary =
           , saveArticle = \_ -> Identity (ArticleId 1)
           , deleteArticle = \_ -> Identity ()
           , setArticleIgnored = \_ _ -> Identity ()
+          , markArticleUploaded = \_ _ -> Identity ()
           , loadStats =
               Identity
                 ( LibraryStats

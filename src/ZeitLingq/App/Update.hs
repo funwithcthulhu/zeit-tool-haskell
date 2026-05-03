@@ -8,6 +8,7 @@ module ZeitLingq.App.Update
 
 import Data.Map.Strict (Map)
 import Data.Text (Text)
+import Data.Time (Day)
 import ZeitLingq.App.Model (Model(..))
 import ZeitLingq.Domain.Types
 
@@ -21,6 +22,7 @@ data Event
   | BrowseArticleFetchRequested ArticleSummary
   | ArticleDeleteRequested ArticleId
   | ArticleIgnoredChanged ArticleId Bool
+  | ArticleUploadRequested Day (Maybe Text) ArticleId
   | BrowseArticlesLoaded [ArticleSummary]
   | LibraryArticlesLoaded [ArticleSummary]
   | LingqArticlesLoaded [ArticleSummary]
@@ -47,6 +49,7 @@ data Command
   | FetchAndSaveArticle ArticleSummary
   | DeleteSavedArticle ArticleId
   | SetArticleIgnored ArticleId Bool
+  | UploadSavedArticle Day (Maybe Text) (Map Text Text) Bool ArticleId
   deriving (Eq, Show)
 
 update :: Event -> Model -> (Model, [Command])
@@ -98,6 +101,10 @@ update event model =
     ArticleIgnoredChanged ident ignored ->
       ( model
       , [SetArticleIgnored ident ignored]
+      )
+    ArticleUploadRequested day fallbackCollection ident ->
+      ( model
+      , [UploadSavedArticle day fallbackCollection (sectionCollections model) (datePrefixEnabled model) ident]
       )
     BrowseArticlesLoaded articles ->
       ( model {browseArticles = articles}
