@@ -179,6 +179,7 @@ main = hspec $ do
           (onlyNotUploadedModel, onlyNotUploadedCommands) = update (LibraryOnlyNotUploadedChanged True) baseModel
           (sortModel, sortCommands) = update (LibrarySortChanged LibrarySortLongest) baseModel
           (presetModel, presetCommands) = update (LibraryPresetChanged LibraryPresetStandardReads) baseModel
+          (duplicatePresetModel, duplicatePresetCommands) = update (LibraryPresetChanged LibraryPresetDuplicateReview) baseModel
           (groupModel, groupCommands) = update (LibraryGroupBySectionChanged True) baseModel
           (pageModel, pageCommands) = update (LibraryPageChanged 60) baseModel
       libraryQuery searchModel `shouldBe` baseQuery {librarySearch = Just "Alpha", libraryOffset = 0}
@@ -201,6 +202,13 @@ main = hspec $ do
           , libraryOnlyNotUploaded = True
           }
       presetCommands `shouldBe` [RefreshLibraryPage (libraryQuery presetModel)]
+      libraryQuery duplicatePresetModel
+        `shouldBe` defaultLibraryQuery
+          { libraryIncludeIgnored = True
+          , libraryOnlyDuplicateTitles = True
+          , librarySort = LibrarySortTitle
+          }
+      duplicatePresetCommands `shouldBe` [RefreshLibraryPage (libraryQuery duplicatePresetModel)]
       libraryGroupBySection groupModel `shouldBe` True
       libraryQuery groupModel `shouldBe` baseQuery {libraryLimit = 5000, libraryOffset = 0}
       groupCommands `shouldBe` [RefreshLibraryPage (libraryQuery groupModel)]
@@ -1014,6 +1022,7 @@ main = hspec $ do
               , libraryIncludeIgnored = True
               , libraryOnlyIgnored = False
               , libraryOnlyNotUploaded = True
+              , libraryOnlyDuplicateTitles = False
               , librarySort = LibrarySortNewest
               , libraryLimit = 10
               , libraryOffset = 0
@@ -1030,6 +1039,7 @@ main = hspec $ do
               , libraryIncludeIgnored = False
               , libraryOnlyIgnored = True
               , libraryOnlyNotUploaded = False
+              , libraryOnlyDuplicateTitles = False
               , librarySort = LibrarySortNewest
               , libraryLimit = 10
               , libraryOffset = 0
@@ -1045,6 +1055,7 @@ main = hspec $ do
               , libraryIncludeIgnored = True
               , libraryOnlyIgnored = False
               , libraryOnlyNotUploaded = False
+              , libraryOnlyDuplicateTitles = False
               , librarySort = LibrarySortNewest
               , libraryLimit = 1
               , libraryOffset = 1
@@ -1054,6 +1065,22 @@ main = hspec $ do
 
         sortedByLength <- getArticlesByQuerySqlite db defaultLibraryQuery {libraryIncludeIgnored = True, librarySort = LibrarySortLongest}
         map summaryId (libraryPageArticles sortedByLength) `shouldBe` [Just betaId, Just ignoredId, Just alphaId]
+
+    it "filters duplicate title review pages" $ do
+      withLibrary ":memory:" $ \db -> do
+        firstId <- saveArticleSqlite db demoArticle {articleUrl = "https://example.com/a", articleTitle = "Same Title"}
+        secondId <- saveArticleSqlite db demoArticle {articleUrl = "https://example.com/b", articleTitle = "same title"}
+        _ <- saveArticleSqlite db demoArticle {articleUrl = "https://example.com/c", articleTitle = "Different"}
+
+        duplicatePage <-
+          getArticlesByQuerySqlite db
+            defaultLibraryQuery
+              { libraryIncludeIgnored = True
+              , libraryOnlyDuplicateTitles = True
+              , librarySort = LibrarySortTitle
+              }
+        libraryPageTotal duplicatePage `shouldBe` 2
+        map summaryId (libraryPageArticles duplicatePage) `shouldBe` [Just secondId, Just firstId]
 
     it "stores known-word stems and computes cached known percentages" $ do
       withLibrary ":memory:" $ \db -> do

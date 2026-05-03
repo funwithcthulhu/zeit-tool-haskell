@@ -646,6 +646,12 @@ libraryQueryForPreset preset =
         }
     LibraryPresetNotUploaded ->
       defaultLibraryQuery {libraryOnlyNotUploaded = True}
+    LibraryPresetDuplicateReview ->
+      defaultLibraryQuery
+        { libraryIncludeIgnored = True
+        , libraryOnlyDuplicateTitles = True
+        , librarySort = LibrarySortTitle
+        }
     LibraryPresetCustom ->
       defaultLibraryQuery
 

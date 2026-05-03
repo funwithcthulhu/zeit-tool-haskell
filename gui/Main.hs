@@ -1013,6 +1013,7 @@ allLibraryPresets =
   , LibraryPresetStandardReads
   , LibraryPresetLongReads
   , LibraryPresetNotUploaded
+  , LibraryPresetDuplicateReview
   , LibraryPresetCustom
   ]
 
@@ -1024,6 +1025,7 @@ libraryPresetLabel preset =
     LibraryPresetStandardReads -> "Standard LingQ reads"
     LibraryPresetLongReads -> "Long reads"
     LibraryPresetNotUploaded -> "Not uploaded"
+    LibraryPresetDuplicateReview -> "Duplicate review"
     LibraryPresetCustom -> "Custom"
 
 allRowDensities :: [RowDensity]

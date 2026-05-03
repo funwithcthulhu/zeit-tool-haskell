@@ -82,6 +82,7 @@ data LibraryQuery = LibraryQuery
   , libraryIncludeIgnored :: Bool
   , libraryOnlyIgnored :: Bool
   , libraryOnlyNotUploaded :: Bool
+  , libraryOnlyDuplicateTitles :: Bool
   , librarySort :: LibrarySort
   , libraryLimit :: Int
   , libraryOffset :: Int
@@ -101,6 +102,7 @@ data LibraryPreset
   | LibraryPresetStandardReads
   | LibraryPresetLongReads
   | LibraryPresetNotUploaded
+  | LibraryPresetDuplicateReview
   | LibraryPresetCustom
   deriving (Eq, Show, Enum, Bounded, Generic)
 
@@ -123,6 +125,7 @@ defaultLibraryQuery =
     , libraryIncludeIgnored = False
     , libraryOnlyIgnored = False
     , libraryOnlyNotUploaded = False
+    , libraryOnlyDuplicateTitles = False
     , librarySort = LibrarySortNewest
     , libraryLimit = 30
     , libraryOffset = 0

@@ -245,6 +245,7 @@ libraryWhere libraryQuery =
         <> maybeFragment (maxWords filters) maxWordsFragment
         <> ignoredFragments
         <> notUploadedFragments
+        <> duplicateTitleFragments
 
     searchFragment raw =
       let term = "%" <> T.strip raw <> "%"
@@ -261,6 +262,13 @@ libraryWhere libraryQuery =
       | otherwise = [("ignored = 0", [])]
     notUploadedFragments
       | libraryOnlyNotUploaded libraryQuery = [("uploaded_to_lingq = 0", [])]
+      | otherwise = []
+    duplicateTitleFragments
+      | libraryOnlyDuplicateTitles libraryQuery =
+          [ ( "lower(title) IN (SELECT lower(title) FROM articles GROUP BY lower(title) HAVING COUNT(*) > 1)"
+            , []
+            )
+          ]
       | otherwise = []
 
 libraryOrderBy :: LibrarySort -> Text
