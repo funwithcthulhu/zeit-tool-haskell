@@ -17,7 +17,9 @@ import System.Info (os)
 import System.IO (hClose)
 import System.Process (CreateProcess(std_in), StdStream(CreatePipe), callProcess, proc, waitForProcess, withCreateProcess)
 import Data.Text.IO qualified as TIO
+import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.Core.Batch (BatchFetchResult(..))
+import ZeitLingq.Core.Upload (BatchUploadResult(..), batchUploadArticles)
 import ZeitLingq.Domain.Article (BatchDecision(..), applyWordFilter)
 import ZeitLingq.App.Driver (dispatchEvent, dispatchEvents)
 import ZeitLingq.App.Model (Model(..), initialModel)
@@ -1296,7 +1298,42 @@ runUploadBatchAppEvent ports model articles =
     now <- getCurrentTime
     envFallback <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
     let fallbackCollection = lingqFallbackCollection model <|> envFallback
-    dispatchEvent ports model (LingqBatchUploadRequested (utctDay now) fallbackCollection articles)
+        uploadIds = mapMaybeSummaryId (filter uploadableSummary articles)
+        config =
+          uploadConfigFromPreferences
+            (utctDay now)
+            fallbackCollection
+            (datePrefixEnabled model)
+            (sectionCollections model)
+    if null uploadIds
+      then dispatchEvent ports model (Notify ErrorNotice "No uploadable articles selected.")
+      else do
+        loaded <- traverse loadOne uploadIds
+        let loadFailures = [failure | Left failure <- loaded]
+            uploadArticles = [article | Right article <- loaded]
+        uploadResults <-
+          batchUploadArticles
+            safeUpload
+            (markArticleUploaded (libraryPort ports))
+            config
+            uploadArticles
+        dispatchEvents
+          ports
+          model
+          ( BatchUploadFinished (loadFailures <> guiBatchUploadFailures uploadResults)
+              : guiBatchUploadResultEvents loadFailures uploadResults
+                <> [RefreshCurrentView]
+          )
+  where
+    loadOne ident = do
+      loaded <- tryText (loadArticle (libraryPort ports) ident)
+      pure $
+        case loaded of
+          Left err -> Left (ident, err)
+          Right Nothing -> Left (ident, "Article not found.")
+          Right (Just article) -> Right article
+    safeUpload languageCode collectionId article =
+      tryText (uploadLessonToLingq (lingqPort ports) languageCode collectionId article)
 
 runDeleteOlderAppEvent :: AppPorts IO -> Model -> Int -> Bool -> Bool -> IO GuiEvent
 runDeleteOlderAppEvent ports model days onlyUploaded onlyUnuploaded =
@@ -1393,6 +1430,29 @@ guiBatchFetchFailures :: [BatchFetchResult] -> [(Text, Text)]
 guiBatchFetchFailures results =
   [ (url, err)
   | BatchFailed url err <- results
+  ]
+
+guiBatchUploadResultEvents :: [(ArticleId, Text)] -> [BatchUploadResult] -> [Event]
+guiBatchUploadResultEvents loadFailures results =
+  [ Notify level
+      ( "Batch upload: uploaded "
+          <> tshow uploaded
+          <> ", failed "
+          <> tshow failed
+          <> "."
+      )
+  ]
+  where
+    uploaded = length [() | UploadSucceeded {} <- results] + length [() | UploadSucceededUntracked {} <- results]
+    failed = length loadFailures + length [() | UploadFailed {} <- results]
+    level
+      | failed > 0 = ErrorNotice
+      | otherwise = SuccessNotice
+
+guiBatchUploadFailures :: [BatchUploadResult] -> [(ArticleId, Text)]
+guiBatchUploadFailures results =
+  [ (ident, title <> ": " <> err)
+  | UploadFailed (Just ident) title err <- results
   ]
 
 makePorts :: IO (AppPorts IO)
