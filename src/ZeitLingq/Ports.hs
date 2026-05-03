@@ -29,6 +29,7 @@ data LingqPort m = LingqPort
   , loginToLingqWithApiKey :: Text -> m AuthStatus
   , logoutFromLingq :: m ()
   , uploadLessonToLingq :: Text -> Maybe Text -> Article -> m LingqLesson
+  , updateLessonOnLingq :: Text -> LingqLesson -> Article -> m LingqLesson
   , fetchLanguages :: m [LingqLanguage]
   , fetchCollections :: Text -> m [LingqCollection]
   , fetchCollectionLessons :: Text -> Text -> m [LingqRemoteLesson]

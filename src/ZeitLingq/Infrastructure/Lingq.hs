@@ -14,6 +14,7 @@ module ZeitLingq.Infrastructure.Lingq
   , parseCollectionLessonsValue
   , parseLanguagesValue
   , parseKnownWordTerms
+  , updateLessonLingq
   , uploadLessonLingq
   ) where
 
@@ -102,6 +103,15 @@ uploadLessonLingq token languageCode maybeCollection article = do
           . setRequestBodyJSON (lessonPayload maybeCollection article)
           $ request
   fmap (>>= lessonFromResponse languageCode) (httpJsonValue uploadRequest)
+
+updateLessonLingq :: LingqToken -> Text -> LingqLesson -> Article -> IO (Either LingqError LingqLesson)
+updateLessonLingq token languageCode existingLesson article = do
+  request <- authorized token =<< parseRequest (lingqBase <> "/" <> T.unpack languageCode <> "/lessons/" <> T.unpack (lessonId existingLesson) <> "/")
+  let updateRequest =
+        setRequestMethod "PATCH"
+          . setRequestBodyJSON (lessonPayload Nothing article)
+          $ request
+  fmap (>>= lessonFromResponse languageCode) (httpJsonValue updateRequest)
 
 fetchKnownWordsLingq :: LingqToken -> Text -> IO (Either LingqError [Text])
 fetchKnownWordsLingq token languageCode =

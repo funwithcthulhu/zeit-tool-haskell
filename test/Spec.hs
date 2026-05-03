@@ -871,14 +871,48 @@ main = hspec $ do
               }
           uploader lang collection article =
             pure (Right (LingqLesson (lang <> ":" <> maybe "none" id collection) ("lesson:" <> articleTitle article)))
+          updater _ _ _ = do
+            expectationFailure "updater should not be called for new lessons"
+            pure (Left "unexpected update")
           marker _ _ =
             pure ()
-      results <- batchUploadArticles uploader marker config [demoArticle {articleId = Just (ArticleId 3)}]
+      results <- batchUploadArticles uploader updater marker config [demoArticle {articleId = Just (ArticleId 3)}]
       results
         `shouldBe` [ UploadSucceeded
                        (ArticleId 3)
                        "2026-05-02 - Demo"
                        (LingqLesson "de:wissen-course" "lesson:2026-05-02 - Demo")
+                   ]
+
+    it "updates existing LingQ lessons instead of creating duplicates" $ do
+      let config =
+            BatchUploadConfig
+              { uploadLanguageCode = "de"
+              , uploadFallbackCollection = Just "fallback"
+              , uploadSectionCollections = Map.empty
+              , uploadDatePrefixEnabled = False
+              , uploadDay = fromGregorian 2026 5 2
+              }
+          existing = LingqLesson "old-lesson" "https://lingq.example/old"
+          uploader _ _ _ = do
+            expectationFailure "uploader should not be called for existing lessons"
+            pure (Left "unexpected upload")
+          updater lang lesson article =
+            pure (Right (LingqLesson (lang <> ":" <> lessonId lesson) ("updated:" <> articleTitle article)))
+          marker _ _ =
+            pure ()
+      results <-
+        batchUploadArticles
+          uploader
+          updater
+          marker
+          config
+          [demoArticle {articleId = Just (ArticleId 3), articleUploadedLesson = Just existing}]
+      results
+        `shouldBe` [ UploadSucceeded
+                       (ArticleId 3)
+                       "Demo"
+                       (LingqLesson "de:old-lesson" "updated:Demo")
                    ]
 
     it "returns upload failures without marking them" $ do
@@ -891,8 +925,9 @@ main = hspec $ do
               , uploadDay = fromGregorian 2026 5 2
               }
           uploader _ _ _ = pure (Left "upload failed")
+          updater _ _ _ = pure (Left "update failed")
           marker _ _ = expectationFailure "marker should not be called"
-      results <- batchUploadArticles uploader marker config [demoArticle {articleId = Just (ArticleId 4)}]
+      results <- batchUploadArticles uploader updater marker config [demoArticle {articleId = Just (ArticleId 4)}]
       results `shouldBe` [UploadFailed (Just (ArticleId 4)) "Demo" "upload failed"]
 
   describe "SQLite library adapter" $ do
@@ -1262,6 +1297,7 @@ testPorts summary =
           , loginToLingqWithApiKey = \_ -> Identity (AuthStatus True (Just "API key"))
           , logoutFromLingq = Identity ()
           , uploadLessonToLingq = \_ _ _ -> Identity (LingqLesson "lesson" "https://lingq.example/lesson")
+          , updateLessonOnLingq = \_ lesson _ -> Identity lesson
           , fetchLanguages = Identity [LingqLanguage "de" "German"]
           , fetchCollections = \_ -> Identity []
           , fetchCollectionLessons = \_ _ -> Identity []

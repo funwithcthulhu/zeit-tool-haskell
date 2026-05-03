@@ -140,6 +140,8 @@ runCommand ports command =
             batchUploadArticles
               (\uploadLanguageCode collectionId titledArticle ->
                 Right <$> uploadLessonToLingq lingq uploadLanguageCode collectionId titledArticle)
+              (\uploadLanguageCode existingLesson titledArticle ->
+                Right <$> updateLessonOnLingq lingq uploadLanguageCode existingLesson titledArticle)
               (markArticleUploaded library)
               (uploadConfigFromPreferences day languageCode fallbackCollection datePrefix sectionCollections)
               [article]
@@ -153,6 +155,8 @@ runCommand ports command =
             batchUploadArticles
               (\uploadLanguageCode collectionId titledArticle ->
                 Right <$> uploadLessonToLingq lingq uploadLanguageCode collectionId titledArticle)
+              (\uploadLanguageCode existingLesson titledArticle ->
+                Right <$> updateLessonOnLingq lingq uploadLanguageCode existingLesson titledArticle)
               (markArticleUploaded library)
               (uploadConfigFromPreferences day languageCode fallbackCollection datePrefix sectionCollections)
               articles

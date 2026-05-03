@@ -1435,7 +1435,8 @@ rowActions _ article =
 
 uploadAction :: ArticleId -> ArticleSummary -> [WidgetNode Model GuiEvent]
 uploadAction ident article
-  | summaryUploaded article || summaryIgnored article = []
+  | summaryIgnored article = []
+  | summaryUploaded article = [rowSecondaryButton "Update LingQ" (GuiUploadArticle ident)]
   | otherwise = [rowPrimaryButton "Upload" (GuiUploadArticle ident)]
 
 rowsForCurrentView :: Model -> [ArticleSummary]
@@ -1588,7 +1589,13 @@ runUploadBatchProducer ports model articles send =
           targetCollection = targetCollectionFor config article
           title = articleTitle titledArticle
       sendProgress (ProgressStatus "Uploading articles" (index - 1) total title)
-      result <- tryText (uploadLessonToLingq (lingqPort ports) (uploadLanguageCode config) targetCollection titledArticle)
+      result <-
+        tryText $
+          case articleUploadedLesson article of
+            Just existingLesson ->
+              updateLessonOnLingq (lingqPort ports) (uploadLanguageCode config) existingLesson titledArticle
+            Nothing ->
+              uploadLessonToLingq (lingqPort ports) (uploadLanguageCode config) targetCollection titledArticle
       uploadResult <-
         case result of
           Left err -> pure (UploadFailed (articleId article) title err)
@@ -1831,6 +1838,9 @@ guiLingqPort path =
     , uploadLessonToLingq = \languageCode collectionId article -> do
         token <- loadLingqToken path
         either failWithShow pure =<< uploadLessonLingq token languageCode collectionId article
+    , updateLessonOnLingq = \languageCode existingLesson article -> do
+        token <- loadLingqToken path
+        either failWithShow pure =<< updateLessonLingq token languageCode existingLesson article
     , fetchLanguages = do
         token <- loadLingqToken path
         either failWithShow pure =<< fetchLanguagesLingq token

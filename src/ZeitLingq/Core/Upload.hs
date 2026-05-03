@@ -32,11 +32,12 @@ data BatchUploadResult
 batchUploadArticles
   :: Monad m
   => (Text -> Maybe Text -> Article -> m (Either Text LingqLesson))
+  -> (Text -> LingqLesson -> Article -> m (Either Text LingqLesson))
   -> (ArticleId -> LingqLesson -> m ())
   -> BatchUploadConfig
   -> [Article]
   -> m [BatchUploadResult]
-batchUploadArticles uploadLesson markUploaded config =
+batchUploadArticles uploadLesson updateLesson markUploaded config =
   traverse uploadOne
   where
     uploadOne article = do
@@ -49,7 +50,10 @@ batchUploadArticles uploadLesson markUploaded config =
                     (articleTitle article)
               }
           targetCollection = targetCollectionFor config article
-      result <- uploadLesson (uploadLanguageCode config) targetCollection titledArticle
+      result <-
+        case articleUploadedLesson article of
+          Just existingLesson -> updateLesson (uploadLanguageCode config) existingLesson titledArticle
+          Nothing -> uploadLesson (uploadLanguageCode config) targetCollection titledArticle
       case result of
         Left err -> pure (UploadFailed (articleId article) (articleTitle titledArticle) err)
         Right lesson ->
