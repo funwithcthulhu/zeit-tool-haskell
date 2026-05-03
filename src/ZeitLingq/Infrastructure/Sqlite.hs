@@ -73,6 +73,7 @@ sqliteLibraryPort :: LibraryDb -> LibraryPort IO
 sqliteLibraryPort db =
   LibraryPort
     { loadLibrary = getArticlesSqlite db
+    , loadLibraryPage = getArticlesByQuerySqlite db
     , loadArticle = getArticleSqlite db
     , saveArticle = saveArticleSqlite db
     , deleteArticle = deleteArticleSqlite db
@@ -222,19 +223,6 @@ getArticlesByQuerySqlite (LibraryDb conn) libraryQuery = do
         <> [ SQLInteger (safeLimit (libraryLimit libraryQuery))
            , SQLInteger (safeOffset (libraryOffset libraryQuery))
            ]
-
-defaultLibraryQuery :: LibraryQuery
-defaultLibraryQuery =
-  LibraryQuery
-    { librarySearch = Nothing
-    , librarySection = Nothing
-    , libraryWordFilter = WordFilter Nothing Nothing
-    , libraryIncludeIgnored = False
-    , libraryOnlyIgnored = False
-    , libraryOnlyNotUploaded = False
-    , libraryLimit = 50
-    , libraryOffset = 0
-    }
 
 libraryWhere :: LibraryQuery -> (Text, [SQLData])
 libraryWhere libraryQuery =

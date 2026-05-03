@@ -86,7 +86,7 @@ main = hspec $ do
       loadedCommands `shouldBe` []
       selectedArticleContent closedModel `shouldBe` Nothing
       currentView closedModel `shouldBe` LibraryView
-      closedCommands `shouldBe` [PersistCurrentView LibraryView, RefreshLibrary (WordFilter Nothing Nothing)]
+      closedCommands `shouldBe` [PersistCurrentView LibraryView, RefreshLibraryPage defaultLibraryQuery]
 
     it "hydrates startup model from the settings port" $ do
       let port =
@@ -134,9 +134,28 @@ main = hspec $ do
       snd (update (BrowseFilterChanged filters) browseModel)
         `shouldBe` [RefreshBrowse "wissen" 1]
       snd (update (LibraryFilterChanged filters) initialModel)
-        `shouldBe` [RefreshLibrary filters]
+        `shouldBe` [RefreshLibraryPage defaultLibraryQuery {libraryWordFilter = filters}]
       snd (update (LingqFilterChanged filters) initialModel)
         `shouldBe` [RefreshLingqLibrary filters]
+
+    it "updates rich library queries for search, toggles and paging" $ do
+      let baseQuery = defaultLibraryQuery {libraryOffset = 30}
+          baseModel = initialModel {libraryQuery = baseQuery}
+          (searchModel, searchCommands) = update (LibrarySearchChanged " Alpha ") baseModel
+          (ignoredModel, ignoredCommands) = update (LibraryIncludeIgnoredChanged True) baseModel
+          (onlyIgnoredModel, onlyIgnoredCommands) = update (LibraryOnlyIgnoredChanged True) baseModel
+          (onlyNotUploadedModel, onlyNotUploadedCommands) = update (LibraryOnlyNotUploadedChanged True) baseModel
+          (pageModel, pageCommands) = update (LibraryPageChanged 60) baseModel
+      libraryQuery searchModel `shouldBe` baseQuery {librarySearch = Just "Alpha", libraryOffset = 0}
+      searchCommands `shouldBe` [RefreshLibraryPage (libraryQuery searchModel)]
+      libraryQuery ignoredModel `shouldBe` baseQuery {libraryIncludeIgnored = True, libraryOnlyIgnored = False, libraryOffset = 0}
+      ignoredCommands `shouldBe` [RefreshLibraryPage (libraryQuery ignoredModel)]
+      libraryQuery onlyIgnoredModel `shouldBe` baseQuery {libraryIncludeIgnored = True, libraryOnlyIgnored = True, libraryOffset = 0}
+      onlyIgnoredCommands `shouldBe` [RefreshLibraryPage (libraryQuery onlyIgnoredModel)]
+      libraryQuery onlyNotUploadedModel `shouldBe` baseQuery {libraryOnlyNotUploaded = True, libraryOffset = 0}
+      onlyNotUploadedCommands `shouldBe` [RefreshLibraryPage (libraryQuery onlyNotUploadedModel)]
+      libraryQuery pageModel `shouldBe` baseQuery {libraryOffset = 60}
+      pageCommands `shouldBe` [RefreshLibraryPage (libraryQuery pageModel)]
 
     it "turns GUI row actions into app commands" $ do
       let summary =
@@ -188,6 +207,8 @@ main = hspec $ do
         `shouldBe` [BrowseArticlesLoaded [summary {summarySection = "kultur"}]]
       runIdentity (Runtime.runCommand ports (RefreshLibrary filters))
         `shouldBe` [LibraryArticlesLoaded [summary]]
+      runIdentity (Runtime.runCommand ports (RefreshLibraryPage defaultLibraryQuery))
+        `shouldBe` [LibraryPageLoaded (LibraryPage [summary] 1)]
       runIdentity (Runtime.runCommand ports (RefreshLingqLibrary filters))
         `shouldBe` [LingqArticlesLoaded [summary]]
       runIdentity (Runtime.runCommand ports (LoadArticle (ArticleId 1)))
@@ -952,6 +973,7 @@ testPorts summary =
     , libraryPort =
         LibraryPort
           { loadLibrary = \_ -> Identity [summary]
+          , loadLibraryPage = \_ -> Identity (LibraryPage [summary] 1)
           , loadArticle = \_ -> Identity (Just demoArticle)
           , saveArticle = \_ -> Identity (ArticleId 1)
           , deleteArticle = \_ -> Identity ()

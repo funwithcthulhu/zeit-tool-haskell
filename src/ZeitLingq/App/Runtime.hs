@@ -36,6 +36,9 @@ runCommand ports command =
     RefreshLibrary filters -> do
       articles <- loadLibrary library filters
       pure [LibraryArticlesLoaded articles]
+    RefreshLibraryPage query -> do
+      page <- loadLibraryPage library query
+      pure [LibraryPageLoaded page]
     RefreshLingqLibrary filters -> do
       articles <- loadLibrary library filters
       pure [LingqArticlesLoaded articles]

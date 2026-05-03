@@ -39,6 +39,14 @@ data GuiEvent
   | GuiUploadVisible [ArticleSummary]
   | GuiDownloadAudio ArticleId
   | GuiSyncKnownWords
+  | GuiLibrarySearchChanged Text
+  | GuiLibraryMinWordsChanged Text
+  | GuiLibraryMaxWordsChanged Text
+  | GuiLibraryIncludeIgnoredChanged Bool
+  | GuiLibraryOnlyIgnoredChanged Bool
+  | GuiLibraryOnlyNotUploadedChanged Bool
+  | GuiLibraryPreviousPage
+  | GuiLibraryNextPage
   | GuiDeleteArticle ArticleId
   | GuiCloseArticle
   | GuiClearNotice
@@ -106,6 +114,22 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))]
     GuiSyncKnownWords ->
       [Task (runAppEvent ports model (KnownWordsSyncRequested "de"))]
+    GuiLibrarySearchChanged search ->
+      [Task (runAppEvent ports model (LibrarySearchChanged search))]
+    GuiLibraryMinWordsChanged raw ->
+      [Task (runAppEvent ports model (LibraryFilterChanged ((libraryFilter model) {minWords = parseOptionalInt raw})))]
+    GuiLibraryMaxWordsChanged raw ->
+      [Task (runAppEvent ports model (LibraryFilterChanged ((libraryFilter model) {maxWords = parseOptionalInt raw})))]
+    GuiLibraryIncludeIgnoredChanged enabled ->
+      [Task (runAppEvent ports model (LibraryIncludeIgnoredChanged enabled))]
+    GuiLibraryOnlyIgnoredChanged enabled ->
+      [Task (runAppEvent ports model (LibraryOnlyIgnoredChanged enabled))]
+    GuiLibraryOnlyNotUploadedChanged enabled ->
+      [Task (runAppEvent ports model (LibraryOnlyNotUploadedChanged enabled))]
+    GuiLibraryPreviousPage ->
+      [Task (runAppEvent ports model (LibraryPageChanged (libraryOffset (libraryQuery model) - libraryLimit (libraryQuery model))))]
+    GuiLibraryNextPage ->
+      [Task (runAppEvent ports model (LibraryPageChanged (libraryOffset (libraryQuery model) + libraryLimit (libraryQuery model))))]
     GuiDeleteArticle ident ->
       [Task (runAppEvent ports model (ArticleDeleteRequested ident))]
     GuiCloseArticle ->
@@ -172,6 +196,7 @@ contentBlock model vm =
     , label ("Filter: " <> vmActiveFilter vm)
     , label (vmDatePrefix vm)
     , browseControls model
+    , libraryControls model
     , lingqControls model
     , selectedArticleBlock model (vmSelectedArticle vm)
     , articleParagraphsBlock (vmSelectedArticleParagraphs vm)
@@ -196,6 +221,65 @@ browseControls model =
     sectionButton section =
       button (sectionLabel section) (GuiSectionSelected (sectionId section))
         `styleBasic` [paddingR 4]
+
+libraryControls :: Model -> WidgetNode Model GuiEvent
+libraryControls model =
+  case currentView model of
+    LibraryView ->
+      vstack
+        [ hstack
+            [ label "Search"
+                `styleBasic` [paddingR 8]
+            , textFieldV_ (maybe "" id (librarySearch query)) GuiLibrarySearchChanged [placeholder "Title or article text"]
+                `styleBasic` [width 300]
+            , label "Min"
+                `styleBasic` [paddingL 12, paddingR 6]
+            , textFieldV (maybe "" tshow (minWords (libraryWordFilter query))) GuiLibraryMinWordsChanged
+                `styleBasic` [width 70]
+            , label "Max"
+                `styleBasic` [paddingL 12, paddingR 6]
+            , textFieldV (maybe "" tshow (maxWords (libraryWordFilter query))) GuiLibraryMaxWordsChanged
+                `styleBasic` [width 70]
+            ]
+        , hstack
+            [ toggle "Show ignored" (libraryIncludeIgnored query) GuiLibraryIncludeIgnoredChanged
+            , toggle "Only ignored" (libraryOnlyIgnored query) GuiLibraryOnlyIgnoredChanged
+            , toggle "Only not uploaded" (libraryOnlyNotUploaded query) GuiLibraryOnlyNotUploadedChanged
+            ]
+            `styleBasic` [paddingV 8]
+        , hstack
+            [ button "Previous" GuiLibraryPreviousPage
+            , label (libraryPageLabel model)
+                `styleBasic` [paddingH 12]
+            , button "Next" GuiLibraryNextPage
+            ]
+        ]
+        `styleBasic` [paddingV 8]
+    _ -> spacer
+  where
+    query = libraryQuery model
+
+toggle :: Text -> Bool -> (Bool -> GuiEvent) -> WidgetNode Model GuiEvent
+toggle text value handler =
+  hstack
+    [ checkboxV value handler
+    , label text
+        `styleBasic` [paddingL 4, paddingR 16]
+    ]
+
+libraryPageLabel :: Model -> Text
+libraryPageLabel model
+  | libraryTotal model <= 0 = "0 of 0"
+  | otherwise =
+      tshow firstItem
+        <> "-"
+        <> tshow lastItem
+        <> " of "
+        <> tshow (libraryTotal model)
+  where
+    query = libraryQuery model
+    firstItem = libraryOffset query + 1
+    lastItem = min (libraryTotal model) (libraryOffset query + libraryLimit query)
 
 lingqControls :: Model -> WidgetNode Model GuiEvent
 lingqControls model =
@@ -427,6 +511,8 @@ guiLibraryPort =
   LibraryPort
     { loadLibrary = \filters ->
         withLibrary dbPath $ \db -> getArticlesSqlite db filters
+    , loadLibraryPage = \query ->
+        withLibrary dbPath $ \db -> getArticlesByQuerySqlite db query
     , loadArticle = \ident ->
         withLibrary dbPath $ \db -> getArticleSqlite db ident
     , saveArticle = \article ->
@@ -457,6 +543,18 @@ guiLibraryPort =
 
 failWithShow :: Show err => err -> IO a
 failWithShow = fail . show
+
+parseOptionalInt :: Text -> Maybe Int
+parseOptionalInt raw =
+  case T.unpack (T.strip raw) of
+    "" -> Nothing
+    value ->
+      case reads value of
+        [(parsed, "")] | parsed >= (0 :: Int) -> Just parsed
+        _ -> Nothing
+
+tshow :: Show a => a -> Text
+tshow = T.pack . show
 
 main :: IO ()
 main = do

@@ -19,11 +19,13 @@ data Model = Model
   , selectedArticleContent :: Maybe Article
   , browseArticles :: [ArticleSummary]
   , libraryArticles :: [ArticleSummary]
+  , libraryTotal :: Int
   , lingqArticles :: [ArticleSummary]
   , notification :: Maybe Notification
   , browseSectionId :: Text
   , browseFilter :: WordFilter
   , libraryFilter :: WordFilter
+  , libraryQuery :: LibraryQuery
   , lingqFilter :: WordFilter
   , datePrefixEnabled :: Bool
   , sectionCollections :: Map Text Text
@@ -42,11 +44,13 @@ initialModel =
     , selectedArticleContent = Nothing
     , browseArticles = []
     , libraryArticles = []
+    , libraryTotal = 0
     , lingqArticles = []
     , notification = Nothing
     , browseSectionId = "index"
     , browseFilter = WordFilter Nothing Nothing
     , libraryFilter = WordFilter Nothing Nothing
+    , libraryQuery = defaultLibraryQuery
     , lingqFilter = WordFilter Nothing Nothing
     , datePrefixEnabled = True
     , sectionCollections = Map.empty

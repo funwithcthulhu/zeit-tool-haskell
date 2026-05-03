@@ -35,6 +35,7 @@ data AudioPort m = AudioPort
 
 data LibraryPort m = LibraryPort
   { loadLibrary :: WordFilter -> m [ArticleSummary]
+  , loadLibraryPage :: LibraryQuery -> m LibraryPage
   , loadArticle :: ArticleId -> m (Maybe Article)
   , saveArticle :: Article -> m ArticleId
   , deleteArticle :: ArticleId -> m ()

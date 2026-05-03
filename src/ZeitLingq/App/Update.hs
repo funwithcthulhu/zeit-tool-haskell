@@ -8,6 +8,7 @@ module ZeitLingq.App.Update
 
 import Data.Map.Strict (Map)
 import Data.Text (Text)
+import Data.Text qualified as T
 import Data.Time (Day)
 import ZeitLingq.App.Model (Model(..))
 import ZeitLingq.Domain.Types
@@ -30,6 +31,7 @@ data Event
   | KnownWordsSyncRequested Text
   | BrowseArticlesLoaded [ArticleSummary]
   | LibraryArticlesLoaded [ArticleSummary]
+  | LibraryPageLoaded LibraryPage
   | LingqArticlesLoaded [ArticleSummary]
   | RefreshCurrentView
   | Notify NotificationLevel Text
@@ -37,6 +39,11 @@ data Event
   | BrowseSectionSelected Text
   | BrowseFilterChanged WordFilter
   | LibraryFilterChanged WordFilter
+  | LibrarySearchChanged Text
+  | LibraryIncludeIgnoredChanged Bool
+  | LibraryOnlyIgnoredChanged Bool
+  | LibraryOnlyNotUploadedChanged Bool
+  | LibraryPageChanged Int
   | LingqFilterChanged WordFilter
   | DatePrefixToggled Bool
   | SectionCollectionsChanged (Map Text Text)
@@ -49,6 +56,7 @@ data Command
   | PersistSectionCollections (Map Text Text)
   | RefreshBrowse Text Int
   | RefreshLibrary WordFilter
+  | RefreshLibraryPage LibraryQuery
   | RefreshLingqLibrary WordFilter
   | LoadArticle ArticleId
   | FetchAndSaveArticle ArticleSummary
@@ -141,7 +149,14 @@ update event model =
       , []
       )
     LibraryArticlesLoaded articles ->
-      ( model {libraryArticles = articles}
+      ( model {libraryArticles = articles, libraryTotal = length articles}
+      , []
+      )
+    LibraryPageLoaded page ->
+      ( model
+          { libraryArticles = libraryPageArticles page
+          , libraryTotal = libraryPageTotal page
+          }
       , []
       )
     LingqArticlesLoaded articles ->
@@ -169,9 +184,60 @@ update event model =
       , [RefreshBrowse (browseSectionId model) 1]
       )
     LibraryFilterChanged filters ->
-      ( model {libraryFilter = filters}
-      , [RefreshLibrary filters]
-      )
+      let nextQuery =
+            (libraryQuery model)
+              { libraryWordFilter = filters
+              , libraryOffset = 0
+              }
+       in ( model {libraryFilter = filters, libraryQuery = nextQuery}
+          , [RefreshLibraryPage nextQuery]
+          )
+    LibrarySearchChanged search ->
+      let nextQuery =
+            (libraryQuery model)
+              { librarySearch = nonEmptyText search
+              , libraryOffset = 0
+              }
+       in ( model {libraryQuery = nextQuery}
+          , [RefreshLibraryPage nextQuery]
+          )
+    LibraryIncludeIgnoredChanged enabled ->
+      let nextQuery =
+            (libraryQuery model)
+              { libraryIncludeIgnored = enabled
+              , libraryOnlyIgnored = libraryOnlyIgnored (libraryQuery model) && enabled
+              , libraryOffset = 0
+              }
+       in ( model {libraryQuery = nextQuery}
+          , [RefreshLibraryPage nextQuery]
+          )
+    LibraryOnlyIgnoredChanged enabled ->
+      let nextQuery =
+            (libraryQuery model)
+              { libraryOnlyIgnored = enabled
+              , libraryIncludeIgnored = enabled || libraryIncludeIgnored (libraryQuery model)
+              , libraryOffset = 0
+              }
+       in ( model {libraryQuery = nextQuery}
+          , [RefreshLibraryPage nextQuery]
+          )
+    LibraryOnlyNotUploadedChanged enabled ->
+      let nextQuery =
+            (libraryQuery model)
+              { libraryOnlyNotUploaded = enabled
+              , libraryOffset = 0
+              }
+       in ( model {libraryQuery = nextQuery}
+          , [RefreshLibraryPage nextQuery]
+          )
+    LibraryPageChanged offset ->
+      let nextQuery =
+            (libraryQuery model)
+              { libraryOffset = max 0 offset
+              }
+       in ( model {libraryQuery = nextQuery}
+          , [RefreshLibraryPage nextQuery]
+          )
     LingqFilterChanged filters ->
       ( model {lingqFilter = filters}
       , [RefreshLingqLibrary filters]
@@ -189,7 +255,7 @@ refreshCommands :: Model -> [Command]
 refreshCommands model =
   case currentView model of
     BrowseView -> [RefreshBrowse (browseSectionId model) 1]
-    LibraryView -> [RefreshLibrary (libraryFilter model)]
+    LibraryView -> [RefreshLibraryPage (libraryQuery model)]
     LingqView -> [RefreshLingqLibrary (lingqFilter model)]
     ZeitLoginView -> []
     ArticleView -> maybe [] (maybe [] (pure . LoadArticle) . summaryId) (selectedArticle model)
@@ -202,3 +268,13 @@ uploadableIds articles =
   , not (summaryUploaded article)
   , not (summaryIgnored article)
   ]
+
+nonEmptyText :: Text -> Maybe Text
+nonEmptyText value
+  | stripped == "" = Nothing
+  | otherwise = Just stripped
+  where
+    stripped = stripText value
+
+stripText :: Text -> Text
+stripText = T.strip

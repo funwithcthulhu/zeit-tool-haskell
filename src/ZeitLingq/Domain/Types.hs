@@ -17,6 +17,7 @@ module ZeitLingq.Domain.Types
   , Section(..)
   , View(..)
   , WordFilter(..)
+  , defaultLibraryQuery
   ) where
 
 import Data.Map.Strict (Map)
@@ -77,6 +78,19 @@ data LibraryPage = LibraryPage
   { libraryPageArticles :: [ArticleSummary]
   , libraryPageTotal :: Int
   } deriving (Eq, Show, Generic)
+
+defaultLibraryQuery :: LibraryQuery
+defaultLibraryQuery =
+  LibraryQuery
+    { librarySearch = Nothing
+    , librarySection = Nothing
+    , libraryWordFilter = WordFilter Nothing Nothing
+    , libraryIncludeIgnored = False
+    , libraryOnlyIgnored = False
+    , libraryOnlyNotUploaded = False
+    , libraryLimit = 30
+    , libraryOffset = 0
+    }
 
 data LingqLesson = LingqLesson
   { lessonId :: Text
