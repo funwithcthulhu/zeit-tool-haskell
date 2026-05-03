@@ -84,7 +84,7 @@ The Monomer GUI is the primary desktop entry point. It stays thin: user actions 
 The GUI currently supports:
 
 - Browsing Zeit sections with topic dropdown, search, hidden-url filtering, only-new filtering, paging, preview, original-link opening, single fetch, selected fetch, visible fetch, and retryable failed fetches.
-- Managing the local library with presets for common reading/upload workflows and duplicate review, compact or comfortable row density, search, section and word filters, ignored/not-uploaded filters, grouping, sorting, paging, article open/copy/original/audio actions, and configurable cleanup of ignored, old, uploaded, or unuploaded articles.
+- Managing the local library with presets for common reading/upload workflows and duplicate review, compact or comfortable row density, persisted light/dark theme selection, search, section and word filters, ignored/not-uploaded filters, grouping, sorting, paging, article open/copy/original/audio actions, and configurable cleanup of ignored, old, uploaded, or unuploaded articles.
 - Uploading saved articles to LingQ with API key or password login, language selection, collection refresh, fallback collection selection, per-section collection mapping, date-prefixed lesson titles, existing-lesson updates, upload-status sync from an existing LingQ course, known-word sync/import/clear/recompute, selected/visible upload, and retryable failed uploads.
 - Zeit authentication through manual cookie paste or browser-assisted Edge/Chrome login import, plus opening the project data folder, the GUI log file, timestamped support bundles, and the Zeit login page from the GUI.
 
@@ -93,7 +93,7 @@ The GUI currently supports:
 - The Haskell core covers Zeit browsing/fetching, SQLite persistence, library maintenance, known-word import/sync/estimation, article audio download/open, LingQ upload, and LingQ course status reconciliation.
 - The Monomer GUI is functional and launched by `run-zeit-tool.ps1` or the Windows desktop shortcut.
 - Batch fetch and batch upload show live progress, prevent overlapping batch jobs, and keep per-item failures retryable from the sidebar.
-- JSON settings persist the current view, row density, Zeit cookie, LingQ API key, LingQ language, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
+- JSON settings persist the current view, row density, UI theme, Zeit cookie, LingQ API key, LingQ language, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
 - The CLI harness remains available for quick verification and scripting.
 
 Known limits:

@@ -76,6 +76,7 @@ data Event
   | FailureListsCleared
   | ProgressChanged (Maybe ProgressStatus)
   | RowDensityChanged RowDensity
+  | UiThemeChanged UiTheme
   | RefreshCurrentView
   | Notify NotificationLevel Text
   | NotificationCleared
@@ -117,6 +118,7 @@ data Command
   | PersistLingqFallbackCollection (Maybe Text)
   | PersistSectionCollections (Map Text Text)
   | PersistRowDensity RowDensity
+  | PersistUiTheme UiTheme
   | RefreshBrowse Text Int Bool
   | RefreshLibrary WordFilter
   | RefreshLibraryPage LibraryQuery
@@ -431,6 +433,10 @@ update event model =
     RowDensityChanged density ->
       ( model {rowDensity = density}
       , [PersistRowDensity density]
+      )
+    UiThemeChanged theme ->
+      ( model {uiTheme = theme}
+      , [PersistUiTheme theme]
       )
     RefreshCurrentView ->
       ( model

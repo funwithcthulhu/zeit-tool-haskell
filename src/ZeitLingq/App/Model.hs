@@ -51,6 +51,7 @@ data Model = Model
   , failedFetches :: [(Text, Text)]
   , failedUploads :: [(ArticleId, Text)]
   , rowDensity :: RowDensity
+  , uiTheme :: UiTheme
   , browseSectionId :: Text
   , browsePage :: Int
   , browseFilter :: WordFilter
@@ -104,6 +105,7 @@ initialModel =
     , failedFetches = []
     , failedUploads = []
     , rowDensity = CompactRows
+    , uiTheme = DarkUiTheme
     , browseSectionId = "index"
     , browsePage = 1
     , browseFilter = WordFilter Nothing Nothing

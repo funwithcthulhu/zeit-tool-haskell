@@ -20,6 +20,7 @@ module ZeitLingq.Domain.Types
   , ProgressStatus(..)
   , RowDensity(..)
   , Section(..)
+  , UiTheme(..)
   , View(..)
   , WordFilter(..)
   , defaultLibraryQuery
@@ -109,6 +110,11 @@ data LibraryPreset
 data RowDensity
   = CompactRows
   | ComfortableRows
+  deriving (Eq, Show, Enum, Bounded, Generic)
+
+data UiTheme
+  = DarkUiTheme
+  | LightUiTheme
   deriving (Eq, Show, Enum, Bounded, Generic)
 
 data LibraryPage = LibraryPage

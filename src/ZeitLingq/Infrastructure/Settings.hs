@@ -8,6 +8,8 @@ module ZeitLingq.Infrastructure.Settings
   , saveSettings
   , rowDensityFromText
   , rowDensityToText
+  , uiThemeFromText
+  , uiThemeToText
   , viewFromText
   , viewToText
   ) where
@@ -22,7 +24,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.FilePath (takeDirectory)
-import ZeitLingq.Domain.Types (RowDensity(..), View(..), WordFilter(..))
+import ZeitLingq.Domain.Types (RowDensity(..), UiTheme(..), View(..), WordFilter(..))
 import ZeitLingq.Ports (SettingsPort(..))
 
 data Settings = Settings
@@ -39,6 +41,7 @@ data Settings = Settings
   , settingsLingqFallbackCollection :: Maybe Text
   , settingsSectionCollections :: Map Text Text
   , settingsRowDensity :: RowDensity
+  , settingsUiTheme :: UiTheme
   } deriving (Eq, Show)
 
 defaultSettings :: Settings
@@ -57,6 +60,7 @@ defaultSettings =
     , settingsLingqFallbackCollection = Nothing
     , settingsSectionCollections = Map.empty
     , settingsRowDensity = CompactRows
+    , settingsUiTheme = DarkUiTheme
     }
 
 jsonSettingsPort :: FilePath -> SettingsPort IO
@@ -88,6 +92,8 @@ jsonSettingsPort path =
     , saveSectionCollections = updateSettings path . setSectionCollections
     , loadRowDensity = settingsRowDensity <$> loadSettings path
     , saveRowDensity = updateSettings path . setRowDensity
+    , loadUiTheme = settingsUiTheme <$> loadSettings path
+    , saveUiTheme = updateSettings path . setUiTheme
     }
 
 loadSettings :: FilePath -> IO Settings
@@ -148,6 +154,9 @@ setSectionCollections value settings = settings {settingsSectionCollections = va
 setRowDensity :: RowDensity -> Settings -> Settings
 setRowDensity value settings = settings {settingsRowDensity = value}
 
+setUiTheme :: UiTheme -> Settings -> Settings
+setUiTheme value settings = settings {settingsUiTheme = value}
+
 instance ToJSON Settings where
   toJSON settings =
     object
@@ -164,6 +173,7 @@ instance ToJSON Settings where
       , "lingqFallbackCollection" .= settingsLingqFallbackCollection settings
       , "sectionCollections" .= settingsSectionCollections settings
       , "rowDensity" .= rowDensityToText (settingsRowDensity settings)
+      , "uiTheme" .= uiThemeToText (settingsUiTheme settings)
       ]
 
 instance FromJSON Settings where
@@ -183,6 +193,7 @@ instance FromJSON Settings where
         <*> obj .:? "lingqFallbackCollection" .!= settingsLingqFallbackCollection defaultSettings
         <*> obj .:? "sectionCollections" .!= settingsSectionCollections defaultSettings
         <*> parseRowDensity obj
+        <*> parseUiTheme obj
     where
       parseView obj = do
         value <- obj .:? "currentView" .!= viewToText (settingsCurrentView defaultSettings)
@@ -190,6 +201,9 @@ instance FromJSON Settings where
       parseRowDensity obj = do
         value <- obj .:? "rowDensity" .!= rowDensityToText (settingsRowDensity defaultSettings)
         parseRowDensityText value
+      parseUiTheme obj = do
+        value <- obj .:? "uiTheme" .!= uiThemeToText (settingsUiTheme defaultSettings)
+        parseUiThemeText value
 
 wordFilterToJson :: WordFilter -> Value
 wordFilterToJson filterValue =
@@ -240,6 +254,21 @@ parseRowDensityText value =
   case rowDensityFromText value of
     Just density -> pure density
     Nothing -> fail ("Unknown row density: " <> T.unpack value)
+
+uiThemeToText :: UiTheme -> Text
+uiThemeToText DarkUiTheme = "dark"
+uiThemeToText LightUiTheme = "light"
+
+uiThemeFromText :: Text -> Maybe UiTheme
+uiThemeFromText "dark" = Just DarkUiTheme
+uiThemeFromText "light" = Just LightUiTheme
+uiThemeFromText _ = Nothing
+
+parseUiThemeText :: Text -> Parser UiTheme
+parseUiThemeText value =
+  case uiThemeFromText (T.toLower (T.strip value)) of
+    Just theme -> pure theme
+    Nothing -> fail ("Unknown UI theme: " <> T.unpack value)
 
 normalizeLingqLanguage :: Text -> Text
 normalizeLingqLanguage value

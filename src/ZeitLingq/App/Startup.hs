@@ -20,6 +20,7 @@ loadInitialModel settings = do
   fallbackCollection <- loadLingqFallbackCollection settings
   collections <- loadSectionCollections settings
   density <- loadRowDensity settings
+  theme <- loadUiTheme settings
   pure
     initialModel
       { currentView = view
@@ -35,4 +36,5 @@ loadInitialModel settings = do
       , lingqFallbackCollection = fallbackCollection
       , sectionCollections = collections
       , rowDensity = density
+      , uiTheme = theme
       }

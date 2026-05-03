@@ -64,6 +64,8 @@ runCommand ports command =
       [] <$ saveSectionCollections settings mappings
     PersistRowDensity density ->
       [] <$ saveRowDensity settings density
+    PersistUiTheme theme ->
+      [] <$ saveUiTheme settings theme
     RefreshBrowse sectionId page showHidden -> do
       articles <- fetchArticleList zeit sectionId page
       ignoredUrls <- Set.fromList <$> loadIgnoredUrls library

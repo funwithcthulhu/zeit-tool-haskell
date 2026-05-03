@@ -155,13 +155,16 @@ runCommand (UploadLingq ident dbPath settingsPath) = do
                 config =
                   uploadConfigFromPreferences
                     (utctDay now)
+                    (settingsLingqLanguage settings)
                     maybeCollection
                     (settingsDatePrefixEnabled settings)
                     (settingsSectionCollections settings)
                 uploader lang collection titledArticle =
                   firstText <$> uploadLessonLingq token lang collection titledArticle
+                updater lang existingLesson titledArticle =
+                  firstText <$> updateLessonLingq token lang existingLesson titledArticle
                 marker = markUploadedSqlite db
-            results <- batchUploadArticles uploader marker config [article]
+            results <- batchUploadArticles uploader updater marker config [article]
             for_ results print
 runCommand (DownloadAudio ident audioDir dbPath) =
   withLibrary dbPath $ \db -> do
@@ -273,6 +276,7 @@ formatSettings :: Settings -> T.Text
 formatSettings settings =
   T.unlines
     ( [ "currentView: " <> viewToText (settingsCurrentView settings)
+      , "uiTheme: " <> uiThemeToText (settingsUiTheme settings)
       , "browseSection: " <> settingsBrowseSection settings
       , "datePrefixEnabled: " <> boolText (settingsDatePrefixEnabled settings)
       , "sectionCollections:"

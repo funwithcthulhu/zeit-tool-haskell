@@ -91,6 +91,8 @@ data SettingsPort m = SettingsPort
   , saveSectionCollections :: Map Text Text -> m ()
   , loadRowDensity :: m RowDensity
   , saveRowDensity :: RowDensity -> m ()
+  , loadUiTheme :: m UiTheme
+  , saveUiTheme :: UiTheme -> m ()
   }
 
 data AppPorts m = AppPorts

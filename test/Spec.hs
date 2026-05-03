@@ -117,6 +117,8 @@ main = hspec $ do
               , saveSectionCollections = \_ -> Identity ()
               , loadRowDensity = Identity ComfortableRows
               , saveRowDensity = \_ -> Identity ()
+              , loadUiTheme = Identity LightUiTheme
+              , saveUiTheme = \_ -> Identity ()
               }
           model = runIdentity (loadInitialModel port)
       currentView model `shouldBe` LingqView
@@ -129,6 +131,7 @@ main = hspec $ do
       browseOnlyNew model `shouldBe` False
       lingqFilter model `shouldBe` WordFilter (Just 500) Nothing
       rowDensity model `shouldBe` ComfortableRows
+      uiTheme model `shouldBe` LightUiTheme
       lingqOnlyNotUploaded model `shouldBe` False
       datePrefixEnabled model `shouldBe` False
       lingqFallbackCollection model `shouldBe` Just "fallback-course"
@@ -1184,6 +1187,7 @@ main = hspec $ do
         saveLingqFallbackCollection port (Just "fallback")
         saveSectionCollections port (Map.fromList [("Wissen", "course-1")])
         saveRowDensity port ComfortableRows
+        saveUiTheme port LightUiTheme
 
         loadCurrentView port `shouldReturn` LingqView
         loadZeitCookie port `shouldReturn` "cookie=value"
@@ -1198,6 +1202,7 @@ main = hspec $ do
         loadLingqFallbackCollection port `shouldReturn` Just "fallback"
         loadSectionCollections port `shouldReturn` Map.fromList [("Wissen", "course-1")]
         loadRowDensity port `shouldReturn` ComfortableRows
+        loadUiTheme port `shouldReturn` LightUiTheme
 
   describe "LingQ adapter helpers" $ do
     it "normalizes lesson text without flattening paragraphs" $ do
@@ -1394,5 +1399,7 @@ testPorts summary =
           , saveSectionCollections = \_ -> Identity ()
           , loadRowDensity = Identity CompactRows
           , saveRowDensity = \_ -> Identity ()
+          , loadUiTheme = Identity DarkUiTheme
+          , saveUiTheme = \_ -> Identity ()
           }
     }
