@@ -180,7 +180,7 @@ handleEvent ports _ _ model event =
     GuiNavigate view ->
       [Task (runAppEvent ports model (Navigate view))]
     GuiRefresh ->
-      [Task (runAppEvent ports model RefreshCurrentView)]
+      withPendingNotice model "Refreshing current view..." (runAppEvent ports model RefreshCurrentView)
     GuiZeitCookieChanged cookie ->
       [Task (runAppEvent ports model (ZeitCookieChanged cookie))]
     GuiZeitCookieLogin ->
@@ -222,11 +222,11 @@ handleEvent ports _ _ model event =
     GuiBrowseClearSelection ->
       [Task (runAppEvent ports model (BrowseSelectionChanged Set.empty))]
     GuiPreviewArticle article ->
-      [Task (runAppEvent ports model (BrowseArticlePreviewRequested article))]
+      withPendingNotice model "Loading article preview..." (runAppEvent ports model (BrowseArticlePreviewRequested article))
     GuiOpenArticle article ->
       [Task (runAppEvent ports model (ArticleOpened article))]
     GuiFetchArticle article ->
-      [Task (runAppEvent ports model (BrowseArticleFetchRequested article))]
+      withPendingNotice model "Fetching and saving article..." (runAppEvent ports model (BrowseArticleFetchRequested article))
     GuiHideBrowseArticle article ->
       [Task (runAppEvent ports model (BrowseArticleHidden (summaryUrl article)))]
     GuiUnhideBrowseArticle article ->
@@ -234,15 +234,22 @@ handleEvent ports _ _ model event =
     GuiFetchSelected articles ->
       case selectedBrowseArticles model articles of
         [] -> [Task (runAppEvent ports model (Notify ErrorNotice "Select at least one article to fetch."))]
-        selected -> [Task (runAppEvent ports model (BrowseBatchFetchRequested selected))]
+        selected ->
+          withPendingNotice
+            model
+            ("Fetching " <> tshow (length selected) <> " selected article(s)...")
+            (runAppEvent ports model (BrowseBatchFetchRequested selected))
     GuiFetchVisible articles ->
-      [Task (runAppEvent ports model (BrowseBatchFetchRequested articles))]
+      withPendingNotice
+        model
+        ("Fetching " <> tshow (length articles) <> " visible article(s)...")
+        (runAppEvent ports model (BrowseBatchFetchRequested articles))
     GuiToggleIgnored article ->
       case summaryId article of
         Just ident -> [Task (runAppEvent ports model (ArticleIgnoredChanged ident (not (summaryIgnored article))))]
         Nothing -> [Task (runAppEvent ports model (Notify ErrorNotice "Cannot ignore an unsaved article."))]
     GuiUploadArticle ident ->
-      [Task (runUploadAppEvent ports model ident)]
+      withPendingNotice model "Uploading article to LingQ..." (runUploadAppEvent ports model ident)
     GuiLingqToggleSelection ident ->
       [Task (runAppEvent ports model (LingqSelectionToggled ident))]
     GuiLingqSelectNotUploaded articles ->
@@ -252,11 +259,18 @@ handleEvent ports _ _ model event =
     GuiUploadSelected articles ->
       case selectedLingqArticles model articles of
         [] -> [Task (runAppEvent ports model (Notify ErrorNotice "Select at least one article to upload."))]
-        selected -> [Task (runUploadBatchAppEvent ports model selected)]
+        selected ->
+          withPendingNotice
+            model
+            ("Uploading " <> tshow (length selected) <> " selected article(s) to LingQ...")
+            (runUploadBatchAppEvent ports model selected)
     GuiUploadVisible articles ->
-      [Task (runUploadBatchAppEvent ports model articles)]
+      withPendingNotice
+        model
+        ("Uploading " <> tshow (length articles) <> " visible article(s) to LingQ...")
+        (runUploadBatchAppEvent ports model articles)
     GuiDownloadAudio ident ->
-      [Task (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))]
+      withPendingNotice model "Downloading article audio..." (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))
     GuiOpenAudio ident ->
       [Task (runAppEvent ports model (ArticleAudioOpenRequested ident))]
     GuiOpenExternal url ->
@@ -266,25 +280,33 @@ handleEvent ports _ _ model event =
     GuiRetryFailedFetches ->
       case failedFetches model of
         [] -> [Task (runAppEvent ports model (Notify InfoNotice "No failed fetches to retry."))]
-        failures -> [Task (runAppEvent ports model (BrowseBatchFetchRequested (map failedFetchSummary failures)))]
+        failures ->
+          withPendingNotice
+            model
+            ("Retrying " <> tshow (length failures) <> " failed fetch(es)...")
+            (runAppEvent ports model (BrowseBatchFetchRequested (map failedFetchSummary failures)))
     GuiRetryFailedUploads ->
       case failedUploads model of
         [] -> [Task (runAppEvent ports model (Notify InfoNotice "No failed uploads to retry."))]
-        failures -> [Task (runUploadBatchAppEvent ports model (map failedUploadSummary failures))]
+        failures ->
+          withPendingNotice
+            model
+            ("Retrying " <> tshow (length failures) <> " failed upload(s)...")
+            (runUploadBatchAppEvent ports model (map failedUploadSummary failures))
     GuiClearFailures ->
       [Task (runAppEvent ports model FailureListsCleared)]
     GuiSyncKnownWords ->
-      [Task (runAppEvent ports model (KnownWordsSyncRequested "de"))]
+      withPendingNotice model "Syncing known words from LingQ..." (runAppEvent ports model (KnownWordsSyncRequested "de"))
     GuiKnownImportTextChanged text ->
       [Task (runAppEvent ports model (KnownWordsImportTextChanged text))]
     GuiImportKnownWords ->
-      [Task (runAppEvent ports model (KnownWordsImportRequested "de" (knownImportText model) False))]
+      withPendingNotice model "Importing known words and updating estimates..." (runAppEvent ports model (KnownWordsImportRequested "de" (knownImportText model) False))
     GuiComputeKnownWords ->
-      [Task (runAppEvent ports model (KnownWordsComputeRequested "de"))]
+      withPendingNotice model "Refreshing known-word percentages..." (runAppEvent ports model (KnownWordsComputeRequested "de"))
     GuiClearKnownWords ->
-      [Task (runAppEvent ports model (KnownWordsClearRequested "de"))]
+      withPendingNotice model "Clearing known words..." (runAppEvent ports model (KnownWordsClearRequested "de"))
     GuiRefreshCollections ->
-      [Task (runAppEvent ports model (LingqCollectionsRefreshRequested "de"))]
+      withPendingNotice model "Refreshing LingQ collections..." (runAppEvent ports model (LingqCollectionsRefreshRequested "de"))
     GuiFallbackCollectionChanged collectionId ->
       [Task (runAppEvent ports model (LingqFallbackCollectionChanged collectionId))]
     GuiLingqMinWordsChanged raw ->
@@ -335,6 +357,12 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model ArticleClosed)]
     GuiClearNotice ->
       [Task (runAppEvent ports model NotificationCleared)]
+
+withPendingNotice :: Model -> Text -> IO GuiEvent -> [AppEventResponse Model GuiEvent]
+withPendingNotice model message task =
+  [ M.Model model {notification = Just (Notification InfoNotice message)}
+  , Task task
+  ]
 
 titleBlock :: AppViewModel -> WidgetNode Model GuiEvent
 titleBlock vm =
