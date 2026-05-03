@@ -33,6 +33,7 @@ library
     hs-source-dirs:   src
     exposed-modules:
         ZeitLingq.App.Model
+        ZeitLingq.App.Runtime
         ZeitLingq.App.Update
         ZeitLingq.Cli
         ZeitLingq.Core.Batch

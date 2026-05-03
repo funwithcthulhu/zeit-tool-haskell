@@ -25,6 +25,7 @@ import ZeitLingq.Ports (SettingsPort(..))
 
 data Settings = Settings
   { settingsCurrentView :: View
+  , settingsBrowseSection :: Text
   , settingsDatePrefixEnabled :: Bool
   , settingsSectionCollections :: Map Text Text
   } deriving (Eq, Show)
@@ -33,6 +34,7 @@ defaultSettings :: Settings
 defaultSettings =
   Settings
     { settingsCurrentView = BrowseView
+    , settingsBrowseSection = "index"
     , settingsDatePrefixEnabled = True
     , settingsSectionCollections = Map.empty
     }
@@ -42,6 +44,8 @@ jsonSettingsPort path =
   SettingsPort
     { loadCurrentView = settingsCurrentView <$> loadSettings path
     , saveCurrentView = updateSettings path . setCurrentView
+    , loadBrowseSection = settingsBrowseSection <$> loadSettings path
+    , saveBrowseSection = updateSettings path . setBrowseSection
     , loadDatePrefixEnabled = settingsDatePrefixEnabled <$> loadSettings path
     , saveDatePrefixEnabled = updateSettings path . setDatePrefixEnabled
     , loadSectionCollections = settingsSectionCollections <$> loadSettings path
@@ -70,6 +74,9 @@ updateSettings path change = do
 setCurrentView :: View -> Settings -> Settings
 setCurrentView value settings = settings {settingsCurrentView = value}
 
+setBrowseSection :: Text -> Settings -> Settings
+setBrowseSection value settings = settings {settingsBrowseSection = value}
+
 setDatePrefixEnabled :: Bool -> Settings -> Settings
 setDatePrefixEnabled value settings = settings {settingsDatePrefixEnabled = value}
 
@@ -80,6 +87,7 @@ instance ToJSON Settings where
   toJSON settings =
     object
       [ "currentView" .= viewToText (settingsCurrentView settings)
+      , "browseSection" .= settingsBrowseSection settings
       , "datePrefixEnabled" .= settingsDatePrefixEnabled settings
       , "sectionCollections" .= settingsSectionCollections settings
       ]
@@ -89,6 +97,7 @@ instance FromJSON Settings where
     withObject "Settings" $ \obj ->
       Settings
         <$> parseView obj
+        <*> obj .:? "browseSection" .!= settingsBrowseSection defaultSettings
         <*> obj .:? "datePrefixEnabled" .!= settingsDatePrefixEnabled defaultSettings
         <*> obj .:? "sectionCollections" .!= settingsSectionCollections defaultSettings
     where

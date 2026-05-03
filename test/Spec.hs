@@ -201,10 +201,12 @@ main = hspec $ do
       withTempSettingsPath $ \path -> do
         let port = jsonSettingsPort path
         saveCurrentView port LingqView
+        saveBrowseSection port "wissen"
         saveDatePrefixEnabled port False
         saveSectionCollections port (Map.fromList [("Wissen", "course-1")])
 
         loadCurrentView port `shouldReturn` LingqView
+        loadBrowseSection port `shouldReturn` "wissen"
         loadDatePrefixEnabled port `shouldReturn` False
         loadSectionCollections port `shouldReturn` Map.fromList [("Wissen", "course-1")]
 

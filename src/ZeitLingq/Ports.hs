@@ -38,6 +38,8 @@ data LibraryPort m = LibraryPort
 data SettingsPort m = SettingsPort
   { loadCurrentView :: m View
   , saveCurrentView :: View -> m ()
+  , loadBrowseSection :: m Text
+  , saveBrowseSection :: Text -> m ()
   , loadDatePrefixEnabled :: m Bool
   , saveDatePrefixEnabled :: Bool -> m ()
   , loadSectionCollections :: m (Map Text Text)

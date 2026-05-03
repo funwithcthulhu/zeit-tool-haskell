@@ -15,7 +15,7 @@ This repository is the Haskell-first rewrite of the original Electron Zeit/LingQ
 - `src/ZeitLingq/Core/Upload.hs`: batch LingQ upload workflow.
 - `src/ZeitLingq/Text/German.hs`: German tokenization and stemming ported from the JavaScript app.
 - `src/ZeitLingq/Core/KnownWords.hs`: pure known-word import and percentage estimation.
-- `src/ZeitLingq/App`: GUI-agnostic application model and update loop. This is shaped to fit Monomer's Elm-style architecture later.
+- `src/ZeitLingq/App`: GUI-agnostic application model, update loop, and command runtime. This is shaped to fit Monomer's Elm-style architecture later.
 - `src/ZeitLingq/Infrastructure/Audio.hs`: article audio filename and download helpers.
 - `src/ZeitLingq/Infrastructure/Lingq.hs`: LingQ HTTP adapter and response parsing helpers.
 - `src/ZeitLingq/Infrastructure/Settings.hs`: JSON-backed user settings adapter.
