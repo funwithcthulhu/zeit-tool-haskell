@@ -6,16 +6,18 @@ import Data.Foldable (for_)
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Data.Text.IO qualified as TIO
-import Data.Time (fromGregorian, getCurrentTime)
+import Data.Time (fromGregorian, getCurrentTime, utctDay)
 import System.Environment (getArgs, lookupEnv)
 import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.Update (Event(..), update)
 import ZeitLingq.Cli
 import ZeitLingq.Core.KnownWords (estimateKnownPct, importKnownWordStems)
+import ZeitLingq.Core.Upload
 import ZeitLingq.Domain.Article (composeCleanText, lessonTitle, wordCount)
 import ZeitLingq.Domain.Section (allSections)
 import ZeitLingq.Domain.Types
 import ZeitLingq.Infrastructure.Sqlite
+import ZeitLingq.Infrastructure.Lingq
 import ZeitLingq.Infrastructure.Zeit
 
 main :: IO ()
@@ -74,6 +76,32 @@ runCommand (ComputeKnownPct dbPath) =
     case result of
       Left err -> putStrLn (T.unpack err)
       Right count -> putStrLn ("Updated known-word estimates for " <> show count <> " articles.")
+runCommand (UploadLingq ident dbPath) = do
+  maybeApiKey <- lookupEnv "LINGQ_API_KEY"
+  case maybeApiKey of
+    Nothing -> putStrLn "Set LINGQ_API_KEY before uploading to LingQ."
+    Just apiKey -> do
+      maybeCollection <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
+      now <- getCurrentTime
+      withLibrary dbPath $ \db -> do
+        maybeArticle <- getArticleSqlite db (ArticleId ident)
+        case maybeArticle of
+          Nothing -> putStrLn ("Article not found: " <> show ident)
+          Just article -> do
+            let token = LingqToken (T.pack apiKey)
+                config =
+                  BatchUploadConfig
+                    { uploadLanguageCode = "de"
+                    , uploadFallbackCollection = maybeCollection
+                    , uploadSectionCollections = Map.empty
+                    , uploadDatePrefixEnabled = True
+                    , uploadDay = utctDay now
+                    }
+                uploader lang collection titledArticle =
+                  firstText <$> uploadLessonLingq token lang collection titledArticle
+                marker = markUploadedSqlite db
+            results <- batchUploadArticles uploader marker config [article]
+            for_ results print
 
 sessionFromEnv :: IO ZeitSession
 sessionFromEnv = do
@@ -87,6 +115,10 @@ showSummary article =
     <> show (summaryWordCount article)
     <> " words\t"
     <> T.unpack (summaryTitle article)
+
+firstText :: Either LingqError LingqLesson -> Either T.Text LingqLesson
+firstText (Right lesson) = Right lesson
+firstText (Left err) = Left (T.pack (show err))
 
 runDemo :: IO ()
 runDemo = do

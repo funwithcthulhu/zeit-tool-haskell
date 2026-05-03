@@ -19,6 +19,7 @@ data CliCommand
   | ImportKnownWords FilePath FilePath
   | KnownWordsInfo FilePath
   | ComputeKnownPct FilePath
+  | UploadLingq Int FilePath
   deriving (Eq, Show)
 
 defaultDbPath :: FilePath
@@ -40,6 +41,10 @@ parseArgs ["known-info"] = Right (KnownWordsInfo defaultDbPath)
 parseArgs ["known-info", dbPath] = Right (KnownWordsInfo dbPath)
 parseArgs ["known-compute"] = Right (ComputeKnownPct defaultDbPath)
 parseArgs ["known-compute", dbPath] = Right (ComputeKnownPct dbPath)
+parseArgs ["lingq-upload", articleId] =
+  UploadLingq <$> parsePositiveInt "article-id" articleId <*> pure defaultDbPath
+parseArgs ["lingq-upload", articleId, dbPath] =
+  UploadLingq <$> parsePositiveInt "article-id" articleId <*> pure dbPath
 parseArgs _ = Left usageText
 
 usageText :: String
@@ -54,8 +59,10 @@ usageText =
     , "  zeit-lingq-tool known-import <word-list.txt> [db-path]"
     , "  zeit-lingq-tool known-info [db-path]"
     , "  zeit-lingq-tool known-compute [db-path]"
+    , "  zeit-lingq-tool lingq-upload <article-id> [db-path]"
     , ""
     , "Set ZEIT_COOKIE to pass an authenticated zeit.de cookie header for paid articles."
+    , "Set LINGQ_API_KEY, and optionally LINGQ_COLLECTION_ID, before uploading to LingQ."
     ]
 
 parsePositiveInt :: String -> String -> Either String Int

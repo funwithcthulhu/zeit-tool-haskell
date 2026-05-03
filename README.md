@@ -40,9 +40,11 @@ cabal run zeit-lingq-tool -- library
 cabal run zeit-lingq-tool -- known-import known-words.txt
 cabal run zeit-lingq-tool -- known-compute
 cabal run zeit-lingq-tool -- known-info
+cabal run zeit-lingq-tool -- lingq-upload 1
 ```
 
 Set `ZEIT_COOKIE` before running `fetch` if an article needs an authenticated Zeit session.
+Set `LINGQ_API_KEY` before running `lingq-upload`; optionally set `LINGQ_COLLECTION_ID`.
 
 ## GUI Direction
 
