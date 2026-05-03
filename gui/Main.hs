@@ -72,11 +72,13 @@ data GuiEvent
   | GuiDatePrefixChanged Bool
   | GuiSectionCollectionChanged Text Text
   | GuiLibrarySearchChanged Text
+  | GuiLibrarySectionChanged Text
   | GuiLibraryMinWordsChanged Text
   | GuiLibraryMaxWordsChanged Text
   | GuiLibraryIncludeIgnoredChanged Bool
   | GuiLibraryOnlyIgnoredChanged Bool
   | GuiLibraryOnlyNotUploadedChanged Bool
+  | GuiLibraryGroupBySectionChanged Bool
   | GuiLibraryPreviousPage
   | GuiLibraryNextPage
   | GuiDeleteIgnoredArticles
@@ -210,6 +212,8 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (SectionCollectionsChanged (updateSectionCollection sectionName collectionId (sectionCollections model))))]
     GuiLibrarySearchChanged search ->
       [Task (runAppEvent ports model (LibrarySearchChanged search))]
+    GuiLibrarySectionChanged sectionName ->
+      [Task (runAppEvent ports model (LibrarySectionChanged sectionName))]
     GuiLibraryMinWordsChanged raw ->
       [Task (runAppEvent ports model (LibraryFilterChanged ((libraryFilter model) {minWords = parseOptionalInt raw})))]
     GuiLibraryMaxWordsChanged raw ->
@@ -220,6 +224,8 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (LibraryOnlyIgnoredChanged enabled))]
     GuiLibraryOnlyNotUploadedChanged enabled ->
       [Task (runAppEvent ports model (LibraryOnlyNotUploadedChanged enabled))]
+    GuiLibraryGroupBySectionChanged enabled ->
+      [Task (runAppEvent ports model (LibraryGroupBySectionChanged enabled))]
     GuiLibraryPreviousPage ->
       [Task (runAppEvent ports model (LibraryPageChanged (libraryOffset (libraryQuery model) - libraryLimit (libraryQuery model))))]
     GuiLibraryNextPage ->
@@ -376,7 +382,8 @@ libraryControls model =
   case currentView model of
     LibraryView ->
       vstack
-        [ hstack
+        [ libraryStatsBlock model
+        , hstack
             [ label "Search"
                 `styleBasic` [paddingR 8]
             , textFieldV_ (maybe "" id (librarySearch query)) GuiLibrarySearchChanged [placeholder "Title or article text"]
@@ -390,10 +397,12 @@ libraryControls model =
             , textFieldV (maybe "" tshow (maxWords (libraryWordFilter query))) GuiLibraryMaxWordsChanged
                 `styleBasic` [width 70]
             ]
+        , librarySectionControls model
         , hstack
             [ toggle "Show ignored" (libraryIncludeIgnored query) GuiLibraryIncludeIgnoredChanged
             , toggle "Only ignored" (libraryOnlyIgnored query) GuiLibraryOnlyIgnoredChanged
             , toggle "Only not uploaded" (libraryOnlyNotUploaded query) GuiLibraryOnlyNotUploadedChanged
+            , toggle "Group by section" (libraryGroupBySection model) GuiLibraryGroupBySectionChanged
             ]
             `styleBasic` [paddingV 8]
         , hstack
@@ -413,6 +422,50 @@ libraryControls model =
     _ -> spacer
   where
     query = libraryQuery model
+
+libraryStatsBlock :: Model -> WidgetNode Model GuiEvent
+libraryStatsBlock model =
+  case libraryStats model of
+    Nothing -> spacer
+    Just stats ->
+      hstack
+        [ statLabel "Articles" (totalArticles stats)
+        , statLabel "Uploaded" (uploadedArticles stats)
+        , statLabel "Avg words" (averageWordCount stats)
+        ]
+        `styleBasic` [paddingB 8]
+
+statLabel :: Text -> Int -> WidgetNode Model GuiEvent
+statLabel name value =
+  vstack
+    [ label (tshow value)
+        `styleBasic` [textSize 18, textColor lightGreen]
+    , label name
+        `styleBasic` [textSize 11]
+    ]
+    `styleBasic` [paddingR 24]
+
+librarySectionControls :: Model -> WidgetNode Model GuiEvent
+librarySectionControls model =
+  case libraryStats model of
+    Nothing -> spacer
+    Just stats ->
+      vstack
+        [ label "Sections"
+            `styleBasic` [textSize 12, paddingT 8]
+        , hstack
+            ( button "All" (GuiLibrarySectionChanged "")
+                : map sectionButton (Map.toList (sectionCounts stats))
+            )
+        ]
+  where
+    activeSection = librarySection (libraryQuery model)
+    sectionButton (sectionName, total) =
+      button (sectionName <> " (" <> tshow total <> ")") (GuiLibrarySectionChanged sectionName)
+        `styleBasic`
+          [ paddingR 4
+          , textColor (if activeSection == Just sectionName then cyan else white)
+          ]
 
 toggle :: Text -> Bool -> (Bool -> GuiEvent) -> WidgetNode Model GuiEvent
 toggle text value handler =
@@ -604,8 +657,28 @@ articleRowsBlock :: Model -> [ArticleSummary] -> WidgetNode Model GuiEvent
 articleRowsBlock _ [] =
   label "No rows loaded yet."
 articleRowsBlock model rows =
-  scroll (vstack (map (articleRowBlock model) rows))
+  scroll (vstack rowWidgets)
     `styleBasic` [height 430, paddingT 16]
+  where
+    rowWidgets =
+      case currentView model of
+        LibraryView | libraryGroupBySection model -> concatMap groupedRows (groupArticlesBySection rows)
+        _ -> map (articleRowBlock model) rows
+    groupedRows (sectionName, articles) =
+      ( label (sectionName <> " (" <> tshow (length articles) <> ")")
+          `styleBasic` [textSize 16, textColor cyan, paddingT 8, paddingB 4]
+      )
+        : map (articleRowBlock model) articles
+
+groupArticlesBySection :: [ArticleSummary] -> [(Text, [ArticleSummary])]
+groupArticlesBySection =
+  Map.toList . foldr addArticle Map.empty
+  where
+    addArticle article =
+      Map.insertWith (<>) (sectionKey article) [article]
+    sectionKey article
+      | T.null (summarySection article) = "(uncategorized)"
+      | otherwise = summarySection article
 
 articleRowBlock :: Model -> ArticleSummary -> WidgetNode Model GuiEvent
 articleRowBlock model article =

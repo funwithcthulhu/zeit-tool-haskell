@@ -29,6 +29,8 @@ data Model = Model
   , browseShowHidden :: Bool
   , libraryArticles :: [ArticleSummary]
   , libraryTotal :: Int
+  , libraryStats :: Maybe LibraryStats
+  , libraryGroupBySection :: Bool
   , lingqArticles :: [ArticleSummary]
   , lingqCollections :: [LingqCollection]
   , lingqFallbackCollection :: Maybe Text
@@ -66,6 +68,8 @@ initialModel =
     , browseShowHidden = False
     , libraryArticles = []
     , libraryTotal = 0
+    , libraryStats = Nothing
+    , libraryGroupBySection = False
     , lingqArticles = []
     , lingqCollections = []
     , lingqFallbackCollection = Nothing

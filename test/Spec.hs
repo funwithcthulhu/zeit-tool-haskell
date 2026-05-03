@@ -86,7 +86,7 @@ main = hspec $ do
       loadedCommands `shouldBe` []
       selectedArticleContent closedModel `shouldBe` Nothing
       currentView closedModel `shouldBe` LibraryView
-      closedCommands `shouldBe` [PersistCurrentView LibraryView, RefreshLibraryPage defaultLibraryQuery]
+      closedCommands `shouldBe` [PersistCurrentView LibraryView, RefreshLibraryPage defaultLibraryQuery, LoadLibraryStats]
 
     it "hydrates startup model from the settings port" $ do
       let port =
@@ -158,18 +158,25 @@ main = hspec $ do
       let baseQuery = defaultLibraryQuery {libraryOffset = 30}
           baseModel = initialModel {libraryQuery = baseQuery}
           (searchModel, searchCommands) = update (LibrarySearchChanged " Alpha ") baseModel
+          (sectionModel, sectionCommands) = update (LibrarySectionChanged "Wissen") baseModel
           (ignoredModel, ignoredCommands) = update (LibraryIncludeIgnoredChanged True) baseModel
           (onlyIgnoredModel, onlyIgnoredCommands) = update (LibraryOnlyIgnoredChanged True) baseModel
           (onlyNotUploadedModel, onlyNotUploadedCommands) = update (LibraryOnlyNotUploadedChanged True) baseModel
+          (groupModel, groupCommands) = update (LibraryGroupBySectionChanged True) baseModel
           (pageModel, pageCommands) = update (LibraryPageChanged 60) baseModel
       libraryQuery searchModel `shouldBe` baseQuery {librarySearch = Just "Alpha", libraryOffset = 0}
       searchCommands `shouldBe` [RefreshLibraryPage (libraryQuery searchModel)]
+      libraryQuery sectionModel `shouldBe` baseQuery {librarySection = Just "Wissen", libraryOffset = 0}
+      sectionCommands `shouldBe` [RefreshLibraryPage (libraryQuery sectionModel)]
       libraryQuery ignoredModel `shouldBe` baseQuery {libraryIncludeIgnored = True, libraryOnlyIgnored = False, libraryOffset = 0}
       ignoredCommands `shouldBe` [RefreshLibraryPage (libraryQuery ignoredModel)]
       libraryQuery onlyIgnoredModel `shouldBe` baseQuery {libraryIncludeIgnored = True, libraryOnlyIgnored = True, libraryOffset = 0}
       onlyIgnoredCommands `shouldBe` [RefreshLibraryPage (libraryQuery onlyIgnoredModel)]
       libraryQuery onlyNotUploadedModel `shouldBe` baseQuery {libraryOnlyNotUploaded = True, libraryOffset = 0}
       onlyNotUploadedCommands `shouldBe` [RefreshLibraryPage (libraryQuery onlyNotUploadedModel)]
+      libraryGroupBySection groupModel `shouldBe` True
+      libraryQuery groupModel `shouldBe` baseQuery {libraryLimit = 5000, libraryOffset = 0}
+      groupCommands `shouldBe` [RefreshLibraryPage (libraryQuery groupModel)]
       libraryQuery pageModel `shouldBe` baseQuery {libraryOffset = 60}
       pageCommands `shouldBe` [RefreshLibraryPage (libraryQuery pageModel)]
 
@@ -253,6 +260,16 @@ main = hspec $ do
         `shouldBe` [LibraryArticlesLoaded [summary]]
       runIdentity (Runtime.runCommand ports (RefreshLibraryPage defaultLibraryQuery))
         `shouldBe` [LibraryPageLoaded (LibraryPage [summary] 1)]
+      runIdentity (Runtime.runCommand ports LoadLibraryStats)
+        `shouldBe` [ LibraryStatsLoaded
+                       ( LibraryStats
+                           { totalArticles = 1
+                           , uploadedArticles = 0
+                           , averageWordCount = summaryWordCount summary
+                           , sectionCounts = Map.singleton (summarySection summary) 1
+                           }
+                       )
+                   ]
       runIdentity (Runtime.runCommand ports (RefreshLingqLibrary filters))
         `shouldBe` [LingqArticlesLoaded [summary]]
       runIdentity (Runtime.runCommand ports (LoadArticle (ArticleId 1)))

@@ -57,6 +57,7 @@ data Event
   | BrowseArticlesLoaded [ArticleSummary]
   | LibraryArticlesLoaded [ArticleSummary]
   | LibraryPageLoaded LibraryPage
+  | LibraryStatsLoaded LibraryStats
   | LingqArticlesLoaded [ArticleSummary]
   | RefreshCurrentView
   | Notify NotificationLevel Text
@@ -66,9 +67,11 @@ data Event
   | BrowseFilterChanged WordFilter
   | LibraryFilterChanged WordFilter
   | LibrarySearchChanged Text
+  | LibrarySectionChanged Text
   | LibraryIncludeIgnoredChanged Bool
   | LibraryOnlyIgnoredChanged Bool
   | LibraryOnlyNotUploadedChanged Bool
+  | LibraryGroupBySectionChanged Bool
   | LibraryPageChanged Int
   | LibraryDeleteIgnoredRequested
   | LibraryDeleteOlderRequested UTCTime Bool Bool
@@ -92,6 +95,7 @@ data Command
   | RefreshBrowse Text Int Bool
   | RefreshLibrary WordFilter
   | RefreshLibraryPage LibraryQuery
+  | LoadLibraryStats
   | RefreshLingqLibrary WordFilter
   | LoadArticle ArticleId
   | PreviewArticle Text
@@ -310,6 +314,10 @@ update event model =
           }
       , []
       )
+    LibraryStatsLoaded stats ->
+      ( model {libraryStats = Just stats}
+      , []
+      )
     LingqArticlesLoaded articles ->
       ( model {lingqArticles = articles}
       , []
@@ -357,6 +365,15 @@ update event model =
        in ( model {libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
+    LibrarySectionChanged sectionName ->
+      let nextQuery =
+            (libraryQuery model)
+              { librarySection = nonEmptyText sectionName
+              , libraryOffset = 0
+              }
+       in ( model {libraryQuery = nextQuery}
+          , [RefreshLibraryPage nextQuery]
+          )
     LibraryIncludeIgnoredChanged enabled ->
       let nextQuery =
             (libraryQuery model)
@@ -384,6 +401,18 @@ update event model =
               , libraryOffset = 0
               }
        in ( model {libraryQuery = nextQuery}
+          , [RefreshLibraryPage nextQuery]
+          )
+    LibraryGroupBySectionChanged enabled ->
+      let nextQuery =
+            (libraryQuery model)
+              { libraryLimit =
+                  if enabled
+                    then 5000
+                    else libraryLimit defaultLibraryQuery
+              , libraryOffset = 0
+              }
+       in ( model {libraryGroupBySection = enabled, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibraryPageChanged offset ->
@@ -419,7 +448,7 @@ refreshCommands :: Model -> [Command]
 refreshCommands model =
   case currentView model of
     BrowseView -> [RefreshBrowse (browseSectionId model) (browsePage model) (browseShowHidden model)]
-    LibraryView -> [RefreshLibraryPage (libraryQuery model)]
+    LibraryView -> [RefreshLibraryPage (libraryQuery model), LoadLibraryStats]
     LingqView ->
       [RefreshLingqLibrary (lingqFilter model), LoadKnownWordsInfo "de"]
         <> [RefreshLingqCollections "de" | authLoggedIn (lingqStatus model)]
