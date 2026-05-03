@@ -95,8 +95,12 @@ main = hspec $ do
               , saveCurrentView = \_ -> Identity ()
               , loadBrowseSection = Identity "wissen"
               , saveBrowseSection = \_ -> Identity ()
+              , loadBrowseFilter = Identity (WordFilter (Just 300) (Just 2000))
+              , saveBrowseFilter = \_ -> Identity ()
               , loadDatePrefixEnabled = Identity False
               , saveDatePrefixEnabled = \_ -> Identity ()
+              , loadLingqFallbackCollection = Identity (Just "fallback-course")
+              , saveLingqFallbackCollection = \_ -> Identity ()
               , loadSectionCollections = Identity (Map.fromList [("Wissen", "course-1")])
               , saveSectionCollections = \_ -> Identity ()
               }
@@ -104,7 +108,9 @@ main = hspec $ do
       currentView model `shouldBe` LingqView
       browseSectionId model `shouldBe` "wissen"
       browsePage model `shouldBe` 1
+      browseFilter model `shouldBe` WordFilter (Just 300) (Just 2000)
       datePrefixEnabled model `shouldBe` False
+      lingqFallbackCollection model `shouldBe` Just "fallback-course"
       sectionCollections model `shouldBe` Map.fromList [("Wissen", "course-1")]
 
     it "stores loaded article lists for GUI screens" $ do
@@ -131,12 +137,12 @@ main = hspec $ do
       let filters = WordFilter (Just 400) (Just 1200)
           browseModel = initialModel {browseSectionId = "wissen", browsePage = 2}
       snd (update (BrowseSectionSelected "kultur") initialModel)
-        `shouldBe` [PersistBrowseSection "kultur", RefreshBrowse "kultur" 1]
+        `shouldBe` [PersistBrowseSection "kultur", RefreshBrowse "kultur" 1 False]
       browsePage (fst (update (BrowseSectionSelected "kultur") browseModel)) `shouldBe` 1
       snd (update (BrowsePageChanged 3) browseModel)
-        `shouldBe` [RefreshBrowse "wissen" 3]
+        `shouldBe` [RefreshBrowse "wissen" 3 False]
       snd (update (BrowseFilterChanged filters) browseModel)
-        `shouldBe` []
+        `shouldBe` [PersistBrowseFilter filters]
       snd (update (LibraryFilterChanged filters) initialModel)
         `shouldBe` [RefreshLibraryPage defaultLibraryQuery {libraryWordFilter = filters}]
       snd (update (LingqFilterChanged filters) initialModel)
@@ -175,6 +181,8 @@ main = hspec $ do
               }
       snd (update (BrowseArticleFetchRequested summary) initialModel)
         `shouldBe` [FetchAndSaveArticle summary]
+      snd (update (BrowseArticlePreviewRequested summary) initialModel)
+        `shouldBe` [PersistCurrentView ArticleView, PreviewArticle "https://example.com/fetch"]
       snd (update (ArticleDeleteRequested (ArticleId 15)) initialModel)
         `shouldBe` [DeleteSavedArticle (ArticleId 15)]
       snd (update (ArticleIgnoredChanged (ArticleId 15) True) initialModel)
@@ -189,8 +197,20 @@ main = hspec $ do
         `shouldBe` [UploadSavedArticles (fromGregorian 2026 5 2) Nothing Map.empty True [ArticleId 15]]
       snd (update (ArticleAudioDownloadRequested "audio" (ArticleId 15)) initialModel)
         `shouldBe` [DownloadArticleAudio "audio" (ArticleId 15)]
+      snd (update (ArticleAudioOpenRequested (ArticleId 15)) initialModel)
+        `shouldBe` [OpenArticleAudio (ArticleId 15)]
       snd (update (KnownWordsSyncRequested "de") initialModel)
         `shouldBe` [SyncKnownWordsFromLingq "de"]
+      snd (update (KnownWordsImportRequested "de" "eins" False) initialModel)
+        `shouldBe` [ImportKnownWordText "de" "eins" False]
+      snd (update (KnownWordsComputeRequested "de") initialModel)
+        `shouldBe` [ComputeKnownPercentagesFor "de"]
+      snd (update (KnownWordsClearRequested "de") initialModel)
+        `shouldBe` [ClearKnownWords "de"]
+      snd (update (LingqCollectionsRefreshRequested "de") initialModel)
+        `shouldBe` [RefreshLingqCollections "de"]
+      snd (update (LingqFallbackCollectionChanged "course-1") initialModel)
+        `shouldBe` [PersistLingqFallbackCollection (Just "course-1")]
       snd (update LibraryDeleteIgnoredRequested initialModel)
         `shouldBe` [DeleteIgnoredArticles]
       snd (update (LibraryDeleteOlderRequested (dayTime 3) True False) initialModel)
@@ -211,7 +231,7 @@ main = hspec $ do
               }
           ports = testPorts summary
           filters = WordFilter Nothing Nothing
-      runIdentity (Runtime.runCommand ports (RefreshBrowse "kultur" 2))
+      runIdentity (Runtime.runCommand ports (RefreshBrowse "kultur" 2 False))
         `shouldBe` [BrowseArticlesLoaded [summary {summarySection = "kultur"}]]
       runIdentity (Runtime.runCommand ports (RefreshLibrary filters))
         `shouldBe` [LibraryArticlesLoaded [summary]]
@@ -220,6 +240,8 @@ main = hspec $ do
       runIdentity (Runtime.runCommand ports (RefreshLingqLibrary filters))
         `shouldBe` [LingqArticlesLoaded [summary]]
       runIdentity (Runtime.runCommand ports (LoadArticle (ArticleId 1)))
+        `shouldBe` [ArticleContentLoaded demoArticle]
+      runIdentity (Runtime.runCommand ports (PreviewArticle "https://example.com/runtime"))
         `shouldBe` [ArticleContentLoaded demoArticle]
 
     it "reports a missing article when content cannot be loaded" $ do
@@ -343,10 +365,14 @@ main = hspec $ do
                     { loadIgnoredUrls = Identity ["https://example.com/hidden"]
                     }
               }
-      runIdentity (Runtime.runCommand ports (RefreshBrowse "wissen" 1))
+      runIdentity (Runtime.runCommand ports (RefreshBrowse "wissen" 1 False))
         `shouldBe` [BrowseArticlesLoaded [visible]]
+      runIdentity (Runtime.runCommand ports (RefreshBrowse "wissen" 1 True))
+        `shouldBe` [BrowseArticlesLoaded [visible, hidden {summaryIgnored = True}]]
       runIdentity (Runtime.runCommand ports (SetBrowseUrlIgnored "https://example.com/new"))
         `shouldBe` [Notify SuccessNotice "Article hidden from browse.", RefreshCurrentView]
+      runIdentity (Runtime.runCommand ports (SetBrowseUrlUnignored "https://example.com/hidden"))
+        `shouldBe` [Notify SuccessNotice "Article unhidden from browse.", RefreshCurrentView]
 
     it "batch-fetches visible browse rows through the runtime" $ do
       let first =
@@ -385,6 +411,7 @@ main = hspec $ do
               { audioPort =
                   AudioPort
                     { downloadArticleAudioFile = \audioDir _ -> Identity (audioDir <> "\\demo.mp3")
+                    , openAudioFile = \_ -> Identity ()
                     }
               , libraryPort =
                   (libraryPort basePorts)
@@ -395,6 +422,15 @@ main = hspec $ do
         `shouldBe` [ Notify SuccessNotice "Saved audio: audio\\demo.mp3"
                    , RefreshCurrentView
                    ]
+      let openPorts =
+            ports
+              { libraryPort =
+                  (libraryPort ports)
+                    { loadArticle = \_ -> Identity (Just (demoArticle {articleId = Just (ArticleId 1), articleAudioPath = Just "audio\\demo.mp3"}))
+                    }
+              }
+      runIdentity (Runtime.runCommand openPorts (OpenArticleAudio (ArticleId 1)))
+        `shouldBe` [Notify SuccessNotice "Opened audio file."]
 
     it "syncs known words and refreshes cached percentages" $ do
       let summary =
@@ -423,8 +459,46 @@ main = hspec $ do
               }
       runIdentity (Runtime.runCommand ports (SyncKnownWordsFromLingq "de"))
         `shouldBe` [ Notify SuccessNotice "Synced 2 known stems and updated 1 articles."
+                   , KnownWordsInfoLoaded 2
                    , RefreshCurrentView
                    ]
+      runIdentity (Runtime.runCommand ports (ImportKnownWordText "de" "eins\ndrei" False))
+        `shouldBe` [ Notify SuccessNotice "Imported 2 stems (0 total) and updated 1 articles."
+                   , KnownWordsInfoLoaded 0
+                   , KnownWordsImportTextChanged ""
+                   , RefreshCurrentView
+                   ]
+      runIdentity (Runtime.runCommand ports (ComputeKnownPercentagesFor "de"))
+        `shouldBe` [Notify SuccessNotice "Updated known-word estimates for 1 articles.", RefreshCurrentView]
+      runIdentity (Runtime.runCommand ports (LoadKnownWordsInfo "de"))
+        `shouldBe` [KnownWordsInfoLoaded 0]
+      runIdentity (Runtime.runCommand ports (ClearKnownWords "de"))
+        `shouldBe` [ Notify SuccessNotice "Cleared known words and cached known-word percentages."
+                   , KnownWordsInfoLoaded 0
+                   , RefreshCurrentView
+                   ]
+
+    it "loads LingQ collections through the runtime" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 1)
+              , summaryUrl = "https://example.com/collections"
+              , summaryTitle = "Collections"
+              , summarySection = "Wissen"
+              , summaryWordCount = 4
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          ports =
+            (testPorts summary)
+              { lingqPort =
+                  (lingqPort (testPorts summary))
+                    { fetchCollections = \_ -> Identity [LingqCollection "12" "Wissen" 3]
+                    }
+              }
+      runIdentity (Runtime.runCommand ports (RefreshLingqCollections "de"))
+        `shouldBe` [LingqCollectionsLoaded [LingqCollection "12" "Wissen" 3]]
 
     it "deletes ignored and old articles through runtime ports" $ do
       let summary =
@@ -892,12 +966,16 @@ main = hspec $ do
         let port = jsonSettingsPort path
         saveCurrentView port LingqView
         saveBrowseSection port "wissen"
+        saveBrowseFilter port (WordFilter (Just 250) (Just 1500))
         saveDatePrefixEnabled port False
+        saveLingqFallbackCollection port (Just "fallback")
         saveSectionCollections port (Map.fromList [("Wissen", "course-1")])
 
         loadCurrentView port `shouldReturn` LingqView
         loadBrowseSection port `shouldReturn` "wissen"
+        loadBrowseFilter port `shouldReturn` WordFilter (Just 250) (Just 1500)
         loadDatePrefixEnabled port `shouldReturn` False
+        loadLingqFallbackCollection port `shouldReturn` Just "fallback"
         loadSectionCollections port `shouldReturn` Map.fromList [("Wissen", "course-1")]
 
   describe "LingQ adapter helpers" $ do
@@ -998,11 +1076,13 @@ testPorts summary =
           { loginToLingq = \_ _ -> Identity (AuthStatus True Nothing)
           , logoutFromLingq = Identity ()
           , uploadLessonToLingq = \_ _ _ -> Identity (LingqLesson "lesson" "https://lingq.example/lesson")
+          , fetchCollections = \_ -> Identity []
           , fetchKnownWords = \_ -> Identity []
           }
     , audioPort =
         AudioPort
           { downloadArticleAudioFile = \audioDir _ -> Identity (audioDir <> "\\article.mp3")
+          , openAudioFile = \_ -> Identity ()
           }
     , libraryPort =
         LibraryPort
@@ -1020,6 +1100,9 @@ testPorts summary =
           , deleteIgnoredArticles = Identity 0
           , deleteOlderArticles = \_ _ _ -> Identity 0
           , replaceKnownWords = \_ stems -> Identity (Set.size stems)
+          , addKnownWords = \_ stems -> Identity (Set.size stems)
+          , clearKnownWords = \_ -> Identity ()
+          , clearKnownPercentages = Identity ()
           , computeKnownPercentages = \_ -> Identity (Right 0)
           , knownStemCount = \_ -> Identity 0
           , loadStats =
@@ -1038,8 +1121,12 @@ testPorts summary =
           , saveCurrentView = \_ -> Identity ()
           , loadBrowseSection = Identity "index"
           , saveBrowseSection = \_ -> Identity ()
+          , loadBrowseFilter = Identity (WordFilter Nothing Nothing)
+          , saveBrowseFilter = \_ -> Identity ()
           , loadDatePrefixEnabled = Identity True
           , saveDatePrefixEnabled = \_ -> Identity ()
+          , loadLingqFallbackCollection = Identity Nothing
+          , saveLingqFallbackCollection = \_ -> Identity ()
           , loadSectionCollections = Identity Map.empty
           , saveSectionCollections = \_ -> Identity ()
           }

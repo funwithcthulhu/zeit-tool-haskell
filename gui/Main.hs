@@ -3,7 +3,9 @@
 module Main (main) where
 
 import Control.Exception (SomeException, displayException, try)
+import Control.Applicative ((<|>))
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (addUTCTime, getCurrentTime, utctDay)
@@ -35,15 +37,29 @@ data GuiEvent
   | GuiBrowseNextPage
   | GuiBrowseMinWordsChanged Text
   | GuiBrowseMaxWordsChanged Text
+  | GuiBrowseShowHiddenChanged Bool
+  | GuiBrowseToggleSelection Text
+  | GuiBrowseSelectVisible [ArticleSummary]
+  | GuiBrowseClearSelection
+  | GuiPreviewArticle ArticleSummary
   | GuiOpenArticle ArticleSummary
   | GuiFetchArticle ArticleSummary
   | GuiHideBrowseArticle ArticleSummary
+  | GuiUnhideBrowseArticle ArticleSummary
+  | GuiFetchSelected [ArticleSummary]
   | GuiFetchVisible [ArticleSummary]
   | GuiToggleIgnored ArticleSummary
   | GuiUploadArticle ArticleId
   | GuiUploadVisible [ArticleSummary]
   | GuiDownloadAudio ArticleId
+  | GuiOpenAudio ArticleId
   | GuiSyncKnownWords
+  | GuiKnownImportTextChanged Text
+  | GuiImportKnownWords
+  | GuiComputeKnownWords
+  | GuiClearKnownWords
+  | GuiRefreshCollections
+  | GuiFallbackCollectionChanged Text
   | GuiDatePrefixChanged Bool
   | GuiSectionCollectionChanged Text Text
   | GuiLibrarySearchChanged Text
@@ -111,12 +127,28 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (BrowseFilterChanged ((browseFilter model) {minWords = parseOptionalInt raw})))]
     GuiBrowseMaxWordsChanged raw ->
       [Task (runAppEvent ports model (BrowseFilterChanged ((browseFilter model) {maxWords = parseOptionalInt raw})))]
+    GuiBrowseShowHiddenChanged enabled ->
+      [Task (runAppEvent ports model (BrowseShowHiddenChanged enabled))]
+    GuiBrowseToggleSelection url ->
+      [Task (runAppEvent ports model (BrowseSelectionToggled url))]
+    GuiBrowseSelectVisible articles ->
+      [Task (runAppEvent ports model (BrowseSelectionChanged (Set.fromList (map summaryUrl articles))))]
+    GuiBrowseClearSelection ->
+      [Task (runAppEvent ports model (BrowseSelectionChanged Set.empty))]
+    GuiPreviewArticle article ->
+      [Task (runAppEvent ports model (BrowseArticlePreviewRequested article))]
     GuiOpenArticle article ->
       [Task (runAppEvent ports model (ArticleOpened article))]
     GuiFetchArticle article ->
       [Task (runAppEvent ports model (BrowseArticleFetchRequested article))]
     GuiHideBrowseArticle article ->
       [Task (runAppEvent ports model (BrowseArticleHidden (summaryUrl article)))]
+    GuiUnhideBrowseArticle article ->
+      [Task (runAppEvent ports model (BrowseArticleUnhidden (summaryUrl article)))]
+    GuiFetchSelected articles ->
+      case selectedBrowseArticles model articles of
+        [] -> [Task (runAppEvent ports model (Notify ErrorNotice "Select at least one article to fetch."))]
+        selected -> [Task (runAppEvent ports model (BrowseBatchFetchRequested selected))]
     GuiFetchVisible articles ->
       [Task (runAppEvent ports model (BrowseBatchFetchRequested articles))]
     GuiToggleIgnored article ->
@@ -129,8 +161,22 @@ handleEvent ports _ _ model event =
       [Task (runUploadBatchAppEvent ports model articles)]
     GuiDownloadAudio ident ->
       [Task (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))]
+    GuiOpenAudio ident ->
+      [Task (runAppEvent ports model (ArticleAudioOpenRequested ident))]
     GuiSyncKnownWords ->
       [Task (runAppEvent ports model (KnownWordsSyncRequested "de"))]
+    GuiKnownImportTextChanged text ->
+      [Task (runAppEvent ports model (KnownWordsImportTextChanged text))]
+    GuiImportKnownWords ->
+      [Task (runAppEvent ports model (KnownWordsImportRequested "de" (knownImportText model) False))]
+    GuiComputeKnownWords ->
+      [Task (runAppEvent ports model (KnownWordsComputeRequested "de"))]
+    GuiClearKnownWords ->
+      [Task (runAppEvent ports model (KnownWordsClearRequested "de"))]
+    GuiRefreshCollections ->
+      [Task (runAppEvent ports model (LingqCollectionsRefreshRequested "de"))]
+    GuiFallbackCollectionChanged collectionId ->
+      [Task (runAppEvent ports model (LingqFallbackCollectionChanged collectionId))]
     GuiDatePrefixChanged enabled ->
       [Task (runAppEvent ports model (DatePrefixToggled enabled))]
     GuiSectionCollectionChanged sectionName collectionId ->
@@ -225,7 +271,7 @@ contentBlock model vm =
     , lingqControls model
     , selectedArticleBlock model (vmSelectedArticle vm)
     , articleParagraphsBlock (vmSelectedArticleParagraphs vm)
-    , articleRowsBlock (currentView model) (rowsForCurrentView model)
+    , articleRowsBlock model (rowsForCurrentView model)
     ]
     `styleBasic` [padding 16]
 
@@ -255,7 +301,18 @@ browseControls model =
                 `styleBasic` [width 70]
             ]
             `styleBasic` [paddingV 6]
-        , button ("Fetch visible (" <> T.pack (show (length (browseArticles model))) <> ")") (GuiFetchVisible (browseArticles model))
+        , hstack
+            [ button "Select all shown" (GuiBrowseSelectVisible (browseArticles model))
+            , button "Deselect" GuiBrowseClearSelection
+            , toggle "Show hidden" (browseShowHidden model) GuiBrowseShowHiddenChanged
+            , label (tshow (Set.size (browseSelectedUrls model)) <> " selected")
+                `styleBasic` [paddingL 8]
+            ]
+            `styleBasic` [paddingV 6]
+        , hstack
+            [ button ("Fetch selected (" <> tshow (Set.size (browseSelectedUrls model)) <> ")") (GuiFetchSelected (browseArticles model))
+            , button ("Fetch visible (" <> T.pack (show (length (browseArticles model))) <> ")") (GuiFetchVisible (browseArticles model))
+            ]
         ]
     _ -> spacer
   where
@@ -337,8 +394,35 @@ lingqControls model =
         [ hstack
             [ button ("Upload visible (" <> T.pack (show (length uploadable)) <> ")") (GuiUploadVisible (lingqArticles model))
             , button "Sync known words" GuiSyncKnownWords
+            , button "Refresh %" GuiComputeKnownWords
+            , button "Refresh collections" GuiRefreshCollections
             , toggle "Auto-date lesson titles" (datePrefixEnabled model) GuiDatePrefixChanged
             ]
+        , label ("Known German stems: " <> tshow (knownStemTotal model))
+            `styleBasic` [paddingT 8]
+        , hstack
+            [ label "Fallback collection"
+                `styleBasic` [paddingR 8]
+            , textFieldV_
+                (maybe "" id (lingqFallbackCollection model))
+                GuiFallbackCollectionChanged
+                [placeholder "collection id or blank"]
+                `styleBasic` [width 260]
+            ]
+            `styleBasic` [paddingT 8]
+        , collectionList model
+        , label "Import known words"
+            `styleBasic` [paddingT 8]
+        , textAreaV_
+            (knownImportText model)
+            GuiKnownImportTextChanged
+            [maxLines 6]
+            `styleBasic` [height 120]
+        , hstack
+            [ button "Import pasted words" GuiImportKnownWords
+            , button "Clear known words" GuiClearKnownWords
+            ]
+            `styleBasic` [paddingT 6]
         , label "Per-section LingQ collection ids"
             `styleBasic` [paddingT 8]
         , vstack (map collectionRow allSections)
@@ -364,6 +448,24 @@ lingqControls model =
         ]
         `styleBasic` [paddingB 4]
 
+collectionList :: Model -> WidgetNode Model GuiEvent
+collectionList model
+  | null (lingqCollections model) =
+      label "No LingQ collections loaded yet. Connect with LINGQ_API_KEY, then refresh collections."
+        `styleBasic` [textSize 12, paddingT 6]
+  | otherwise =
+      vstack
+        [ label "Fetched collections (click to use as fallback)"
+            `styleBasic` [textSize 12, paddingT 6]
+        , vstack (map (hstack . map collectionButton) (chunksOf 3 (lingqCollections model)))
+        ]
+  where
+    collectionButton collection =
+      button
+        (collectionTitle collection <> " (" <> tshow (collectionLessonsCount collection) <> ")")
+        (GuiFallbackCollectionChanged (collectionId collection))
+        `styleBasic` [paddingR 4, paddingB 4]
+
 selectedArticleBlock :: Model -> Maybe ArticleRowView -> WidgetNode Model GuiEvent
 selectedArticleBlock model Nothing =
   case currentView model of
@@ -384,14 +486,19 @@ articleButtons Nothing _ = [button "Back to library" GuiCloseArticle]
 articleButtons (Just article) maybeContent =
   [ button "Back to library" GuiCloseArticle
   ]
+    <> maybe [] (\ident -> uploadAction ident article) (summaryId article)
     <> audioButtons article maybeContent
     <> maybe [] (\ident -> [button "Delete" (GuiDeleteArticle ident)]) (summaryId article)
 
 audioButtons :: ArticleSummary -> Maybe Article -> [WidgetNode Model GuiEvent]
 audioButtons summary maybeContent =
-  case (summaryId summary, maybeContent >>= articleAudioUrl) of
-    (Just ident, Just _) -> [button "Download audio" (GuiDownloadAudio ident)]
-    _ -> []
+  case summaryId summary of
+    Nothing -> []
+    Just ident ->
+      let maybeAudioUrl = maybeContent >>= articleAudioUrl
+          maybeAudioPath = maybeContent >>= articleAudioPath
+       in maybe [] (const [button "Download audio" (GuiDownloadAudio ident)]) maybeAudioUrl
+            <> maybe [] (const [button "Open audio" (GuiOpenAudio ident)]) maybeAudioPath
 
 articleParagraphsBlock :: [Text] -> WidgetNode Model GuiEvent
 articleParagraphsBlock [] =
@@ -405,32 +512,46 @@ paragraphLabel paragraph =
   label paragraph
     `styleBasic` [paddingB 8]
 
-articleRowsBlock :: View -> [ArticleSummary] -> WidgetNode Model GuiEvent
+articleRowsBlock :: Model -> [ArticleSummary] -> WidgetNode Model GuiEvent
 articleRowsBlock _ [] =
   label "No rows loaded yet."
-articleRowsBlock view rows =
-  scroll (vstack (map (articleRowBlock view) rows))
+articleRowsBlock model rows =
+  scroll (vstack (map (articleRowBlock model) rows))
     `styleBasic` [height 430, paddingT 16]
 
-articleRowBlock :: View -> ArticleSummary -> WidgetNode Model GuiEvent
-articleRowBlock view article =
+articleRowBlock :: Model -> ArticleSummary -> WidgetNode Model GuiEvent
+articleRowBlock model article =
   hstack
-    [ vstack
+    [ browseSelectionCheckbox model article
+    , vstack
         [ label (rowTitle row)
         , label (rowMeta row <> " | " <> rowKnownPct row <> " | " <> rowUploadStatus row)
             `styleBasic` [textSize 12]
         ]
     , filler
-    , hstack (rowActions view article)
+    , hstack (rowActions (currentView model) article)
     ]
     `styleBasic` [paddingV 8, borderB 1 (rgbHex "#2f3b48")]
   where
     row = articleRowView article
 
+browseSelectionCheckbox :: Model -> ArticleSummary -> WidgetNode Model GuiEvent
+browseSelectionCheckbox model article =
+  case currentView model of
+    BrowseView ->
+      checkboxV
+        (Set.member (summaryUrl article) (browseSelectedUrls model))
+        (const (GuiBrowseToggleSelection (summaryUrl article)))
+        `styleBasic` [paddingR 8]
+    _ -> spacer
+
 rowActions :: View -> ArticleSummary -> [WidgetNode Model GuiEvent]
 rowActions BrowseView article =
-  [ button "Fetch" (GuiFetchArticle article)
-  , button "Hide" (GuiHideBrowseArticle article)
+  [ button "Preview" (GuiPreviewArticle article)
+  , button "Fetch" (GuiFetchArticle article)
+  , button
+      (if summaryIgnored article then "Unhide" else "Hide")
+      (if summaryIgnored article then GuiUnhideBrowseArticle article else GuiHideBrowseArticle article)
   ]
 rowActions _ article =
   maybe
@@ -492,14 +613,16 @@ runUploadAppEvent :: AppPorts IO -> Model -> ArticleId -> IO GuiEvent
 runUploadAppEvent ports model ident =
   safeGuiTask $ do
     now <- getCurrentTime
-    fallbackCollection <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
+    envFallback <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
+    let fallbackCollection = lingqFallbackCollection model <|> envFallback
     dispatchEvent ports model (ArticleUploadRequested (utctDay now) fallbackCollection ident)
 
 runUploadBatchAppEvent :: AppPorts IO -> Model -> [ArticleSummary] -> IO GuiEvent
 runUploadBatchAppEvent ports model articles =
   safeGuiTask $ do
     now <- getCurrentTime
-    fallbackCollection <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
+    envFallback <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
+    let fallbackCollection = lingqFallbackCollection model <|> envFallback
     dispatchEvent ports model (LingqBatchUploadRequested (utctDay now) fallbackCollection articles)
 
 runDeleteOlderAppEvent :: AppPorts IO -> Model -> Int -> Bool -> Bool -> IO GuiEvent
@@ -560,6 +683,9 @@ guiLingqPort maybeToken =
     , uploadLessonToLingq = \languageCode collectionId article -> do
         token <- maybe (fail "Set LINGQ_API_KEY before uploading to LingQ.") pure maybeToken
         either failWithShow pure =<< uploadLessonLingq token languageCode collectionId article
+    , fetchCollections = \languageCode -> do
+        token <- maybe (fail "Set LINGQ_API_KEY before loading LingQ collections.") pure maybeToken
+        either failWithShow pure =<< fetchCollectionsLingq token languageCode
     , fetchKnownWords = \languageCode -> do
         token <- maybe (fail "Set LINGQ_API_KEY before syncing known words.") pure maybeToken
         either failWithShow pure =<< fetchKnownWordsLingq token languageCode
@@ -576,6 +702,7 @@ guiAudioPort =
   AudioPort
     { downloadArticleAudioFile = \audioDir article ->
         either failWithShow pure =<< downloadArticleAudio audioDir article
+    , openAudioFile = openAudioPath
     }
 
 guiLibraryPort :: LibraryPort IO
@@ -609,6 +736,12 @@ guiLibraryPort =
         withLibrary dbPath $ \db -> deleteOlderThanSqlite db cutoff onlyUploaded onlyUnuploaded
     , replaceKnownWords = \languageCode stems ->
         withLibrary dbPath $ \db -> saveKnownWordsSqlite db languageCode stems
+    , addKnownWords = \languageCode stems ->
+        withLibrary dbPath $ \db -> addKnownWordsSqlite db languageCode stems
+    , clearKnownWords = \languageCode ->
+        withLibrary dbPath $ \db -> clearKnownWordsSqlite db languageCode
+    , clearKnownPercentages =
+        withLibrary dbPath clearAllKnownPctSqlite
     , computeKnownPercentages = \languageCode ->
         withLibrary dbPath $ \db -> computeKnownPctSqlite db languageCode
     , knownStemCount = \languageCode ->
@@ -638,6 +771,10 @@ updateSectionCollection sectionName raw mappings
   | otherwise = Map.insert sectionName collectionId mappings
   where
     collectionId = T.strip raw
+
+selectedBrowseArticles :: Model -> [ArticleSummary] -> [ArticleSummary]
+selectedBrowseArticles model =
+  filter (\article -> Set.member (summaryUrl article) (browseSelectedUrls model))
 
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf size values

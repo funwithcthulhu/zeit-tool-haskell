@@ -8,19 +8,28 @@ module ZeitLingq.App.Model
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import ZeitLingq.Domain.Types
 
 data Model = Model
   { currentView :: View
+  , articleReturnView :: View
   , zeitStatus :: AuthStatus
   , lingqStatus :: AuthStatus
   , selectedArticle :: Maybe ArticleSummary
   , selectedArticleContent :: Maybe Article
   , browseArticles :: [ArticleSummary]
+  , browseSelectedUrls :: Set Text
+  , browseShowHidden :: Bool
   , libraryArticles :: [ArticleSummary]
   , libraryTotal :: Int
   , lingqArticles :: [ArticleSummary]
+  , lingqCollections :: [LingqCollection]
+  , lingqFallbackCollection :: Maybe Text
+  , knownStemTotal :: Int
+  , knownImportText :: Text
   , notification :: Maybe Notification
   , browseSectionId :: Text
   , browsePage :: Int
@@ -39,14 +48,21 @@ initialModel :: Model
 initialModel =
   Model
     { currentView = BrowseView
+    , articleReturnView = LibraryView
     , zeitStatus = emptyAuth
     , lingqStatus = emptyAuth
     , selectedArticle = Nothing
     , selectedArticleContent = Nothing
     , browseArticles = []
+    , browseSelectedUrls = Set.empty
+    , browseShowHidden = False
     , libraryArticles = []
     , libraryTotal = 0
     , lingqArticles = []
+    , lingqCollections = []
+    , lingqFallbackCollection = Nothing
+    , knownStemTotal = 0
+    , knownImportText = ""
     , notification = Nothing
     , browseSectionId = "index"
     , browsePage = 1

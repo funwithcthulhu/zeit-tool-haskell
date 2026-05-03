@@ -27,11 +27,13 @@ data LingqPort m = LingqPort
   { loginToLingq :: Text -> Text -> m AuthStatus
   , logoutFromLingq :: m ()
   , uploadLessonToLingq :: Text -> Maybe Text -> Article -> m LingqLesson
+  , fetchCollections :: Text -> m [LingqCollection]
   , fetchKnownWords :: Text -> m [Text]
   }
 
 data AudioPort m = AudioPort
   { downloadArticleAudioFile :: FilePath -> Article -> m FilePath
+  , openAudioFile :: FilePath -> m ()
   }
 
 data LibraryPort m = LibraryPort
@@ -49,6 +51,9 @@ data LibraryPort m = LibraryPort
   , deleteIgnoredArticles :: m Int
   , deleteOlderArticles :: UTCTime -> Bool -> Bool -> m Int
   , replaceKnownWords :: Text -> Set Text -> m Int
+  , addKnownWords :: Text -> Set Text -> m Int
+  , clearKnownWords :: Text -> m ()
+  , clearKnownPercentages :: m ()
   , computeKnownPercentages :: Text -> m (Either Text Int)
   , knownStemCount :: Text -> m Int
   , loadStats :: m LibraryStats
@@ -59,8 +64,12 @@ data SettingsPort m = SettingsPort
   , saveCurrentView :: View -> m ()
   , loadBrowseSection :: m Text
   , saveBrowseSection :: Text -> m ()
+  , loadBrowseFilter :: m WordFilter
+  , saveBrowseFilter :: WordFilter -> m ()
   , loadDatePrefixEnabled :: m Bool
   , saveDatePrefixEnabled :: Bool -> m ()
+  , loadLingqFallbackCollection :: m (Maybe Text)
+  , saveLingqFallbackCollection :: Maybe Text -> m ()
   , loadSectionCollections :: m (Map Text Text)
   , saveSectionCollections :: Map Text Text -> m ()
   }

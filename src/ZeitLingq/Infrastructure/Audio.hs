@@ -4,6 +4,7 @@ module ZeitLingq.Infrastructure.Audio
   ( AudioDownloadError(..)
   , audioFilename
   , downloadArticleAudio
+  , openAudioPath
   ) where
 
 import Data.ByteString.Lazy qualified as BL
@@ -13,6 +14,8 @@ import Data.Text qualified as T
 import Network.HTTP.Simple
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.FilePath ((</>))
+import System.Info (os)
+import System.Process (callProcess)
 import ZeitLingq.Domain.Types
 
 data AudioDownloadError
@@ -94,3 +97,10 @@ findExtension url
   | otherwise = Nothing
   where
     lower = T.toLower url
+
+openAudioPath :: FilePath -> IO ()
+openAudioPath path =
+  case os of
+    "mingw32" -> callProcess "cmd" ["/c", "start", "", path]
+    "darwin" -> callProcess "open" [path]
+    _ -> callProcess "xdg-open" [path]

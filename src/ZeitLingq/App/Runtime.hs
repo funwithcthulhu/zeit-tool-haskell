@@ -11,7 +11,7 @@ import Data.Maybe (catMaybes)
 import ZeitLingq.App.Update (Command(..), Event(..))
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.Core.Batch (BatchFetchResult(..), batchFetchArticles)
-import ZeitLingq.Core.Browse (hideIgnoredSummaries)
+import ZeitLingq.Core.Browse (hideIgnoredSummaries, markIgnoredSummaries)
 import ZeitLingq.Core.KnownWords (importKnownWordStems)
 import ZeitLingq.Core.Upload (BatchUploadResult(..), batchUploadArticles)
 import ZeitLingq.Domain.Article (wordCount)
@@ -25,14 +25,23 @@ runCommand ports command =
       [] <$ saveCurrentView settings view
     PersistBrowseSection sectionId ->
       [] <$ saveBrowseSection settings sectionId
+    PersistBrowseFilter filters ->
+      [] <$ saveBrowseFilter settings filters
     PersistDatePrefix enabled ->
       [] <$ saveDatePrefixEnabled settings enabled
+    PersistLingqFallbackCollection collectionId ->
+      [] <$ saveLingqFallbackCollection settings collectionId
     PersistSectionCollections mappings ->
       [] <$ saveSectionCollections settings mappings
-    RefreshBrowse sectionId page -> do
+    RefreshBrowse sectionId page showHidden -> do
       articles <- fetchArticleList zeit sectionId page
       ignoredUrls <- Set.fromList <$> loadIgnoredUrls library
-      pure [BrowseArticlesLoaded (hideIgnoredSummaries ignoredUrls articles)]
+      let annotated = markIgnoredSummaries ignoredUrls articles
+          visible =
+            if showHidden
+              then annotated
+              else hideIgnoredSummaries ignoredUrls annotated
+      pure [BrowseArticlesLoaded visible]
     RefreshLibrary filters -> do
       articles <- loadLibrary library filters
       pure [LibraryArticlesLoaded articles]
@@ -50,6 +59,9 @@ runCommand ports command =
             ArticleContentLoaded
             article
         ]
+    PreviewArticle url -> do
+      article <- fetchArticleContent zeit url
+      pure [ArticleContentLoaded article]
     FetchAndSaveArticle summary -> do
       article <- fetchArticleContent zeit (summaryUrl summary)
       savedId <- saveArticle library article
@@ -109,6 +121,12 @@ runCommand ports command =
         [ Notify SuccessNotice "Article hidden from browse."
         , RefreshCurrentView
         ]
+    SetBrowseUrlUnignored url -> do
+      unignoreArticleUrl library url
+      pure
+        [ Notify SuccessNotice "Article unhidden from browse."
+        , RefreshCurrentView
+        ]
     FetchAndSaveArticles filters summaries -> do
       results <-
         batchFetchArticles
@@ -132,14 +150,57 @@ runCommand ports command =
             [ Notify SuccessNotice ("Saved audio: " <> T.pack path)
             , RefreshCurrentView
             ]
+    OpenArticleAudio ident -> do
+      maybeArticle <- loadArticle library ident
+      case maybeArticle >>= articleAudioPath of
+        Nothing ->
+          pure [Notify ErrorNotice "No downloaded audio file for this article."]
+        Just path -> do
+          openAudioFile audio path
+          pure [Notify SuccessNotice "Opened audio file."]
     SyncKnownWordsFromLingq languageCode -> do
       terms <- fetchKnownWords lingq languageCode
       added <- replaceKnownWords library languageCode (importKnownWordStems (T.unlines terms))
       computeResult <- computeKnownPercentages library languageCode
       pure
         [ Notify SuccessNotice (knownWordsSyncMessage added computeResult)
+        , KnownWordsInfoLoaded added
         , RefreshCurrentView
         ]
+    ImportKnownWordText languageCode rawWords replaceExisting -> do
+      let stems = importKnownWordStems rawWords
+      added <-
+        if replaceExisting
+          then replaceKnownWords library languageCode stems
+          else addKnownWords library languageCode stems
+      total <- knownStemCount library languageCode
+      computeResult <- computeKnownPercentages library languageCode
+      pure
+        [ Notify SuccessNotice (knownWordsImportMessage added total computeResult)
+        , KnownWordsInfoLoaded total
+        , KnownWordsImportTextChanged ""
+        , RefreshCurrentView
+        ]
+    ComputeKnownPercentagesFor languageCode -> do
+      computeResult <- computeKnownPercentages library languageCode
+      pure
+        [ Notify (knownWordsComputeLevel computeResult) (knownWordsComputeMessage computeResult)
+        , RefreshCurrentView
+        ]
+    ClearKnownWords languageCode -> do
+      clearKnownWords library languageCode
+      clearKnownPercentages library
+      pure
+        [ Notify SuccessNotice "Cleared known words and cached known-word percentages."
+        , KnownWordsInfoLoaded 0
+        , RefreshCurrentView
+        ]
+    LoadKnownWordsInfo languageCode -> do
+      total <- knownStemCount library languageCode
+      pure [KnownWordsInfoLoaded total]
+    RefreshLingqCollections languageCode -> do
+      collections <- fetchCollections lingq languageCode
+      pure [LingqCollectionsLoaded collections]
     DeleteIgnoredArticles -> do
       deleted <- deleteIgnoredArticles library
       pure
@@ -214,3 +275,29 @@ knownWordsSyncMessage added computeResult =
         <> " articles."
     Left err ->
       "Synced " <> tshow added <> " known stems. " <> err
+
+knownWordsImportMessage :: Int -> Int -> Either Text Int -> Text
+knownWordsImportMessage added total computeResult =
+  case computeResult of
+    Right articleCount ->
+      "Imported "
+        <> tshow added
+        <> " stems ("
+        <> tshow total
+        <> " total) and updated "
+        <> tshow articleCount
+        <> " articles."
+    Left err ->
+      "Imported " <> tshow added <> " stems (" <> tshow total <> " total). " <> err
+
+knownWordsComputeLevel :: Either Text Int -> NotificationLevel
+knownWordsComputeLevel (Right _) = SuccessNotice
+knownWordsComputeLevel (Left _) = ErrorNotice
+
+knownWordsComputeMessage :: Either Text Int -> Text
+knownWordsComputeMessage computeResult =
+  case computeResult of
+    Right articleCount ->
+      "Updated known-word estimates for " <> tshow articleCount <> " articles."
+    Left err ->
+      err

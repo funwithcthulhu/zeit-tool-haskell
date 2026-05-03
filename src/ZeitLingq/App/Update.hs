@@ -7,6 +7,8 @@ module ZeitLingq.App.Update
   ) where
 
 import Data.Map.Strict (Map)
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (Day, UTCTime)
@@ -20,15 +22,29 @@ data Event
   | ArticleOpened ArticleSummary
   | ArticleContentLoaded Article
   | ArticleClosed
+  | BrowseArticlePreviewRequested ArticleSummary
   | BrowseArticleFetchRequested ArticleSummary
   | ArticleDeleteRequested ArticleId
   | ArticleIgnoredChanged ArticleId Bool
   | ArticleUploadRequested Day (Maybe Text) ArticleId
   | ArticleAudioDownloadRequested FilePath ArticleId
+  | ArticleAudioOpenRequested ArticleId
   | BrowseArticleHidden Text
+  | BrowseArticleUnhidden Text
+  | BrowseSelectionToggled Text
+  | BrowseSelectionChanged (Set Text)
+  | BrowseShowHiddenChanged Bool
   | BrowseBatchFetchRequested [ArticleSummary]
   | LingqBatchUploadRequested Day (Maybe Text) [ArticleSummary]
   | KnownWordsSyncRequested Text
+  | KnownWordsImportTextChanged Text
+  | KnownWordsImportRequested Text Text Bool
+  | KnownWordsComputeRequested Text
+  | KnownWordsClearRequested Text
+  | KnownWordsInfoLoaded Int
+  | LingqCollectionsRefreshRequested Text
+  | LingqCollectionsLoaded [LingqCollection]
+  | LingqFallbackCollectionChanged Text
   | BrowseArticlesLoaded [ArticleSummary]
   | LibraryArticlesLoaded [ArticleSummary]
   | LibraryPageLoaded LibraryPage
@@ -55,22 +71,32 @@ data Event
 data Command
   = PersistCurrentView View
   | PersistBrowseSection Text
+  | PersistBrowseFilter WordFilter
   | PersistDatePrefix Bool
+  | PersistLingqFallbackCollection (Maybe Text)
   | PersistSectionCollections (Map Text Text)
-  | RefreshBrowse Text Int
+  | RefreshBrowse Text Int Bool
   | RefreshLibrary WordFilter
   | RefreshLibraryPage LibraryQuery
   | RefreshLingqLibrary WordFilter
   | LoadArticle ArticleId
+  | PreviewArticle Text
   | FetchAndSaveArticle ArticleSummary
   | DeleteSavedArticle ArticleId
   | SetArticleIgnored ArticleId Bool
   | UploadSavedArticle Day (Maybe Text) (Map Text Text) Bool ArticleId
   | SetBrowseUrlIgnored Text
+  | SetBrowseUrlUnignored Text
   | FetchAndSaveArticles WordFilter [ArticleSummary]
   | UploadSavedArticles Day (Maybe Text) (Map Text Text) Bool [ArticleId]
   | DownloadArticleAudio FilePath ArticleId
+  | OpenArticleAudio ArticleId
   | SyncKnownWordsFromLingq Text
+  | ImportKnownWordText Text Text Bool
+  | ComputeKnownPercentagesFor Text
+  | ClearKnownWords Text
+  | LoadKnownWordsInfo Text
+  | RefreshLingqCollections Text
   | DeleteIgnoredArticles
   | DeleteOlderArticles UTCTime Bool Bool
   deriving (Eq, Show)
@@ -96,6 +122,7 @@ update event model =
           { selectedArticle = Just article
           , selectedArticleContent = Nothing
           , currentView = ArticleView
+          , articleReturnView = currentView model
           }
       , PersistCurrentView ArticleView : maybe [] (pure . LoadArticle) (summaryId article)
       )
@@ -104,14 +131,26 @@ update event model =
       , []
       )
     ArticleClosed ->
-      let nextModel =
+      let returnView = articleReturnView model
+          nextModel =
             model
               { selectedArticle = Nothing
               , selectedArticleContent = Nothing
-              , currentView = LibraryView
+              , currentView = returnView
               }
        in ( nextModel
-          , PersistCurrentView LibraryView : refreshCommands nextModel
+          , PersistCurrentView returnView : refreshCommands nextModel
+          )
+    BrowseArticlePreviewRequested article ->
+      let nextModel =
+            model
+              { selectedArticle = Just article
+              , selectedArticleContent = Nothing
+              , currentView = ArticleView
+              , articleReturnView = BrowseView
+              }
+       in ( nextModel
+          , [PersistCurrentView ArticleView, PreviewArticle (summaryUrl article)]
           )
     BrowseArticleFetchRequested article ->
       ( model
@@ -133,10 +172,31 @@ update event model =
       ( model
       , [DownloadArticleAudio audioDir ident]
       )
+    ArticleAudioOpenRequested ident ->
+      ( model
+      , [OpenArticleAudio ident]
+      )
     BrowseArticleHidden url ->
       ( model
       , [SetBrowseUrlIgnored url]
       )
+    BrowseArticleUnhidden url ->
+      ( model
+      , [SetBrowseUrlUnignored url]
+      )
+    BrowseSelectionToggled url ->
+      ( model {browseSelectedUrls = toggleSetMember url (browseSelectedUrls model)}
+      , []
+      )
+    BrowseSelectionChanged urls ->
+      ( model {browseSelectedUrls = urls}
+      , []
+      )
+    BrowseShowHiddenChanged enabled ->
+      let nextModel = model {browseShowHidden = enabled, browseSelectedUrls = Set.empty}
+       in ( nextModel
+          , [RefreshBrowse (browseSectionId nextModel) (browsePage nextModel) enabled]
+          )
     BrowseBatchFetchRequested articles ->
       ( model
       , [FetchAndSaveArticles (browseFilter model) articles]
@@ -149,8 +209,44 @@ update event model =
       ( model
       , [SyncKnownWordsFromLingq languageCode]
       )
+    KnownWordsImportTextChanged text ->
+      ( model {knownImportText = text}
+      , []
+      )
+    KnownWordsImportRequested languageCode text replaceExisting ->
+      ( model
+      , [ImportKnownWordText languageCode text replaceExisting]
+      )
+    KnownWordsComputeRequested languageCode ->
+      ( model
+      , [ComputeKnownPercentagesFor languageCode]
+      )
+    KnownWordsClearRequested languageCode ->
+      ( model
+      , [ClearKnownWords languageCode]
+      )
+    KnownWordsInfoLoaded total ->
+      ( model {knownStemTotal = total}
+      , []
+      )
+    LingqCollectionsRefreshRequested languageCode ->
+      ( model
+      , [RefreshLingqCollections languageCode]
+      )
+    LingqCollectionsLoaded collections ->
+      ( model {lingqCollections = collections}
+      , []
+      )
+    LingqFallbackCollectionChanged collectionId ->
+      let nextCollection = nonEmptyText collectionId
+       in ( model {lingqFallbackCollection = nextCollection}
+          , [PersistLingqFallbackCollection nextCollection]
+          )
     BrowseArticlesLoaded articles ->
-      ( model {browseArticles = articles}
+      ( model
+          { browseArticles = articles
+          , browseSelectedUrls = pruneBrowseSelection articles (browseSelectedUrls model)
+          }
       , []
       )
     LibraryArticlesLoaded articles ->
@@ -181,17 +277,17 @@ update event model =
       , []
       )
     BrowseSectionSelected sectionIdValue ->
-      ( model {browseSectionId = sectionIdValue, browsePage = 1}
-      , [PersistBrowseSection sectionIdValue, RefreshBrowse sectionIdValue 1]
+      ( model {browseSectionId = sectionIdValue, browsePage = 1, browseSelectedUrls = Set.empty}
+      , [PersistBrowseSection sectionIdValue, RefreshBrowse sectionIdValue 1 (browseShowHidden model)]
       )
     BrowsePageChanged page ->
       let nextPage = max 1 page
-       in ( model {browsePage = nextPage}
-          , [RefreshBrowse (browseSectionId model) nextPage]
+       in ( model {browsePage = nextPage, browseSelectedUrls = Set.empty}
+          , [RefreshBrowse (browseSectionId model) nextPage (browseShowHidden model)]
           )
     BrowseFilterChanged filters ->
       ( model {browseFilter = filters}
-      , []
+      , [PersistBrowseFilter filters]
       )
     LibraryFilterChanged filters ->
       let nextQuery =
@@ -272,9 +368,11 @@ update event model =
 refreshCommands :: Model -> [Command]
 refreshCommands model =
   case currentView model of
-    BrowseView -> [RefreshBrowse (browseSectionId model) (browsePage model)]
+    BrowseView -> [RefreshBrowse (browseSectionId model) (browsePage model) (browseShowHidden model)]
     LibraryView -> [RefreshLibraryPage (libraryQuery model)]
-    LingqView -> [RefreshLingqLibrary (lingqFilter model)]
+    LingqView ->
+      [RefreshLingqLibrary (lingqFilter model), LoadKnownWordsInfo "de"]
+        <> [RefreshLingqCollections "de" | authLoggedIn (lingqStatus model)]
     ZeitLoginView -> []
     ArticleView -> maybe [] (maybe [] (pure . LoadArticle) . summaryId) (selectedArticle model)
 
@@ -296,3 +394,14 @@ nonEmptyText value
 
 stripText :: Text -> Text
 stripText = T.strip
+
+toggleSetMember :: Ord a => a -> Set a -> Set a
+toggleSetMember value values
+  | Set.member value values = Set.delete value values
+  | otherwise = Set.insert value values
+
+pruneBrowseSelection :: [ArticleSummary] -> Set Text -> Set Text
+pruneBrowseSelection articles selected =
+  Set.intersection selected visibleUrls
+  where
+    visibleUrls = Set.fromList (map summaryUrl articles)
