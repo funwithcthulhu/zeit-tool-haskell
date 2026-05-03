@@ -32,6 +32,7 @@ data Model = Model
   , libraryStats :: Maybe LibraryStats
   , libraryGroupBySection :: Bool
   , lingqArticles :: [ArticleSummary]
+  , lingqSelectedIds :: Set ArticleId
   , lingqCollections :: [LingqCollection]
   , lingqFallbackCollection :: Maybe Text
   , knownStemTotal :: Int
@@ -71,6 +72,7 @@ initialModel =
     , libraryStats = Nothing
     , libraryGroupBySection = False
     , lingqArticles = []
+    , lingqSelectedIds = Set.empty
     , lingqCollections = []
     , lingqFallbackCollection = Nothing
     , knownStemTotal = 0

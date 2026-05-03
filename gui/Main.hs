@@ -59,6 +59,10 @@ data GuiEvent
   | GuiFetchVisible [ArticleSummary]
   | GuiToggleIgnored ArticleSummary
   | GuiUploadArticle ArticleId
+  | GuiLingqToggleSelection ArticleId
+  | GuiLingqSelectNotUploaded [ArticleSummary]
+  | GuiLingqClearSelection
+  | GuiUploadSelected [ArticleSummary]
   | GuiUploadVisible [ArticleSummary]
   | GuiDownloadAudio ArticleId
   | GuiOpenAudio ArticleId
@@ -186,6 +190,16 @@ handleEvent ports _ _ model event =
         Nothing -> [Task (runAppEvent ports model (Notify ErrorNotice "Cannot ignore an unsaved article."))]
     GuiUploadArticle ident ->
       [Task (runUploadAppEvent ports model ident)]
+    GuiLingqToggleSelection ident ->
+      [Task (runAppEvent ports model (LingqSelectionToggled ident))]
+    GuiLingqSelectNotUploaded articles ->
+      [Task (runAppEvent ports model (LingqSelectionChanged (Set.fromList (mapMaybeSummaryId (filter uploadableSummary articles)))))]
+    GuiLingqClearSelection ->
+      [Task (runAppEvent ports model (LingqSelectionChanged Set.empty))]
+    GuiUploadSelected articles ->
+      case selectedLingqArticles model articles of
+        [] -> [Task (runAppEvent ports model (Notify ErrorNotice "Select at least one article to upload."))]
+        selected -> [Task (runUploadBatchAppEvent ports model selected)]
     GuiUploadVisible articles ->
       [Task (runUploadBatchAppEvent ports model articles)]
     GuiDownloadAudio ident ->
@@ -496,7 +510,12 @@ lingqControls model =
       vstack
         [ lingqLoginControls model
         , hstack
-            [ button ("Upload visible (" <> T.pack (show (length uploadable)) <> ")") (GuiUploadVisible (lingqArticles model))
+            [ button ("Select not uploaded (" <> tshow (length uploadable) <> ")") (GuiLingqSelectNotUploaded (lingqArticles model))
+            , button "Deselect" GuiLingqClearSelection
+            , label (tshow (Set.size (lingqSelectedIds model)) <> " selected")
+                `styleBasic` [paddingH 8]
+            , button ("Upload selected (" <> tshow (Set.size (lingqSelectedIds model)) <> ")") (GuiUploadSelected (lingqArticles model))
+            , button ("Upload visible (" <> T.pack (show (length uploadable)) <> ")") (GuiUploadVisible (lingqArticles model))
             , button "Sync known words" GuiSyncKnownWords
             , button "Refresh %" GuiComputeKnownWords
             , button "Refresh collections" GuiRefreshCollections
@@ -683,7 +702,7 @@ groupArticlesBySection =
 articleRowBlock :: Model -> ArticleSummary -> WidgetNode Model GuiEvent
 articleRowBlock model article =
   hstack
-    [ browseSelectionCheckbox model article
+    [ rowSelectionCheckbox model article
     , vstack
         [ label (rowTitle row)
         , label (rowMeta row <> " | " <> rowKnownPct row <> " | " <> rowUploadStatus row)
@@ -696,14 +715,22 @@ articleRowBlock model article =
   where
     row = articleRowView article
 
-browseSelectionCheckbox :: Model -> ArticleSummary -> WidgetNode Model GuiEvent
-browseSelectionCheckbox model article =
+rowSelectionCheckbox :: Model -> ArticleSummary -> WidgetNode Model GuiEvent
+rowSelectionCheckbox model article =
   case currentView model of
     BrowseView ->
       checkboxV
         (Set.member (summaryUrl article) (browseSelectedUrls model))
         (const (GuiBrowseToggleSelection (summaryUrl article)))
         `styleBasic` [paddingR 8]
+    LingqView ->
+      case summaryId article of
+        Nothing -> spacer
+        Just ident ->
+          checkboxV
+            (Set.member ident (lingqSelectedIds model))
+            (const (GuiLingqToggleSelection ident))
+            `styleBasic` [paddingR 8]
     _ -> spacer
 
 rowActions :: View -> ArticleSummary -> [WidgetNode Model GuiEvent]
@@ -999,6 +1026,24 @@ updateSectionCollection sectionName raw mappings
 selectedBrowseArticles :: Model -> [ArticleSummary] -> [ArticleSummary]
 selectedBrowseArticles model =
   filter (\article -> Set.member (summaryUrl article) (browseSelectedUrls model))
+
+selectedLingqArticles :: Model -> [ArticleSummary] -> [ArticleSummary]
+selectedLingqArticles model =
+  filter isSelected
+  where
+    isSelected article =
+      maybe False (\ident -> Set.member ident (lingqSelectedIds model)) (summaryId article)
+
+uploadableSummary :: ArticleSummary -> Bool
+uploadableSummary article =
+  not (summaryUploaded article) && not (summaryIgnored article)
+
+mapMaybeSummaryId :: [ArticleSummary] -> [ArticleId]
+mapMaybeSummaryId articles =
+  [ ident
+  | article <- articles
+  , Just ident <- [summaryId article]
+  ]
 
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf size values

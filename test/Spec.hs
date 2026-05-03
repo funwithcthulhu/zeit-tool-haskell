@@ -218,6 +218,10 @@ main = hspec $ do
         `shouldBe` [FetchAndSaveArticles (WordFilter Nothing Nothing) [summary]]
       snd (update (LingqBatchUploadRequested (fromGregorian 2026 5 2) Nothing [summary]) initialModel)
         `shouldBe` [UploadSavedArticles (fromGregorian 2026 5 2) Nothing Map.empty True [ArticleId 15]]
+      lingqSelectedIds (fst (update (LingqSelectionToggled (ArticleId 15)) initialModel))
+        `shouldBe` Set.singleton (ArticleId 15)
+      lingqSelectedIds (fst (update (LingqSelectionChanged (Set.singleton (ArticleId 15))) initialModel))
+        `shouldBe` Set.singleton (ArticleId 15)
       snd (update (ArticleAudioDownloadRequested "audio" (ArticleId 15)) initialModel)
         `shouldBe` [DownloadArticleAudio "audio" (ArticleId 15)]
       snd (update (ArticleAudioOpenRequested (ArticleId 15)) initialModel)

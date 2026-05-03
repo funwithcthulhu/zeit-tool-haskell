@@ -45,6 +45,8 @@ data Event
   | BrowseShowHiddenChanged Bool
   | BrowseBatchFetchRequested [ArticleSummary]
   | LingqBatchUploadRequested Day (Maybe Text) [ArticleSummary]
+  | LingqSelectionToggled ArticleId
+  | LingqSelectionChanged (Set ArticleId)
   | KnownWordsSyncRequested Text
   | KnownWordsImportTextChanged Text
   | KnownWordsImportRequested Text Text Bool
@@ -259,6 +261,14 @@ update event model =
       ( model
       , [UploadSavedArticles day fallbackCollection (sectionCollections model) (datePrefixEnabled model) (uploadableIds articles)]
       )
+    LingqSelectionToggled ident ->
+      ( model {lingqSelectedIds = toggleSetMember ident (lingqSelectedIds model)}
+      , []
+      )
+    LingqSelectionChanged idents ->
+      ( model {lingqSelectedIds = idents}
+      , []
+      )
     KnownWordsSyncRequested languageCode ->
       ( model
       , [SyncKnownWordsFromLingq languageCode]
@@ -319,7 +329,10 @@ update event model =
       , []
       )
     LingqArticlesLoaded articles ->
-      ( model {lingqArticles = articles}
+      ( model
+          { lingqArticles = articles
+          , lingqSelectedIds = pruneLingqSelection articles (lingqSelectedIds model)
+          }
       , []
       )
     RefreshCurrentView ->
@@ -484,3 +497,14 @@ pruneBrowseSelection articles selected =
   Set.intersection selected visibleUrls
   where
     visibleUrls = Set.fromList (map summaryUrl articles)
+
+pruneLingqSelection :: [ArticleSummary] -> Set ArticleId -> Set ArticleId
+pruneLingqSelection articles selected =
+  Set.intersection selected visibleIds
+  where
+    visibleIds =
+      Set.fromList
+        [ ident
+        | article <- articles
+        , Just ident <- [summaryId article]
+        ]
