@@ -4,13 +4,19 @@ module Main (main) where
 
 import Data.Set qualified as Set
 import Data.Time (fromGregorian)
+import Data.Map.Strict qualified as Map
+import Control.Monad (when)
+import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
+import System.FilePath ((</>))
 import Test.Hspec
 import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.Update
 import ZeitLingq.Core.KnownWords (estimateKnownPct, importKnownWordStems)
 import ZeitLingq.Domain.Article
 import ZeitLingq.Domain.Types
+import ZeitLingq.Infrastructure.Settings
 import ZeitLingq.Infrastructure.Sqlite
+import ZeitLingq.Ports (SettingsPort(..))
 import ZeitLingq.Text.German
 
 main :: IO ()
@@ -85,6 +91,22 @@ main = hspec $ do
         fmap articleIgnored loaded `shouldBe` Just True
         fmap articleUploadedLesson loaded `shouldBe` Just (Just (LingqLesson "lesson-1" "https://lingq.example/lesson-1"))
 
+  describe "JSON settings adapter" $ do
+    it "returns defaults when the settings file does not exist" $ do
+      withTempSettingsPath $ \path -> do
+        loadSettings path `shouldReturn` defaultSettings
+
+    it "persists the settings port values independently" $ do
+      withTempSettingsPath $ \path -> do
+        let port = jsonSettingsPort path
+        saveCurrentView port LingqView
+        saveDatePrefixEnabled port False
+        saveSectionCollections port (Map.fromList [("Wissen", "course-1")])
+
+        loadCurrentView port `shouldReturn` LingqView
+        loadDatePrefixEnabled port `shouldReturn` False
+        loadSectionCollections port `shouldReturn` Map.fromList [("Wissen", "course-1")]
+
 demoArticle :: Article
 demoArticle =
   Article
@@ -103,3 +125,14 @@ demoArticle =
     , articleAudioPath = Nothing
     , articleKnownPct = Nothing
     }
+
+withTempSettingsPath :: (FilePath -> IO a) -> IO a
+withTempSettingsPath action = do
+  tmp <- getTemporaryDirectory
+  let path = tmp </> "zeit-tool-settings-test.json"
+  existsBefore <- doesFileExist path
+  when existsBefore (removeFile path)
+  result <- action path
+  stillExists <- doesFileExist path
+  when stillExists (removeFile path)
+  pure result

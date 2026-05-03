@@ -30,6 +30,8 @@ The rewrite uses four layers:
   - Ported into `ZeitLingq.Text.German`.
 - `src/App.jsx` and component state
   - Reframed as `ZeitLingq.App.Model` and `ZeitLingq.App.Update`.
+- Electron `settings.json`
+  - Ported into `ZeitLingq.Infrastructure.Settings` behind `SettingsPort`.
 
 ## GUI recommendation
 
