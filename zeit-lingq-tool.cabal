@@ -78,6 +78,14 @@ executable zeit-lingq-tool
     hs-source-dirs:
         app
 
+executable zt
+    import:           warnings, core-deps
+    main-is:          Main.hs
+    build-depends:
+        zeit-lingq-tool
+    hs-source-dirs:
+        app
+
 executable zeit-lingq-tool-gui
     import:           warnings, core-deps
     main-is:          Main.hs

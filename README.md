@@ -33,7 +33,7 @@ Zeit Tool Haskell is a Haskell-native desktop workflow for reading Die Zeit arti
 ```powershell
 cd C:\projects\zeit-tool-haskell
 cabal test
-cabal run zeit-lingq-tool -- help
+cabal run zt -- h
 ```
 
 On Windows, `run-zeit-tool.ps1` launches the Monomer GUI from the project directory:
@@ -42,12 +42,13 @@ On Windows, `run-zeit-tool.ps1` launches the Monomer GUI from the project direct
 .\run-zeit-tool.ps1
 ```
 
-Use `cli` when you want the terminal harness instead:
+Use `zt` when you want the terminal harness instead:
 
 ```powershell
-.\run-zeit-tool.ps1 cli topics
+.\zt t
 ```
 
+`.\run-zeit-tool.ps1 cli <args>` still works for scripts.
 The old `-Cli` switch still works for existing scripts.
 
 The desktop shortcut uses `launch-zeit-tool-gui.vbs` so the GUI opens without leaving a PowerShell window on screen. The launcher prepares the MSYS2 UCRT `pkg-config` paths needed by Monomer, GLEW, FreeType, and SDL2.
@@ -72,35 +73,35 @@ The script writes `dist\ZeitToolHaskellSetup-<version>.exe` and prints its SHA25
 
 ## CLI
 
-The CLI is meant for quick checks, automation, and library maintenance. Commands now use plain grouped verbs and named flags; the older hyphenated commands still work.
+The CLI is intentionally small now. It is meant for quick checks, automation, and library maintenance, not the main workflow. Use `zt` for short commands; the older long commands still work for existing scripts.
 
-If you are developing from source, prefix commands with `cabal run zeit-lingq-tool --`. If you installed the app, run `zeit-lingq-tool.exe` from the install folder or Start Menu shortcut.
+If you are developing from source on Windows, run `.\zt ...` from the project folder. If you installed the app, run `zt.exe` from the install folder or Start Menu CLI shortcut.
 
 Common examples:
 
 ```powershell
-cabal run zeit-lingq-tool -- help
-cabal run zeit-lingq-tool -- topics
-cabal run zeit-lingq-tool -- browse wissen --page 2
-cabal run zeit-lingq-tool -- read https://www.zeit.de/wissen/2026-05/example
-cabal run zeit-lingq-tool -- fetch-list urls.txt --min 500 --max 2000
-cabal run zeit-lingq-tool -- library
-cabal run zeit-lingq-tool -- hide article 1
-cabal run zeit-lingq-tool -- show article 1
-cabal run zeit-lingq-tool -- delete old 30 --uploaded
-cabal run zeit-lingq-tool -- known sync
-cabal run zeit-lingq-tool -- known import known-words.txt
-cabal run zeit-lingq-tool -- lingq upload 1
-cabal run zeit-lingq-tool -- audio download 1 --to audio
-cabal run zeit-lingq-tool -- settings topic wissen
-cabal run zeit-lingq-tool -- settings date-prefix off
-cabal run zeit-lingq-tool -- settings collection Wissen 12345
+.\zt h
+.\zt t
+.\zt b wissen -p 2
+.\zt r https://www.zeit.de/wissen/2026-05/example
+.\zt f urls.txt -m 500 -x 2000
+.\zt l
+.\zt hide 1
+.\zt show 1
+.\zt rm old 30 -u
+.\zt k sync
+.\zt k import known-words.txt
+.\zt u 1
+.\zt a 1 -o audio
+.\zt cfg topic wissen
+.\zt cfg date off
+.\zt cfg map Wissen 12345
 ```
 
-Use `--db FILE` for a different SQLite library and `--settings FILE` for a different settings file. Full command reference: [COMMANDS.md](COMMANDS.md).
+Use `-d FILE` for a different SQLite library and `-s FILE` for a different settings file. Full command reference: [COMMANDS.md](COMMANDS.md).
 
-Set `ZEIT_COOKIE` before running `read` if an article needs an authenticated Zeit session. If you are scripting authenticated fetches outside the GUI, you can also set `ZEIT_USER_AGENT` to the browser user-agent that produced the cookie.
-Set `LINGQ_API_KEY` before running `lingq upload` or `known sync`; optionally set `LINGQ_COLLECTION_ID` as an upload fallback. Section-specific LingQ collection mappings and the date-prefix toggle are read from `settings.json`.
+Set `ZEIT_COOKIE` before running `zt r` if an article needs an authenticated Zeit session. If you are scripting authenticated fetches outside the GUI, you can also set `ZEIT_USER_AGENT` to the browser user-agent that produced the cookie.
+Set `LINGQ_API_KEY` before running `zt u` or `zt k sync`; optionally set `LINGQ_COLLECTION_ID` as an upload fallback. Section-specific LingQ collection mappings and the date-prefix toggle are read from `settings.json`.
 
 ## GUI
 
@@ -121,7 +122,7 @@ The GUI currently supports:
 - The Windows installer packages the GUI, CLI, runtime DLLs, docs, and browser-session helper into a per-user install under LocalAppData.
 - Batch fetch and batch upload show live progress, queue overlapping work instead of rejecting it, and keep per-item failures retryable from the sidebar and Diagnostics view.
 - JSON settings persist the current view, row density, UI theme, Zeit cookie, Zeit browser user-agent, LingQ API key, LingQ language, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
-- The CLI remains available for quick verification and scripting, with friendly grouped commands and named flags.
+- The CLI remains available for quick verification and scripting through the short `zt` command, with the longer legacy commands kept for compatibility.
 
 Known limits:
 

@@ -41,7 +41,7 @@ Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs c
 
 [Icons]
 Name: "{userprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
-Name: "{userprograms}\{#MyAppName} CLI"; Filename: "{app}\zeit-lingq-tool.exe"; WorkingDir: "{app}"
+Name: "{userprograms}\{#MyAppName} CLI"; Filename: "{app}\zt.exe"; WorkingDir: "{app}"
 Name: "{userprograms}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 

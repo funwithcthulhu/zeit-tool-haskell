@@ -183,11 +183,12 @@ Initialize-BuildEnvironment -RepoRoot $repoRoot
 $releaseProfileArgs = @('--enable-optimization=2')
 
 if (-not $SkipBuild) {
-  Invoke-Cabal -RepoRoot $repoRoot -Arguments (@('build', '-fgui') + $releaseProfileArgs + @('exe:zeit-lingq-tool', 'exe:zeit-lingq-tool-gui'))
+  Invoke-Cabal -RepoRoot $repoRoot -Arguments (@('build', '-fgui') + $releaseProfileArgs + @('exe:zeit-lingq-tool', 'exe:zt', 'exe:zeit-lingq-tool-gui'))
 }
 
 $guiExe = Get-CabalBin -RepoRoot $repoRoot -Arguments (@('list-bin', '-fgui') + $releaseProfileArgs + @('exe:zeit-lingq-tool-gui'))
 $cliExe = Get-CabalBin -RepoRoot $repoRoot -Arguments (@('list-bin') + $releaseProfileArgs + @('exe:zeit-lingq-tool'))
+$shortCliExe = Get-CabalBin -RepoRoot $repoRoot -Arguments (@('list-bin') + $releaseProfileArgs + @('exe:zt'))
 
 if (Test-Path -LiteralPath $stageDir) {
   Remove-Item -LiteralPath $stageDir -Recurse -Force
@@ -198,9 +199,13 @@ $null = New-Item -ItemType Directory -Path (Join-Path $stageDir 'docs') -Force
 
 Copy-Item -LiteralPath $guiExe -Destination (Join-Path $stageDir 'Zeit Tool Haskell.exe') -Force
 Copy-Item -LiteralPath $cliExe -Destination (Join-Path $stageDir 'zeit-lingq-tool.exe') -Force
+Copy-Item -LiteralPath $shortCliExe -Destination (Join-Path $stageDir 'zt.exe') -Force
+Copy-Item -LiteralPath (Join-Path $repoRoot 'zt.cmd') -Destination (Join-Path $stageDir 'zt.cmd') -Force
+Copy-Item -LiteralPath (Join-Path $repoRoot 'zt.ps1') -Destination (Join-Path $stageDir 'zt.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $repoRoot 'scripts\zeit-browser-login.ps1') -Destination (Join-Path $stageDir 'scripts\zeit-browser-login.ps1') -Force
 Copy-MsysDllDependencies -ExePath $guiExe -StageDir $stageDir
 Copy-MsysDllDependencies -ExePath $cliExe -StageDir $stageDir
+Copy-MsysDllDependencies -ExePath $shortCliExe -StageDir $stageDir
 
 Copy-IfExists -Source (Join-Path $repoRoot 'LICENSE') -Destination (Join-Path $stageDir 'LICENSE.txt')
 Copy-IfExists -Source (Join-Path $repoRoot 'README.md') -Destination (Join-Path $stageDir 'docs\README.md')
@@ -214,15 +219,15 @@ Zeit Tool Haskell $Version
 Launch:
 - Start Menu: Zeit Tool Haskell
 - Desktop shortcut, if selected during setup
-- CLI: zeit-lingq-tool.exe from the install folder or Start Menu CLI shortcut
+- CLI: zt.exe from the install folder or Start Menu CLI shortcut
 
 Friendly CLI examples:
-- zeit-lingq-tool.exe help
-- zeit-lingq-tool.exe topics
-- zeit-lingq-tool.exe browse wissen --page 2
-- zeit-lingq-tool.exe read https://www.zeit.de/wissen/2026-05/example
-- zeit-lingq-tool.exe known sync
-- zeit-lingq-tool.exe lingq upload 42
+- zt h
+- zt t
+- zt b wissen -p 2
+- zt r https://www.zeit.de/wissen/2026-05/example
+- zt k sync
+- zt u 42
 
 Full CLI reference:
 - docs\COMMANDS.md

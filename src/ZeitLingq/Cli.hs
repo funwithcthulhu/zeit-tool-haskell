@@ -58,22 +58,30 @@ parseArgs rawArgs
       case args of
         [] -> Right ShowHelp
         ["demo"] -> Right ShowDemo
-        [command] | lower command == "topics" || lower command == "sections" -> Right ListSections
+        [command] | lower command `elem` ["topics", "sections", "t"] -> Right ListSections
         command : rest ->
           case lower command of
             "topics" -> parseNoArgs "topics" rest ListSections
             "sections" -> parseNoArgs "sections" rest ListSections
+            "t" -> parseNoArgs "t" rest ListSections
             "browse" -> parseBrowse rest
+            "b" -> parseBrowse rest
             "read" -> parseFetch "read" rest
             "fetch" -> parseFetch "fetch" rest
             "save" -> parseFetch "save" rest
+            "r" -> parseFetch "r" rest
             "fetch-list" -> parseBatchFetch "fetch-list" rest
+            "f" -> parseBatchFetch "f" rest
             "batch" -> parseBatchFetch "batch" rest
             "batch-fetch" -> parseBatchFetch "batch-fetch" rest
             "library" -> parseDbOnly "library" ShowLibrary rest
             "list" -> parseDbOnly "list" ShowLibrary rest
+            "l" -> parseDbOnly "l" ShowLibrary rest
             "stats" -> parseDbOnly "stats" ShowStats rest
+            "s" -> parseDbOnly "s" ShowStats rest
             "delete" -> parseDelete rest
+            "del" -> parseDelete rest
+            "rm" -> parseDelete rest
             "delete-article" -> parseArticleIdWithDb "delete-article" DeleteArticle rest
             "delete-older-than" -> parseDeleteOldLegacy "delete-older-than" False False rest
             "delete-older-than-uploaded" -> parseDeleteOldLegacy "delete-older-than-uploaded" True False rest
@@ -88,15 +96,23 @@ parseArgs rawArgs
             "hidden" -> parseDbOnly "hidden" ListIgnored rest
             "ignored" -> parseDbOnly "ignored" ListIgnored rest
             "known" -> parseKnown rest
+            "k" -> parseKnown rest
             "known-sync" -> parseDbOnly "known-sync" SyncKnownWords rest
             "known-import" -> parseImportKnown "known-import" rest
             "known-info" -> parseDbOnly "known-info" KnownWordsInfo rest
             "known-compute" -> parseDbOnly "known-compute" ComputeKnownPct rest
             "lingq" -> parseLingq rest
+            "u" -> parseLingqUpload "u" rest
+            "upload" -> parseLingqUpload "upload" rest
             "lingq-upload" -> parseLingqUpload "lingq-upload" rest
             "audio" -> parseAudio rest
+            "a" -> parseAudio rest
             "audio-download" -> parseAudioDownload "audio-download" rest
             "settings" -> parseSettings rest
+            "cfg" -> parseSettings rest
+            "config" -> parseSettings rest
+            "set" -> parseSettings rest
+            _ | isUrl command -> parseFetch "url" (command : rest)
             _ -> invalidCommand command
   where
     args = concatMap expandEquals rawArgs
@@ -106,56 +122,57 @@ usageText =
   unlines
     [ "Zeit Tool Haskell CLI"
     , ""
-    , "Most users should open the desktop app. Use the CLI for quick checks, automation,"
-    , "or scripted library maintenance."
+    , "Use the desktop app for daily work. Use `zt` only for quick checks or scripts."
     , ""
-    , "Common commands:"
-    , "  zeit-lingq-tool help"
-    , "  zeit-lingq-tool topics"
-    , "  zeit-lingq-tool browse [topic] [--page N] [--db FILE]"
-    , "  zeit-lingq-tool read <article-url> [--db FILE]"
-    , "  zeit-lingq-tool fetch-list <url-list.txt> [--min N] [--max N] [--db FILE]"
-    , "  zeit-lingq-tool library [--db FILE]"
-    , "  zeit-lingq-tool stats [--db FILE]"
+    , "Short commands:"
+    , "  zt h                         Help"
+    , "  zt t                         Topics"
+    , "  zt b [topic] [-p N]          Browse Zeit"
+    , "  zt r <url>                   Read and save one article"
+    , "  zt <url>                     Same as `zt r <url>`"
+    , "  zt f <urls.txt> [-m N] [-x N] Fetch URL list"
+    , "  zt l                         Library"
+    , "  zt s                         Stats"
     , ""
     , "Library cleanup:"
-    , "  zeit-lingq-tool hide article <article-id> [--db FILE]"
-    , "  zeit-lingq-tool show article <article-id> [--db FILE]"
-    , "  zeit-lingq-tool hide url <url> [--db FILE]"
-    , "  zeit-lingq-tool show url <url> [--db FILE]"
-    , "  zeit-lingq-tool hidden [--db FILE]"
-    , "  zeit-lingq-tool delete article <article-id> [--db FILE]"
-    , "  zeit-lingq-tool delete old <days> [--uploaded|--unuploaded] [--db FILE]"
-    , "  zeit-lingq-tool delete ignored [--db FILE]"
+    , "  zt hide <id|url>"
+    , "  zt show <id|url>"
+    , "  zt hidden"
+    , "  zt rm <id>"
+    , "  zt rm old <days> [-u|-n]"
+    , "  zt rm ignored"
     , ""
     , "Known words, LingQ, and audio:"
-    , "  zeit-lingq-tool known sync [--db FILE]"
-    , "  zeit-lingq-tool known import <word-list.txt> [--db FILE]"
-    , "  zeit-lingq-tool known recompute [--db FILE]"
-    , "  zeit-lingq-tool known info [--db FILE]"
-    , "  zeit-lingq-tool lingq upload <article-id> [--db FILE] [--settings FILE]"
-    , "  zeit-lingq-tool audio download <article-id> [--to DIR] [--db FILE]"
+    , "  zt k                         Known-word status"
+    , "  zt k sync"
+    , "  zt k import <words.txt>"
+    , "  zt k re"
+    , "  zt u <id>                    Upload article to LingQ"
+    , "  zt a <id> [-o DIR]           Download article audio"
     , ""
     , "Settings:"
-    , "  zeit-lingq-tool settings [--settings FILE]"
-    , "  zeit-lingq-tool settings view <browse|library|lingq|zeit-login|diagnostics|article> [--settings FILE]"
-    , "  zeit-lingq-tool settings topic <section-id> [--settings FILE]"
-    , "  zeit-lingq-tool settings date-prefix <on|off> [--settings FILE]"
-    , "  zeit-lingq-tool settings collection <section-name> <collection-id> [--settings FILE]"
-    , "  zeit-lingq-tool settings forget-collection <section-name> [--settings FILE]"
+    , "  zt cfg"
+    , "  zt cfg view <browse|library|lingq|zeit-login|diagnostics|article>"
+    , "  zt cfg topic <section-id>"
+    , "  zt cfg date <on|off>"
+    , "  zt cfg map <section-name> <collection-id>"
+    , "  zt cfg unmap <section-name>"
     , ""
-    , "Shortcuts:"
-    , "  --db FILE        Use a different SQLite library (default: zeit-tool.db)."
-    , "  --settings FILE  Use a different settings file (default: settings.json)."
-    , "  --page N         Browse page number."
-    , "  --min N/--max N  Word-count filters for fetch-list."
-    , "  --to DIR         Audio download folder."
+    , "Flags:"
+    , "  -d, --db FILE        SQLite library path."
+    , "  -s, --settings FILE  Settings file path."
+    , "  -p, --page N         Browse page."
+    , "  -m, --min N          Minimum words for URL-list fetch."
+    , "  -x, --max N          Maximum words for URL-list fetch."
+    , "  -o, --to DIR         Audio folder."
+    , "  -u, --uploaded       Delete only uploaded old articles."
+    , "  -n, --unuploaded     Delete only unuploaded old articles."
     , ""
     , "Set ZEIT_COOKIE to pass an authenticated zeit.de cookie header for paid articles."
     , "Set ZEIT_USER_AGENT too when scripting with cookies imported from a browser."
     , "Set LINGQ_API_KEY, and optionally LINGQ_COLLECTION_ID, before uploading to LingQ."
     , ""
-    , "The older hyphenated commands still work for existing scripts."
+    , "Long commands such as `zeit-lingq-tool browse` still work for existing scripts."
     ]
 
 parseNoArgs :: String -> [String] -> CliCommand -> Either String CliCommand
@@ -188,8 +205,8 @@ parseFetch commandName args =
 parseBatchFetch :: String -> [String] -> Either String CliCommand
 parseBatchFetch commandName args = do
   (withoutDb, dbOpt) <- takeValueOption dbOptionLabels args
-  (withoutMin, minOpt) <- takeValueOption ["--min", "--min-words"] withoutDb
-  (remaining, maxOpt) <- takeValueOption ["--max", "--max-words"] withoutMin
+  (withoutMin, minOpt) <- takeValueOption ["--min", "--min-words", "-m"] withoutDb
+  (remaining, maxOpt) <- takeValueOption ["--max", "--max-words", "-x"] withoutMin
   minWords <- parseMaybePositive "min-words" minOpt
   maxWords <- parseMaybePositive "max-words" maxOpt
   let flaggedFilter = WordFilter minWords maxWords
@@ -240,13 +257,14 @@ parseDelete (subcommand : rest) =
     "old" -> parseDeleteOld rest
     "older" -> parseDeleteOld rest
     "ignored" -> parseDbOnly "delete ignored" DeleteIgnored rest
+    _ | looksPositiveInt subcommand -> parseArticleIdWithDb "delete" DeleteArticle (subcommand : rest)
     _ -> invalidCommand "delete"
 
 parseDeleteOld :: [String] -> Either String CliCommand
 parseDeleteOld args = do
   (withoutDb, dbOpt) <- takeValueOption dbOptionLabels args
-  let (withoutUploaded, onlyUploaded) = takeSwitch ["--uploaded"] withoutDb
-      (remaining, onlyUnuploaded) = takeSwitch ["--unuploaded"] withoutUploaded
+  let (withoutUploaded, onlyUploaded) = takeSwitch ["--uploaded", "-u"] withoutDb
+      (remaining, onlyUnuploaded) = takeSwitch ["--unuploaded", "-n"] withoutUploaded
   if onlyUploaded && onlyUnuploaded
     then Left ("Use either --uploaded or --unuploaded, not both.\n\n" <> usageText)
     else
@@ -298,10 +316,15 @@ parseKnown (subcommand : rest) =
   case lower subcommand of
     "--db" -> parseDbOnly "known" KnownWordsInfo (subcommand : rest)
     "-d" -> parseDbOnly "known" KnownWordsInfo (subcommand : rest)
+    "s" -> parseDbOnly "known sync" SyncKnownWords rest
     "sync" -> parseDbOnly "known sync" SyncKnownWords rest
     "update" -> parseDbOnly "known update" SyncKnownWords rest
+    "i" -> parseImportKnown "known import" rest
     "import" -> parseImportKnown "known import" rest
     "info" -> parseDbOnly "known info" KnownWordsInfo rest
+    "r" -> parseDbOnly "known recompute" ComputeKnownPct rest
+    "re" -> parseDbOnly "known recompute" ComputeKnownPct rest
+    "pct" -> parseDbOnly "known recompute" ComputeKnownPct rest
     "compute" -> parseDbOnly "known compute" ComputeKnownPct rest
     "recompute" -> parseDbOnly "known recompute" ComputeKnownPct rest
     _ -> invalidCommand "known"
@@ -319,6 +342,7 @@ parseLingq [] = invalidCommand "lingq"
 parseLingq (subcommand : rest) =
   case lower subcommand of
     "upload" -> parseLingqUpload "lingq upload" rest
+    _ | looksPositiveInt subcommand -> parseLingqUpload "lingq" (subcommand : rest)
     _ -> invalidCommand "lingq"
 
 parseLingqUpload :: String -> [String] -> Either String CliCommand
@@ -355,7 +379,7 @@ parseAudio (subcommand : rest) =
 parseAudioDownload :: String -> [String] -> Either String CliCommand
 parseAudioDownload commandName args = do
   (withoutDb, dbOpt) <- takeValueOption dbOptionLabels args
-  (remaining, audioDirOpt) <- takeValueOption ["--to", "--audio-dir"] withoutDb
+  (remaining, audioDirOpt) <- takeValueOption ["--to", "--audio-dir", "-o"] withoutDb
   case (remaining, audioDirOpt, dbOpt) of
     ([articleId], _, _) ->
       DownloadAudio
@@ -384,15 +408,21 @@ parseSettings args = do
     subcommand : values ->
       case lower subcommand of
         "set-view" -> parseSettingsView "settings set-view" settingsOpt values
+        "v" -> parseSettingsView "settings view" settingsOpt values
         "view" -> parseSettingsView "settings view" settingsOpt values
         "set-browse-section" -> parseSettingsBrowseSection "settings set-browse-section" settingsOpt values
+        "t" -> parseSettingsBrowseSection "settings topic" settingsOpt values
         "topic" -> parseSettingsBrowseSection "settings topic" settingsOpt values
         "browse-section" -> parseSettingsBrowseSection "settings browse-section" settingsOpt values
         "set-date-prefix" -> parseSettingsDatePrefix "settings set-date-prefix" settingsOpt values
+        "date" -> parseSettingsDatePrefix "settings date-prefix" settingsOpt values
+        "dp" -> parseSettingsDatePrefix "settings date-prefix" settingsOpt values
         "date-prefix" -> parseSettingsDatePrefix "settings date-prefix" settingsOpt values
         "set-collection" -> parseSettingsCollection "settings set-collection" settingsOpt values
+        "map" -> parseSettingsCollection "settings collection" settingsOpt values
         "collection" -> parseSettingsCollection "settings collection" settingsOpt values
         "clear-collection" -> parseSettingsClearCollection "settings clear-collection" settingsOpt values
+        "unmap" -> parseSettingsClearCollection "settings forget-collection" settingsOpt values
         "forget-collection" -> parseSettingsClearCollection "settings forget-collection" settingsOpt values
         _ -> invalidCommand "settings"
 
@@ -482,25 +512,37 @@ isSettingsSubcommand :: String -> Bool
 isSettingsSubcommand raw =
   lower raw
     `elem` [ "set-view"
+           , "v"
            , "view"
            , "set-browse-section"
+           , "t"
            , "topic"
            , "browse-section"
            , "set-date-prefix"
+           , "date"
+           , "dp"
            , "date-prefix"
            , "set-collection"
+           , "map"
            , "collection"
            , "clear-collection"
+           , "unmap"
            , "forget-collection"
            ]
 
 isHelpArg :: String -> Bool
 isHelpArg raw =
-  lower raw `elem` ["help", "--help", "-h", "/?"]
+  lower raw `elem` ["help", "h", "?", "--help", "-h", "/?"]
 
 isUrl :: String -> Bool
 isUrl raw =
   "https://" `isPrefixOf` lower raw || "http://" `isPrefixOf` lower raw
+
+looksPositiveInt :: String -> Bool
+looksPositiveInt raw =
+  case reads raw :: [(Int, String)] of
+    [(value, "")] -> value > 0
+    _ -> False
 
 invalidCommand :: String -> Either String a
 invalidCommand commandName =

@@ -900,6 +900,30 @@ main = hspec $ do
       parseArgs ["settings", "collection", "Wissen", "course-1", "--settings", "settings.dev.json"] `shouldBe` Right (SetSettingsSectionCollection "Wissen" "course-1" "settings.dev.json")
       parseArgs ["settings", "forget-collection", "Wissen"] `shouldBe` Right (ClearSettingsSectionCollection "Wissen" defaultSettingsPath)
 
+    it "parses short human-friendly aliases" $ do
+      parseArgs ["h"] `shouldBe` Right ShowHelp
+      parseArgs ["t"] `shouldBe` Right ListSections
+      parseArgs ["b", "wissen", "-p", "2"] `shouldBe` Right (BrowseZeit "wissen" 2 defaultDbPath)
+      parseArgs ["r", "https://www.zeit.de/wissen/2026-05/beispiel"] `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
+      parseArgs ["https://www.zeit.de/wissen/2026-05/beispiel"] `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
+      parseArgs ["f", "urls.txt", "-m", "500", "-x", "2000"] `shouldBe` Right (BatchFetch "urls.txt" defaultDbPath (WordFilter (Just 500) (Just 2000)))
+      parseArgs ["l"] `shouldBe` Right (ShowLibrary defaultDbPath)
+      parseArgs ["s"] `shouldBe` Right (ShowStats defaultDbPath)
+      parseArgs ["rm", "42"] `shouldBe` Right (DeleteArticle 42 defaultDbPath)
+      parseArgs ["rm", "old", "30", "-u"] `shouldBe` Right (DeleteOlderThan 30 True False defaultDbPath)
+      parseArgs ["rm", "old", "30", "-n"] `shouldBe` Right (DeleteOlderThan 30 False True defaultDbPath)
+      parseArgs ["k", "s"] `shouldBe` Right (SyncKnownWords defaultDbPath)
+      parseArgs ["k", "i", "words.txt"] `shouldBe` Right (ImportKnownWords "words.txt" defaultDbPath)
+      parseArgs ["k", "re"] `shouldBe` Right (ComputeKnownPct defaultDbPath)
+      parseArgs ["u", "42"] `shouldBe` Right (UploadLingq 42 defaultDbPath defaultSettingsPath)
+      parseArgs ["lingq", "42"] `shouldBe` Right (UploadLingq 42 defaultDbPath defaultSettingsPath)
+      parseArgs ["a", "42", "-o", "audio-cache"] `shouldBe` Right (DownloadAudio 42 "audio-cache" defaultDbPath)
+      parseArgs ["cfg", "v", "library"] `shouldBe` Right (SetSettingsView LibraryView defaultSettingsPath)
+      parseArgs ["cfg", "t", "wissen"] `shouldBe` Right (SetSettingsBrowseSection "wissen" defaultSettingsPath)
+      parseArgs ["cfg", "date", "off"] `shouldBe` Right (SetSettingsDatePrefix False defaultSettingsPath)
+      parseArgs ["cfg", "map", "Wissen", "course-1"] `shouldBe` Right (SetSettingsSectionCollection "Wissen" "course-1" defaultSettingsPath)
+      parseArgs ["cfg", "unmap", "Wissen"] `shouldBe` Right (ClearSettingsSectionCollection "Wissen" defaultSettingsPath)
+
     it "rejects invalid settings values" $ do
       parseArgs ["settings", "set-view", "nope"] `shouldSatisfy` isLeft
       parseArgs ["settings", "set-date-prefix", "maybe"] `shouldSatisfy` isLeft
