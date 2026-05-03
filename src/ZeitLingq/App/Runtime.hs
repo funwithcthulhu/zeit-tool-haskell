@@ -5,7 +5,8 @@ module ZeitLingq.App.Runtime
   ) where
 
 import ZeitLingq.App.Update (Command(..), Event(..))
-import ZeitLingq.Domain.Types (NotificationLevel(..))
+import ZeitLingq.Domain.Article (wordCount)
+import ZeitLingq.Domain.Types
 import ZeitLingq.Ports
 
 runCommand :: Monad m => AppPorts m -> Command -> m [Event]
@@ -35,6 +36,26 @@ runCommand ports command =
             (Notify ErrorNotice "Article not found.")
             ArticleContentLoaded
             article
+        ]
+    FetchAndSaveArticle summary -> do
+      article <- fetchArticleContent zeit (summaryUrl summary)
+      savedId <- saveArticle library article
+      pure
+        [ Notify SuccessNotice ("Saved article " <> summaryTitle summary <> ".")
+        , LibraryArticlesLoaded
+            [ summary
+                { summaryId = Just savedId
+                , summarySection = articleSection article
+                , summaryWordCount = wordCount article
+                }
+            ]
+        , RefreshCurrentView
+        ]
+    DeleteSavedArticle ident -> do
+      deleteArticle library ident
+      pure
+        [ Notify SuccessNotice "Deleted article."
+        , ArticleClosed
         ]
   where
     zeit = zeitPort ports

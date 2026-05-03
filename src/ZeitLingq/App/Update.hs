@@ -18,9 +18,12 @@ data Event
   | ArticleOpened ArticleSummary
   | ArticleContentLoaded Article
   | ArticleClosed
+  | BrowseArticleFetchRequested ArticleSummary
+  | ArticleDeleteRequested ArticleId
   | BrowseArticlesLoaded [ArticleSummary]
   | LibraryArticlesLoaded [ArticleSummary]
   | LingqArticlesLoaded [ArticleSummary]
+  | RefreshCurrentView
   | Notify NotificationLevel Text
   | NotificationCleared
   | BrowseSectionSelected Text
@@ -40,15 +43,18 @@ data Command
   | RefreshLibrary WordFilter
   | RefreshLingqLibrary WordFilter
   | LoadArticle ArticleId
+  | FetchAndSaveArticle ArticleSummary
+  | DeleteSavedArticle ArticleId
   deriving (Eq, Show)
 
 update :: Event -> Model -> (Model, [Command])
 update event model =
   case event of
     Navigate nextView ->
-      ( model {currentView = nextView}
-      , [PersistCurrentView nextView]
-      )
+      let nextModel = model {currentView = nextView}
+       in ( nextModel
+          , PersistCurrentView nextView : refreshCommands nextModel
+          )
     ZeitStatusChanged status ->
       ( model {zeitStatus = status}
       , []
@@ -70,12 +76,22 @@ update event model =
       , []
       )
     ArticleClosed ->
+      let nextModel =
+            model
+              { selectedArticle = Nothing
+              , selectedArticleContent = Nothing
+              , currentView = LibraryView
+              }
+       in ( nextModel
+          , PersistCurrentView LibraryView : refreshCommands nextModel
+          )
+    BrowseArticleFetchRequested article ->
       ( model
-          { selectedArticle = Nothing
-          , selectedArticleContent = Nothing
-          , currentView = LibraryView
-          }
-      , [PersistCurrentView LibraryView]
+      , [FetchAndSaveArticle article]
+      )
+    ArticleDeleteRequested ident ->
+      ( model
+      , [DeleteSavedArticle ident]
       )
     BrowseArticlesLoaded articles ->
       ( model {browseArticles = articles}
@@ -88,6 +104,10 @@ update event model =
     LingqArticlesLoaded articles ->
       ( model {lingqArticles = articles}
       , []
+      )
+    RefreshCurrentView ->
+      ( model
+      , refreshCommands model
       )
     Notify level message ->
       ( model {notification = Just (Notification level message)}
@@ -121,3 +141,12 @@ update event model =
       ( model {sectionCollections = mappings}
       , [PersistSectionCollections mappings]
       )
+
+refreshCommands :: Model -> [Command]
+refreshCommands model =
+  case currentView model of
+    BrowseView -> [RefreshBrowse (browseSectionId model) 1]
+    LibraryView -> [RefreshLibrary (libraryFilter model)]
+    LingqView -> [RefreshLingqLibrary (lingqFilter model)]
+    ZeitLoginView -> []
+    ArticleView -> maybe [] (maybe [] (pure . LoadArticle) . summaryId) (selectedArticle model)

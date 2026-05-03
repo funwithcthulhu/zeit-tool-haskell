@@ -86,7 +86,7 @@ main = hspec $ do
       loadedCommands `shouldBe` []
       selectedArticleContent closedModel `shouldBe` Nothing
       currentView closedModel `shouldBe` LibraryView
-      closedCommands `shouldBe` [PersistCurrentView LibraryView]
+      closedCommands `shouldBe` [PersistCurrentView LibraryView, RefreshLibrary (WordFilter Nothing Nothing)]
 
     it "hydrates startup model from the settings port" $ do
       let port =
@@ -138,6 +138,23 @@ main = hspec $ do
       snd (update (LingqFilterChanged filters) initialModel)
         `shouldBe` [RefreshLingqLibrary filters]
 
+    it "turns GUI row actions into app commands" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 15)
+              , summaryUrl = "https://example.com/fetch"
+              , summaryTitle = "Fetchable"
+              , summarySection = "Wissen"
+              , summaryWordCount = 321
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+      snd (update (BrowseArticleFetchRequested summary) initialModel)
+        `shouldBe` [FetchAndSaveArticle summary]
+      snd (update (ArticleDeleteRequested (ArticleId 15)) initialModel)
+        `shouldBe` [DeleteSavedArticle (ArticleId 15)]
+
   describe "App command runtime" $ do
     it "turns refresh commands into loaded events" $ do
       let summary =
@@ -178,6 +195,33 @@ main = hspec $ do
           ports = basePorts {libraryPort = (libraryPort basePorts) {loadArticle = \_ -> Identity Nothing}}
       runIdentity (Runtime.runCommand ports (LoadArticle (ArticleId 404)))
         `shouldBe` [Notify ErrorNotice "Article not found."]
+
+    it "fetches, saves, and deletes articles through runtime ports" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Nothing
+              , summaryUrl = "https://example.com/save"
+              , summaryTitle = "Save Me"
+              , summarySection = "Wissen"
+              , summaryWordCount = 0
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          ports = testPorts summary
+      runIdentity (Runtime.runCommand ports (FetchAndSaveArticle summary))
+        `shouldBe` [ Notify SuccessNotice "Saved article Save Me."
+                   , LibraryArticlesLoaded
+                       [ summary
+                           { summaryId = Just (ArticleId 1)
+                           , summarySection = "Wissen"
+                           , summaryWordCount = 4
+                           }
+                       ]
+                   , RefreshCurrentView
+                   ]
+      runIdentity (Runtime.runCommand ports (DeleteSavedArticle (ArticleId 1)))
+        `shouldBe` [Notify SuccessNotice "Deleted article.", ArticleClosed]
 
   describe "App event driver" $ do
     it "dispatches refresh commands and folds loaded events back into the model" $ do
