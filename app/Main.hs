@@ -9,6 +9,7 @@ import Data.Text.IO qualified as TIO
 import Data.Time (fromGregorian, getCurrentTime, utctDay)
 import System.Environment (getArgs, lookupEnv)
 import ZeitLingq.App.Model (Model(..), initialModel)
+import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.App.Update (Event(..), update)
 import ZeitLingq.Cli
 import ZeitLingq.Core.Batch
@@ -87,7 +88,7 @@ runCommand (ComputeKnownPct dbPath) =
     case result of
       Left err -> putStrLn (T.unpack err)
       Right count -> putStrLn ("Updated known-word estimates for " <> show count <> " articles.")
-runCommand (UploadLingq ident dbPath) = do
+runCommand (UploadLingq ident dbPath settingsPath) = do
   maybeApiKey <- lookupEnv "LINGQ_API_KEY"
   case maybeApiKey of
     Nothing -> putStrLn "Set LINGQ_API_KEY before uploading to LingQ."
@@ -99,15 +100,14 @@ runCommand (UploadLingq ident dbPath) = do
         case maybeArticle of
           Nothing -> putStrLn ("Article not found: " <> show ident)
           Just article -> do
+            settings <- loadSettings settingsPath
             let token = LingqToken (T.pack apiKey)
                 config =
-                  BatchUploadConfig
-                    { uploadLanguageCode = "de"
-                    , uploadFallbackCollection = maybeCollection
-                    , uploadSectionCollections = Map.empty
-                    , uploadDatePrefixEnabled = True
-                    , uploadDay = utctDay now
-                    }
+                  uploadConfigFromPreferences
+                    (utctDay now)
+                    maybeCollection
+                    (settingsDatePrefixEnabled settings)
+                    (settingsSectionCollections settings)
                 uploader lang collection titledArticle =
                   firstText <$> uploadLessonLingq token lang collection titledArticle
                 marker = markUploadedSqlite db

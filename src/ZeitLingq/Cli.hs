@@ -22,7 +22,7 @@ data CliCommand
   | ImportKnownWords FilePath FilePath
   | KnownWordsInfo FilePath
   | ComputeKnownPct FilePath
-  | UploadLingq Int FilePath
+  | UploadLingq Int FilePath FilePath
   | DownloadAudio Int FilePath FilePath
   | IgnoreUrl Text FilePath
   | UnignoreUrl Text FilePath
@@ -65,9 +65,20 @@ parseArgs ["known-info", dbPath] = Right (KnownWordsInfo dbPath)
 parseArgs ["known-compute"] = Right (ComputeKnownPct defaultDbPath)
 parseArgs ["known-compute", dbPath] = Right (ComputeKnownPct dbPath)
 parseArgs ["lingq-upload", articleId] =
-  UploadLingq <$> parsePositiveInt "article-id" articleId <*> pure defaultDbPath
+  UploadLingq
+    <$> parsePositiveInt "article-id" articleId
+    <*> pure defaultDbPath
+    <*> pure defaultSettingsPath
 parseArgs ["lingq-upload", articleId, dbPath] =
-  UploadLingq <$> parsePositiveInt "article-id" articleId <*> pure dbPath
+  UploadLingq
+    <$> parsePositiveInt "article-id" articleId
+    <*> pure dbPath
+    <*> pure defaultSettingsPath
+parseArgs ["lingq-upload", articleId, dbPath, settingsPath] =
+  UploadLingq
+    <$> parsePositiveInt "article-id" articleId
+    <*> pure dbPath
+    <*> pure settingsPath
 parseArgs ["audio-download", articleId] =
   DownloadAudio <$> parsePositiveInt "article-id" articleId <*> pure "audio" <*> pure defaultDbPath
 parseArgs ["audio-download", articleId, audioDir] =
@@ -118,7 +129,7 @@ usageText =
     , "  zeit-lingq-tool known-import <word-list.txt> [db-path]"
     , "  zeit-lingq-tool known-info [db-path]"
     , "  zeit-lingq-tool known-compute [db-path]"
-    , "  zeit-lingq-tool lingq-upload <article-id> [db-path]"
+    , "  zeit-lingq-tool lingq-upload <article-id> [db-path] [settings-path]"
     , "  zeit-lingq-tool audio-download <article-id> [audio-dir] [db-path]"
     , "  zeit-lingq-tool ignore-url <url> [db-path]"
     , "  zeit-lingq-tool unignore-url <url> [db-path]"

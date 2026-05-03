@@ -13,6 +13,7 @@ import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
 import Test.Hspec
 import ZeitLingq.App.Model (Model(..), initialModel)
+import ZeitLingq.App.UploadConfig
 import ZeitLingq.App.Update
 import ZeitLingq.Cli
 import ZeitLingq.Core.Batch
@@ -83,7 +84,8 @@ main = hspec $ do
       parseArgs ["known-import", "words.txt", "custom.db"] `shouldBe` Right (ImportKnownWords "words.txt" "custom.db")
       parseArgs ["known-info"] `shouldBe` Right (KnownWordsInfo defaultDbPath)
       parseArgs ["known-compute", "custom.db"] `shouldBe` Right (ComputeKnownPct "custom.db")
-      parseArgs ["lingq-upload", "42", "custom.db"] `shouldBe` Right (UploadLingq 42 "custom.db")
+      parseArgs ["lingq-upload", "42", "custom.db"] `shouldBe` Right (UploadLingq 42 "custom.db" defaultSettingsPath)
+      parseArgs ["lingq-upload", "42", "custom.db", "settings.dev.json"] `shouldBe` Right (UploadLingq 42 "custom.db" "settings.dev.json")
       parseArgs ["audio-download", "42", "audio-cache", "custom.db"] `shouldBe` Right (DownloadAudio 42 "audio-cache" "custom.db")
       parseArgs ["ignore-url", "https://example.com", "custom.db"] `shouldBe` Right (IgnoreUrl "https://example.com" "custom.db")
       parseArgs ["unignore-url", "https://example.com"] `shouldBe` Right (UnignoreUrl "https://example.com" defaultDbPath)
@@ -115,6 +117,23 @@ main = hspec $ do
                    ]
 
   describe "Batch upload use case" $ do
+    it "derives upload config from persisted preferences" $ do
+      let day = fromGregorian 2026 5 2
+          config =
+            uploadConfigFromPreferences
+              day
+              (Just "fallback-course")
+              False
+              (Map.fromList [("Wissen", "wissen-course")])
+      config
+        `shouldBe` BatchUploadConfig
+          { uploadLanguageCode = "de"
+          , uploadFallbackCollection = Just "fallback-course"
+          , uploadSectionCollections = Map.fromList [("Wissen", "wissen-course")]
+          , uploadDatePrefixEnabled = False
+          , uploadDay = day
+          }
+
     it "chooses section-specific collections and marks tracked articles" $ do
       let config =
             BatchUploadConfig

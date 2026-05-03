@@ -42,7 +42,7 @@ cabal run zeit-lingq-tool -- library
 cabal run zeit-lingq-tool -- known-import known-words.txt
 cabal run zeit-lingq-tool -- known-compute
 cabal run zeit-lingq-tool -- known-info
-cabal run zeit-lingq-tool -- lingq-upload 1
+cabal run zeit-lingq-tool -- lingq-upload 1 zeit-tool.db settings.json
 cabal run zeit-lingq-tool -- audio-download 1 audio
 cabal run zeit-lingq-tool -- ignore-url https://www.zeit.de/wissen/2026-05/example
 cabal run zeit-lingq-tool -- ignored
@@ -53,7 +53,7 @@ cabal run zeit-lingq-tool -- settings set-collection Wissen 12345
 ```
 
 Set `ZEIT_COOKIE` before running `fetch` if an article needs an authenticated Zeit session.
-Set `LINGQ_API_KEY` before running `lingq-upload`; optionally set `LINGQ_COLLECTION_ID`.
+Set `LINGQ_API_KEY` before running `lingq-upload`; optionally set `LINGQ_COLLECTION_ID` as a fallback. Section-specific LingQ collection mappings and the date-prefix toggle are read from `settings.json`.
 
 ## GUI Direction
 
@@ -70,6 +70,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - Pure article, known-word, and app-update logic is in place.
 - Batch fetch/save behavior is available as a pure use case over effectful callbacks.
 - Batch LingQ upload behavior is available as a pure use case over effectful callbacks.
+- LingQ upload now derives date-prefix and section collection behavior from persisted settings.
 - SQLite article persistence is available through `LibraryPort`.
 - SQLite ignored browse URLs are available for pre-fetch hiding.
 - SQLite known-word storage and article `known_pct` recomputation are available.
