@@ -35,6 +35,7 @@ library
         ZeitLingq.App.Model
         ZeitLingq.App.Update
         ZeitLingq.Cli
+        ZeitLingq.Core.Batch
         ZeitLingq.Core.KnownWords
         ZeitLingq.Domain.Article
         ZeitLingq.Domain.Section

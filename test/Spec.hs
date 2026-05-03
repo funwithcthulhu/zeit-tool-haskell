@@ -14,6 +14,7 @@ import Test.Hspec
 import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.Update
 import ZeitLingq.Cli
+import ZeitLingq.Core.Batch
 import ZeitLingq.Core.KnownWords (estimateKnownPct, importKnownWordStems)
 import ZeitLingq.Domain.Article
 import ZeitLingq.Domain.Types
@@ -75,6 +76,20 @@ main = hspec $ do
       parseArgs ["browse", "wissen", "2"] `shouldBe` Right (BrowseZeit "wissen" 2)
       parseArgs ["fetch", "https://www.zeit.de/wissen/2026-05/beispiel"] `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
       parseArgs ["library", "custom.db"] `shouldBe` Right (ShowLibrary "custom.db")
+
+  describe "Batch fetch use case" $ do
+    it "saves successful articles and skips articles outside the word filter" $ do
+      let fetcher url
+            | url == "bad" = pure (Left "network")
+            | url == "short" = pure (Right demoArticle {articleUrl = url, articleParagraphs = ["eins zwei"]})
+            | otherwise = pure (Right demoArticle {articleUrl = url})
+          saver _ = pure (ArticleId 42)
+      results <- batchFetchArticles fetcher saver (WordFilter (Just 3) Nothing) ["ok", "short", "bad"]
+      results
+        `shouldBe` [ BatchSaved "ok" (ArticleId 42)
+                   , BatchSkipped "short" (SkipBelowMinimum 2 3)
+                   , BatchFailed "bad" "network"
+                   ]
 
   describe "SQLite library adapter" $ do
     it "saves and reloads articles with summaries and stats" $ do
