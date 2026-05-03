@@ -9,7 +9,7 @@ import Data.Time (getCurrentTime, utctDay)
 import Monomer hiding (Model)
 import Monomer qualified as M
 import System.Environment (lookupEnv)
-import ZeitLingq.App.Driver (dispatchEvent)
+import ZeitLingq.App.Driver (dispatchEvent, dispatchEvents)
 import ZeitLingq.App.Model (Model(..), initialModel)
 import ZeitLingq.App.Startup (loadInitialModel)
 import ZeitLingq.App.Update (Event(..))
@@ -327,7 +327,9 @@ loadGuiInitialModel :: AppPorts IO -> IO GuiEvent
 loadGuiInitialModel ports =
   safeGuiTask $ do
     model <- loadInitialModel (settingsPort ports)
-    dispatchEvent ports model RefreshCurrentView
+    zeit <- loginToZeit (zeitPort ports)
+    lingq <- loginToLingq (lingqPort ports) "" ""
+    dispatchEvents ports model [ZeitStatusChanged zeit, LingqStatusChanged lingq, RefreshCurrentView]
 
 runAppEvent :: AppPorts IO -> Model -> Event -> IO GuiEvent
 runAppEvent ports model event =
