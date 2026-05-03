@@ -65,6 +65,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - Batch fetch/save behavior is available as a pure use case over effectful callbacks.
 - Batch LingQ upload behavior is available as a pure use case over effectful callbacks.
 - SQLite article persistence is available through `LibraryPort`.
+- SQLite ignored browse URLs are available for pre-fetch hiding.
 - SQLite known-word storage and article `known_pct` recomputation are available.
 - Article audio metadata persistence and download helpers are available.
 - JSON user settings are available through `SettingsPort`.

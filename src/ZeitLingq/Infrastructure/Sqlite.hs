@@ -11,11 +11,13 @@ module ZeitLingq.Infrastructure.Sqlite
   , getKnownStemCountSqlite
   , getKnownStemsSqlite
   , getKnownWordsSyncedAtSqlite
+  , getIgnoredUrlsSqlite
   , getStatsSqlite
   , clearKnownWordsSqlite
   , clearAllKnownPctSqlite
   , computeKnownPctSqlite
   , saveKnownWordsSqlite
+  , ignoreUrlSqlite
   , markUploadedSqlite
   , openLibrary
   , saveArticleSqlite
@@ -23,6 +25,7 @@ module ZeitLingq.Infrastructure.Sqlite
   , setAudioUrlSqlite
   , setIgnoredSqlite
   , sqliteLibraryPort
+  , unignoreUrlSqlite
   , updateKnownPctSqlite
   , withLibrary
   ) where
@@ -107,6 +110,11 @@ migrate conn = do
     \  synced_at TIMESTAMP NOT NULL,\
     \  PRIMARY KEY (lang, stem))"
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_known_words_lang ON known_words(lang)"
+  execute_
+    conn
+    "CREATE TABLE IF NOT EXISTS ignored_urls\
+    \ (url TEXT PRIMARY KEY,\
+    \  ignored_at TIMESTAMP NOT NULL)"
 
 saveArticleSqlite :: LibraryDb -> Article -> IO ArticleId
 saveArticleSqlite (LibraryDb conn) article = do
@@ -187,6 +195,20 @@ deleteArticleSqlite (LibraryDb conn) (ArticleId ident) =
 setIgnoredSqlite :: LibraryDb -> ArticleId -> Bool -> IO ()
 setIgnoredSqlite (LibraryDb conn) (ArticleId ident) ignored =
   execute conn "UPDATE articles SET ignored = ? WHERE id = ?" (boolToInt ignored, ident)
+
+ignoreUrlSqlite :: LibraryDb -> Text -> IO ()
+ignoreUrlSqlite (LibraryDb conn) url = do
+  now <- getCurrentTime
+  execute conn "INSERT OR REPLACE INTO ignored_urls (url, ignored_at) VALUES (?, ?)" (url, now)
+
+unignoreUrlSqlite :: LibraryDb -> Text -> IO ()
+unignoreUrlSqlite (LibraryDb conn) url =
+  execute conn "DELETE FROM ignored_urls WHERE url = ?" (Only url)
+
+getIgnoredUrlsSqlite :: LibraryDb -> IO [Text]
+getIgnoredUrlsSqlite (LibraryDb conn) = do
+  rows <- query_ conn "SELECT url FROM ignored_urls ORDER BY ignored_at DESC"
+  pure [url | Only url <- rows]
 
 markUploadedSqlite :: LibraryDb -> ArticleId -> LingqLesson -> IO ()
 markUploadedSqlite (LibraryDb conn) (ArticleId ident) LingqLesson {lessonId, lessonUrl} =

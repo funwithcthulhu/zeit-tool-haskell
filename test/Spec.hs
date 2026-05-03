@@ -192,6 +192,15 @@ main = hspec $ do
         fmap articleAudioUrl loaded `shouldBe` Just (Just "https://cdn.example/audio.m4a")
         fmap articleAudioPath loaded `shouldBe` Just (Just "C:\\audio\\demo.m4a")
 
+    it "tracks ignored browse URLs before articles are fetched" $ do
+      withLibrary ":memory:" $ \db -> do
+        ignoreUrlSqlite db "https://www.zeit.de/wissen/2026-05/a"
+        ignoreUrlSqlite db "https://www.zeit.de/wissen/2026-05/b"
+        getIgnoredUrlsSqlite db `shouldReturn` ["https://www.zeit.de/wissen/2026-05/b", "https://www.zeit.de/wissen/2026-05/a"]
+
+        unignoreUrlSqlite db "https://www.zeit.de/wissen/2026-05/a"
+        getIgnoredUrlsSqlite db `shouldReturn` ["https://www.zeit.de/wissen/2026-05/b"]
+
   describe "JSON settings adapter" $ do
     it "returns defaults when the settings file does not exist" $ do
       withTempSettingsPath $ \path -> do
