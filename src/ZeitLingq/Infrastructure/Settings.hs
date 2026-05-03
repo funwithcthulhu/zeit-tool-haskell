@@ -240,6 +240,7 @@ viewToText BrowseView = "browse"
 viewToText LibraryView = "library"
 viewToText LingqView = "lingq"
 viewToText ZeitLoginView = "zeit-login"
+viewToText DiagnosticsView = "diagnostics"
 viewToText ArticleView = "article"
 
 viewFromText :: Text -> Maybe View
@@ -247,6 +248,7 @@ viewFromText "browse" = Just BrowseView
 viewFromText "library" = Just LibraryView
 viewFromText "lingq" = Just LingqView
 viewFromText "zeit-login" = Just ZeitLoginView
+viewFromText "diagnostics" = Just DiagnosticsView
 viewFromText "article" = Just ArticleView
 viewFromText _ = Nothing
 

@@ -298,6 +298,38 @@ main = hspec $ do
       snd (update (LibraryDeleteOlderRequested (dayTime 3) True False) initialModel)
         `shouldBe` [DeleteOlderArticles (dayTime 3) True False]
 
+    it "manages queued and completed batch jobs purely" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 21)
+              , summaryUrl = "https://example.com/queue"
+              , summaryTitle = "Queued"
+              , summarySection = "Wissen"
+              , summaryWordCount = 500
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          (queuedModel, queuedCommands) = update (FetchJobQueued "Fetch queue" [summary]) initialModel
+      queuedCommands `shouldBe` []
+      nextJobId queuedModel `shouldBe` 2
+      length (queuedJobs queuedModel) `shouldBe` 1
+      queuedJobs queuedModel
+        `shouldBe` [QueuedFetchJob 1 "Fetch queue" (browseFilter initialModel) [summary]]
+
+      let (pausedModel, _) = update (JobQueuePausedChanged True) queuedModel
+      jobQueuePaused pausedModel `shouldBe` True
+
+      let job = head (queuedJobs queuedModel)
+          (startedModel, _) = update (QueuedJobStarted job) queuedModel
+      queuedJobs startedModel `shouldBe` []
+
+      let completed = CompletedJob 1 FetchJob "Fetch queue" "saved 1" True
+          (completedModel, _) = update (CompletedJobRecorded completed) startedModel
+      completedJobs completedModel `shouldBe` [completed]
+      queuedJobs (fst (update QueuedJobsCleared queuedModel)) `shouldBe` []
+      completedJobs (fst (update CompletedJobsCleared completedModel)) `shouldBe` []
+
   describe "App command runtime" $ do
     it "turns refresh commands into loaded events" $ do
       let summary =
@@ -732,8 +764,8 @@ main = hspec $ do
               }
           viewModel = appViewModel model
       vmTitle viewModel `shouldBe` "Saved Articles"
-      map navLabel (vmNavItems viewModel) `shouldBe` ["Browse", "Library", "LingQ", "Zeit"]
-      map navActive (vmNavItems viewModel) `shouldBe` [False, True, False, False]
+      map navLabel (vmNavItems viewModel) `shouldBe` ["Browse", "Library", "LingQ", "Zeit", "Diagnostics"]
+      map navActive (vmNavItems viewModel) `shouldBe` [False, True, False, False, False]
       vmStatusBadges viewModel
         `shouldBe` [ StatusBadge "Zeit" "paid session" True
                    , StatusBadge "LingQ" "disconnected" False
@@ -823,6 +855,7 @@ main = hspec $ do
       parseArgs ["settings"] `shouldBe` Right (ShowSettings defaultSettingsPath)
       parseArgs ["settings", "settings.dev.json"] `shouldBe` Right (ShowSettings "settings.dev.json")
       parseArgs ["settings", "set-view", "library"] `shouldBe` Right (SetSettingsView LibraryView defaultSettingsPath)
+      parseArgs ["settings", "set-view", "diagnostics"] `shouldBe` Right (SetSettingsView DiagnosticsView defaultSettingsPath)
       parseArgs ["settings", "set-browse-section", "wissen", "settings.dev.json"] `shouldBe` Right (SetSettingsBrowseSection "wissen" "settings.dev.json")
       parseArgs ["settings", "set-date-prefix", "off", "settings.dev.json"] `shouldBe` Right (SetSettingsDatePrefix False "settings.dev.json")
       parseArgs ["settings", "set-collection", "Wissen", "course-1"] `shouldBe` Right (SetSettingsSectionCollection "Wissen" "course-1" defaultSettingsPath)

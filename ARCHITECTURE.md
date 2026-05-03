@@ -48,3 +48,5 @@ The pure app update loop has a command interpreter for persisted settings, refre
 `ZeitLingq.App.Driver` composes the pure update function with the command runtime: it dispatches an event, runs generated commands through ports, and folds follow-up events back into the model.
 
 Startup hydration is port-driven: a GUI adapter can load `SettingsPort` into the pure `Model` before rendering its first frame.
+
+Batch fetch/upload queue state is also represented in the pure model. The Monomer adapter owns the actual background producers, but queuing, pausing, clearing, and completed-job history are modeled as regular app events so the behavior remains testable and renderer-independent.

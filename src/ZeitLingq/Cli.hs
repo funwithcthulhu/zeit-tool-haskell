@@ -187,7 +187,7 @@ usageText =
     , "  zeit-lingq-tool unignore-url <url> [db-path]"
     , "  zeit-lingq-tool ignored [db-path]"
     , "  zeit-lingq-tool settings [settings-path]"
-    , "  zeit-lingq-tool settings set-view <browse|library|lingq|zeit-login|article> [settings-path]"
+    , "  zeit-lingq-tool settings set-view <browse|library|lingq|zeit-login|diagnostics|article> [settings-path]"
     , "  zeit-lingq-tool settings set-browse-section <section-id> [settings-path]"
     , "  zeit-lingq-tool settings set-date-prefix <on|off> [settings-path]"
     , "  zeit-lingq-tool settings set-collection <section-name> <collection-id> [settings-path]"
@@ -226,5 +226,6 @@ parseView label raw =
     "library" -> Right LibraryView
     "lingq" -> Right LingqView
     "zeit-login" -> Right ZeitLoginView
+    "diagnostics" -> Right DiagnosticsView
     "article" -> Right ArticleView
     _ -> Left ("Invalid " <> label <> ": " <> raw <> "\n\n" <> usageText)

@@ -92,6 +92,7 @@ viewLabel BrowseView = "Browse"
 viewLabel LibraryView = "Library"
 viewLabel LingqView = "LingQ"
 viewLabel ZeitLoginView = "Zeit"
+viewLabel DiagnosticsView = "Diagnostics"
 viewLabel ArticleView = "Article"
 
 wordFilterLabel :: WordFilter -> Text
@@ -102,7 +103,7 @@ wordFilterLabel (WordFilter (Just minValue) (Just maxValue)) =
   tshow minValue <> "-" <> tshow maxValue <> " words"
 
 mainViews :: [View]
-mainViews = [BrowseView, LibraryView, LingqView, ZeitLoginView]
+mainViews = [BrowseView, LibraryView, LingqView, ZeitLoginView, DiagnosticsView]
 
 navFor :: View -> View -> NavItem
 navFor active view =
@@ -119,6 +120,7 @@ titleFor model =
     LibraryView -> "Saved Articles"
     LingqView -> "LingQ Uploads"
     ZeitLoginView -> "Zeit Session"
+    DiagnosticsView -> "Diagnostics"
     ArticleView ->
       maybe "Article" summaryTitle (selectedArticle model)
 
@@ -129,6 +131,7 @@ filterForCurrentView model =
     LibraryView -> wordFilterLabel (libraryFilter model)
     LingqView -> wordFilterLabel (lingqFilter model)
     ZeitLoginView -> "authentication"
+    DiagnosticsView -> "jobs and logs"
     ArticleView -> "selected article"
 
 rowsForCurrentView :: Model -> [ArticleSummary]
@@ -138,6 +141,7 @@ rowsForCurrentView model =
     LibraryView -> libraryArticles model
     LingqView -> lingqArticles model
     ZeitLoginView -> []
+    DiagnosticsView -> []
     ArticleView -> maybe [] (: []) (selectedArticle model)
 
 statusBadge :: Text -> AuthStatus -> StatusBadge

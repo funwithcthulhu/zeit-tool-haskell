@@ -6,6 +6,8 @@ module ZeitLingq.Domain.Types
   , ArticleId(..)
   , ArticleSummary(..)
   , AuthStatus(..)
+  , CompletedJob(..)
+  , JobKind(..)
   , LibraryPage(..)
   , LibraryPreset(..)
   , LibraryQuery(..)
@@ -18,6 +20,7 @@ module ZeitLingq.Domain.Types
   , Notification(..)
   , NotificationLevel(..)
   , ProgressStatus(..)
+  , QueuedJob(..)
   , RowDensity(..)
   , Section(..)
   , UiTheme(..)
@@ -39,6 +42,7 @@ data View
   | LibraryView
   | LingqView
   | ZeitLoginView
+  | DiagnosticsView
   | ArticleView
   deriving (Eq, Show, Enum, Bounded, Generic)
 
@@ -58,6 +62,33 @@ data ProgressStatus = ProgressStatus
   , progressCurrent :: Int
   , progressTotal :: Int
   , progressDetail :: Text
+  } deriving (Eq, Show, Generic)
+
+data JobKind
+  = FetchJob
+  | UploadJob
+  deriving (Eq, Show, Enum, Bounded, Generic)
+
+data QueuedJob
+  = QueuedFetchJob
+      { queuedJobId :: Int
+      , queuedJobLabel :: Text
+      , queuedFetchFilter :: WordFilter
+      , queuedFetchArticles :: [ArticleSummary]
+      }
+  | QueuedUploadJob
+      { queuedJobId :: Int
+      , queuedJobLabel :: Text
+      , queuedUploadArticles :: [ArticleSummary]
+      }
+  deriving (Eq, Show, Generic)
+
+data CompletedJob = CompletedJob
+  { completedJobId :: Int
+  , completedJobKind :: JobKind
+  , completedJobLabel :: Text
+  , completedJobSummary :: Text
+  , completedJobSucceeded :: Bool
   } deriving (Eq, Show, Generic)
 
 data AuthStatus = AuthStatus

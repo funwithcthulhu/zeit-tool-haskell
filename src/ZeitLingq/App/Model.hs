@@ -49,6 +49,10 @@ data Model = Model
   , knownImportText :: Text
   , notification :: Maybe Notification
   , activeProgress :: Maybe ProgressStatus
+  , queuedJobs :: [QueuedJob]
+  , completedJobs :: [CompletedJob]
+  , jobQueuePaused :: Bool
+  , nextJobId :: Int
   , failedFetches :: [(Text, Text)]
   , failedUploads :: [(ArticleId, Text)]
   , rowDensity :: RowDensity
@@ -104,6 +108,10 @@ initialModel =
     , knownImportText = ""
     , notification = Nothing
     , activeProgress = Nothing
+    , queuedJobs = []
+    , completedJobs = []
+    , jobQueuePaused = False
+    , nextJobId = 1
     , failedFetches = []
     , failedUploads = []
     , rowDensity = CompactRows

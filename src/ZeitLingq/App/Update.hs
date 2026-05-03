@@ -75,6 +75,13 @@ data Event
   | LingqArticlesLoaded [ArticleSummary]
   | BatchFetchFinished [(Text, Text)]
   | BatchUploadFinished [(ArticleId, Text)]
+  | FetchJobQueued Text [ArticleSummary]
+  | UploadJobQueued Text [ArticleSummary]
+  | QueuedJobStarted QueuedJob
+  | CompletedJobRecorded CompletedJob
+  | JobQueuePausedChanged Bool
+  | QueuedJobsCleared
+  | CompletedJobsCleared
   | FailureListsCleared
   | ProgressChanged (Maybe ProgressStatus)
   | RowDensityChanged RowDensity
@@ -433,6 +440,59 @@ update event model =
       ( model {failedUploads = failures, activeProgress = Nothing}
       , []
       )
+    FetchJobQueued label articles ->
+      if null articles
+        then (model {notification = Just (Notification ErrorNotice "No articles to queue.")}, [])
+        else
+          let job = QueuedFetchJob (nextJobId model) label (browseFilter model) articles
+           in ( model
+                  { queuedJobs = queuedJobs model <> [job]
+                  , nextJobId = nextJobId model + 1
+                  , notification = Just (Notification InfoNotice ("Queued: " <> label))
+                  }
+              , []
+              )
+    UploadJobQueued label articles ->
+      if null articles
+        then (model {notification = Just (Notification ErrorNotice "No articles to queue.")}, [])
+        else
+          let job = QueuedUploadJob (nextJobId model) label articles
+           in ( model
+                  { queuedJobs = queuedJobs model <> [job]
+                  , nextJobId = nextJobId model + 1
+                  , notification = Just (Notification InfoNotice ("Queued: " <> label))
+                  }
+              , []
+              )
+    QueuedJobStarted job ->
+      ( model {queuedJobs = filter ((/= queuedJobId job) . queuedJobId) (queuedJobs model)}
+      , []
+      )
+    CompletedJobRecorded job ->
+      ( model {completedJobs = take 30 (job : completedJobs model)}
+      , []
+      )
+    JobQueuePausedChanged paused ->
+      ( model
+          { jobQueuePaused = paused
+          , notification = Just (Notification InfoNotice (if paused then "Job queue paused." else "Job queue resumed."))
+          }
+      , []
+      )
+    QueuedJobsCleared ->
+      ( model
+          { queuedJobs = []
+          , notification = Just (Notification InfoNotice "Cleared queued jobs.")
+          }
+      , []
+      )
+    CompletedJobsCleared ->
+      ( model
+          { completedJobs = []
+          , notification = Just (Notification InfoNotice "Cleared completed job history.")
+          }
+      , []
+      )
     FailureListsCleared ->
       ( model {failedFetches = [], failedUploads = []}
       , []
@@ -608,6 +668,7 @@ refreshCommands model =
           then [RefreshLingqLanguages, RefreshLingqCollections (lingqLanguage model)]
           else []
     ZeitLoginView -> []
+    DiagnosticsView -> []
     ArticleView -> maybe [] (maybe [] (pure . LoadArticle) . summaryId) (selectedArticle model)
 
 uploadableIds :: [ArticleSummary] -> [ArticleId]
