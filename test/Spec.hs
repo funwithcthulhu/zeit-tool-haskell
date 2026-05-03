@@ -160,6 +160,8 @@ main = hspec $ do
         `shouldBe` [UploadSavedArticle (fromGregorian 2026 5 2) (Just "fallback") Map.empty True (ArticleId 15)]
       snd (update (BrowseArticleHidden "https://example.com/fetch") initialModel)
         `shouldBe` [SetBrowseUrlIgnored "https://example.com/fetch"]
+      snd (update (BrowseBatchFetchRequested [summary]) initialModel)
+        `shouldBe` [FetchAndSaveArticles (WordFilter Nothing Nothing) [summary]]
 
   describe "App command runtime" $ do
     it "turns refresh commands into loaded events" $ do
@@ -285,6 +287,25 @@ main = hspec $ do
         `shouldBe` [BrowseArticlesLoaded [visible]]
       runIdentity (Runtime.runCommand ports (SetBrowseUrlIgnored "https://example.com/new"))
         `shouldBe` [Notify SuccessNotice "Article hidden from browse.", RefreshCurrentView]
+
+    it "batch-fetches visible browse rows through the runtime" $ do
+      let first =
+            ArticleSummary
+              { summaryId = Nothing
+              , summaryUrl = "https://example.com/one"
+              , summaryTitle = "One"
+              , summarySection = "Wissen"
+              , summaryWordCount = 0
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          second = first {summaryUrl = "https://example.com/two", summaryTitle = "Two"}
+          ports = testPorts first
+      runIdentity (Runtime.runCommand ports (FetchAndSaveArticles (WordFilter Nothing Nothing) [first, second]))
+        `shouldBe` [ Notify SuccessNotice "Batch fetch: saved 2, skipped 0, failed 0."
+                   , RefreshCurrentView
+                   ]
 
   describe "App event driver" $ do
     it "dispatches refresh commands and folds loaded events back into the model" $ do

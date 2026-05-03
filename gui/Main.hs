@@ -32,6 +32,7 @@ data GuiEvent
   | GuiOpenArticle ArticleSummary
   | GuiFetchArticle ArticleSummary
   | GuiHideBrowseArticle ArticleSummary
+  | GuiFetchVisible [ArticleSummary]
   | GuiToggleIgnored ArticleSummary
   | GuiUploadArticle ArticleId
   | GuiDeleteArticle ArticleId
@@ -87,6 +88,8 @@ handleEvent ports _ _ model event =
       [Task (runAppEvent ports model (BrowseArticleFetchRequested article))]
     GuiHideBrowseArticle article ->
       [Task (runAppEvent ports model (BrowseArticleHidden (summaryUrl article)))]
+    GuiFetchVisible articles ->
+      [Task (runAppEvent ports model (BrowseBatchFetchRequested articles))]
     GuiToggleIgnored article ->
       case summaryId article of
         Just ident -> [Task (runAppEvent ports model (ArticleIgnoredChanged ident (not (summaryIgnored article))))]
@@ -174,6 +177,7 @@ browseControls model =
             `styleBasic` [textSize 14, paddingT 8]
         , hstack (map sectionButton quickSections)
             `styleBasic` [paddingV 6]
+        , button ("Fetch visible (" <> T.pack (show (length (browseArticles model))) <> ")") (GuiFetchVisible (browseArticles model))
         ]
     _ -> spacer
   where

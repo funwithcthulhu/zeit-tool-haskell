@@ -5,8 +5,11 @@ module ZeitLingq.App.Runtime
   ) where
 
 import Data.Set qualified as Set
+import Data.Text (Text)
+import Data.Text qualified as T
 import ZeitLingq.App.Update (Command(..), Event(..))
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
+import ZeitLingq.Core.Batch (BatchFetchResult(..), batchFetchArticles)
 import ZeitLingq.Core.Browse (hideIgnoredSummaries)
 import ZeitLingq.Core.Upload (BatchUploadResult(..), batchUploadArticles)
 import ZeitLingq.Domain.Article (wordCount)
@@ -88,6 +91,17 @@ runCommand ports command =
         [ Notify SuccessNotice "Article hidden from browse."
         , RefreshCurrentView
         ]
+    FetchAndSaveArticles filters summaries -> do
+      results <-
+        batchFetchArticles
+          (\url -> Right <$> fetchArticleContent zeit url)
+          (saveArticle library)
+          filters
+          (map summaryUrl summaries)
+      pure
+        [ Notify SuccessNotice (batchFetchSummary results)
+        , RefreshCurrentView
+        ]
   where
     zeit = zeitPort ports
     lingq = lingqPort ports
@@ -103,3 +117,20 @@ uploadResultEvents result =
       [Notify SuccessNotice ("Uploaded " <> title <> " to LingQ.")]
     UploadFailed _ title err ->
       [Notify ErrorNotice ("Could not upload " <> title <> ": " <> err)]
+
+batchFetchSummary :: [BatchFetchResult] -> Text
+batchFetchSummary results =
+  "Batch fetch: saved "
+    <> tshow saved
+    <> ", skipped "
+    <> tshow skipped
+    <> ", failed "
+    <> tshow failed
+    <> "."
+  where
+    saved = length [() | BatchSaved {} <- results]
+    skipped = length [() | BatchSkipped {} <- results]
+    failed = length [() | BatchFailed {} <- results]
+
+tshow :: Show a => a -> Text
+tshow = T.pack . show
