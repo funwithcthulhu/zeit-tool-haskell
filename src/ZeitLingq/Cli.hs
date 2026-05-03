@@ -16,6 +16,9 @@ data CliCommand
   | BrowseZeit Text Int
   | FetchArticle Text FilePath
   | ShowLibrary FilePath
+  | ImportKnownWords FilePath FilePath
+  | KnownWordsInfo FilePath
+  | ComputeKnownPct FilePath
   deriving (Eq, Show)
 
 defaultDbPath :: FilePath
@@ -31,6 +34,12 @@ parseArgs ["fetch", url] = Right (FetchArticle (T.pack url) defaultDbPath)
 parseArgs ["fetch", url, dbPath] = Right (FetchArticle (T.pack url) dbPath)
 parseArgs ["library"] = Right (ShowLibrary defaultDbPath)
 parseArgs ["library", dbPath] = Right (ShowLibrary dbPath)
+parseArgs ["known-import", sourcePath] = Right (ImportKnownWords sourcePath defaultDbPath)
+parseArgs ["known-import", sourcePath, dbPath] = Right (ImportKnownWords sourcePath dbPath)
+parseArgs ["known-info"] = Right (KnownWordsInfo defaultDbPath)
+parseArgs ["known-info", dbPath] = Right (KnownWordsInfo dbPath)
+parseArgs ["known-compute"] = Right (ComputeKnownPct defaultDbPath)
+parseArgs ["known-compute", dbPath] = Right (ComputeKnownPct dbPath)
 parseArgs _ = Left usageText
 
 usageText :: String
@@ -42,6 +51,9 @@ usageText =
     , "  zeit-lingq-tool browse <section-id> [page]"
     , "  zeit-lingq-tool fetch <article-url> [db-path]"
     , "  zeit-lingq-tool library [db-path]"
+    , "  zeit-lingq-tool known-import <word-list.txt> [db-path]"
+    , "  zeit-lingq-tool known-info [db-path]"
+    , "  zeit-lingq-tool known-compute [db-path]"
     , ""
     , "Set ZEIT_COOKIE to pass an authenticated zeit.de cookie header for paid articles."
     ]

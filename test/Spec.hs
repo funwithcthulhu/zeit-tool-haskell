@@ -76,6 +76,9 @@ main = hspec $ do
       parseArgs ["browse", "wissen", "2"] `shouldBe` Right (BrowseZeit "wissen" 2)
       parseArgs ["fetch", "https://www.zeit.de/wissen/2026-05/beispiel"] `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
       parseArgs ["library", "custom.db"] `shouldBe` Right (ShowLibrary "custom.db")
+      parseArgs ["known-import", "words.txt", "custom.db"] `shouldBe` Right (ImportKnownWords "words.txt" "custom.db")
+      parseArgs ["known-info"] `shouldBe` Right (KnownWordsInfo defaultDbPath)
+      parseArgs ["known-compute", "custom.db"] `shouldBe` Right (ComputeKnownPct "custom.db")
 
   describe "Batch fetch use case" $ do
     it "saves successful articles and skips articles outside the word filter" $ do

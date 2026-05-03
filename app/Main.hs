@@ -5,6 +5,7 @@ module Main (main) where
 import Data.Foldable (for_)
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
+import Data.Text.IO qualified as TIO
 import Data.Time (fromGregorian, getCurrentTime)
 import System.Environment (getArgs, lookupEnv)
 import ZeitLingq.App.Model (Model(..), initialModel)
@@ -54,6 +55,25 @@ runCommand (ShowLibrary dbPath) =
       else
         for_ articles $ \article ->
           putStrLn (showSummary article)
+runCommand (ImportKnownWords sourcePath dbPath) = do
+  rawWords <- TIO.readFile sourcePath
+  let stems = importKnownWordStems rawWords
+  withLibrary dbPath $ \db -> do
+    count <- saveKnownWordsSqlite db "de" stems
+    clearAllKnownPctSqlite db
+    putStrLn ("Imported " <> show count <> " known German stems.")
+runCommand (KnownWordsInfo dbPath) =
+  withLibrary dbPath $ \db -> do
+    count <- getKnownStemCountSqlite db "de"
+    syncedAt <- getKnownWordsSyncedAtSqlite db "de"
+    putStrLn ("Known German stems: " <> show count)
+    putStrLn ("Synced at: " <> maybe "-" show syncedAt)
+runCommand (ComputeKnownPct dbPath) =
+  withLibrary dbPath $ \db -> do
+    result <- computeKnownPctSqlite db "de"
+    case result of
+      Left err -> putStrLn (T.unpack err)
+      Right count -> putStrLn ("Updated known-word estimates for " <> show count <> " articles.")
 
 sessionFromEnv :: IO ZeitSession
 sessionFromEnv = do
