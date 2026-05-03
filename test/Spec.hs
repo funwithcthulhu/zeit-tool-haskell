@@ -1087,6 +1087,16 @@ main = hspec $ do
           articleSection article `shouldBe` "Wissen"
           articleParagraphs article `shouldBe` ["## Abschnitt", "Das ist ein Absatz mit genug Worten fuer den Parser.", "Noch ein Absatz mit sauberem Text und Inhalt."]
 
+    it "extracts article audio from source tags and JSON-LD" $ do
+      let sourceHtml =
+            "<html><head><title>Audio | ZEIT ONLINE</title></head><body><article><h1>Audio</h1><p>Das ist ein Absatz mit genug Worten fuer den Parser.</p><p>Noch ein Absatz mit sauberem Text und Inhalt.</p><audio><source src=\"https://cdn.example/audio.m4a\"></audio></article></body></html>"
+          jsonHtml =
+            "<html><head><title>Audio JSON | ZEIT ONLINE</title><script type=\"application/ld+json\">{\"@type\":\"NewsArticle\",\"audio\":{\"@type\":\"AudioObject\",\"contentUrl\":\"https://cdn.example/audio.mp3\"}}</script></head><body><article><h1>Audio JSON</h1><p>Das ist ein Absatz mit genug Worten fuer den Parser.</p><p>Noch ein Absatz mit sauberem Text und Inhalt.</p></article></body></html>"
+      fmap articleAudioUrl (extractArticleContent "https://www.zeit.de/wissen/2026-05/audio" sourceHtml)
+        `shouldBe` Right (Just "https://cdn.example/audio.m4a")
+      fmap articleAudioUrl (extractArticleContent "https://www.zeit.de/wissen/2026-05/audio-json" jsonHtml)
+        `shouldBe` Right (Just "https://cdn.example/audio.mp3")
+
 demoArticle :: Article
 demoArticle =
   Article

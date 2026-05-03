@@ -11,9 +11,12 @@ module ZeitLingq.Infrastructure.Zeit
   , looksLikeArticleUrl
   ) where
 
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), asum)
+import Data.Aeson (Value(..), eitherDecodeStrict')
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as BL
+import Data.Foldable (toList)
 import Data.List (find)
 import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
@@ -87,6 +90,7 @@ extractArticleList sectionLabelValue html =
 
 extractArticleContent :: Text -> Text -> Either ZeitError Article
 extractArticleContent url html
+  | looksPaywalled html && length paragraphs < 2 = Left (ZeitParseError "Article appears to be behind a paywall or the Zeit session expired.")
   | T.null title = Left (ZeitParseError "Could not extract article title.")
   | null paragraphs = Left (ZeitParseError "Could not extract article paragraphs.")
   | otherwise =
@@ -103,7 +107,7 @@ extractArticleContent url html
           , articleFetchedAt = Nothing
           , articleUploadedLesson = Nothing
           , articleIgnored = False
-          , articleAudioUrl = firstAttr "audio" "src" tags <|> metaProperty "og:audio" tags
+          , articleAudioUrl = extractAudioUrl tags
           , articleAudioPath = Nothing
           , articleKnownPct = Nothing
           }
@@ -111,6 +115,14 @@ extractArticleContent url html
     tags = parseTagsText html
     title = cleanTitle (fromMaybe "" (firstBlockText "h1" tags <|> firstBlockText "title" tags))
     paragraphs = extractBodyBlocks tags
+
+extractAudioUrl :: [Tag String] -> Maybe Text
+extractAudioUrl tags =
+  firstAttr "audio" "src" tags
+    <|> firstAttr "source" "src" tags
+    <|> metaProperty "og:audio" tags
+    <|> metaProperty "og:audio:secure_url" tags
+    <|> jsonLdAudioUrl tags
 
 looksLikeArticleUrl :: Text -> Bool
 looksLikeArticleUrl url =
@@ -182,6 +194,48 @@ firstAttr :: String -> String -> [Tag String] -> Maybe Text
 firstAttr tagName attrName =
   attrFromFirst attrName . filter (tagOpenName tagName)
 
+jsonLdAudioUrl :: [Tag String] -> Maybe Text
+jsonLdAudioUrl =
+  asum . map audioFromJsonText . jsonLdScripts
+
+jsonLdScripts :: [Tag String] -> [Text]
+jsonLdScripts [] = []
+jsonLdScripts (TagOpen "script" attrs : rest)
+  | lookup "type" attrs == Just "application/ld+json" =
+      let (inside, after) = break (tagCloseName "script") rest
+       in T.pack (innerText inside) : jsonLdScripts (drop 1 after)
+jsonLdScripts (_ : rest) = jsonLdScripts rest
+
+audioFromJsonText :: Text -> Maybe Text
+audioFromJsonText raw =
+  case eitherDecodeStrict' (encodeUtf8 raw) of
+    Right value -> audioFromValue value
+    Left _ -> Nothing
+
+audioFromValue :: Value -> Maybe Text
+audioFromValue (Object obj) =
+  asum
+    [ textField "contentUrl"
+    , textField "url"
+    , KeyMap.lookup "audio" obj >>= audioFromValue
+    , asum (map audioFromValue (KeyMap.elems obj))
+    ]
+  where
+    textField key = do
+      String value <- KeyMap.lookup key obj
+      if looksLikeAudioUrl value then Just value else Nothing
+audioFromValue (Array values) =
+  asum (map audioFromValue (toList values))
+audioFromValue (String value)
+  | looksLikeAudioUrl value = Just value
+audioFromValue _ = Nothing
+
+looksLikeAudioUrl :: Text -> Bool
+looksLikeAudioUrl value =
+  any (`T.isInfixOf` lower) [".mp3", ".m4a", ".ogg", ".aac", "audio"]
+  where
+    lower = T.toLower value
+
 attrFromFirst :: String -> [Tag String] -> Maybe Text
 attrFromFirst attrName tags = do
   TagOpen _ attrs <- find tagOpen tags
@@ -226,6 +280,19 @@ cleanTitle =
 
 cleanText :: Text -> Text
 cleanText = T.unwords . T.words
+
+looksPaywalled :: Text -> Bool
+looksPaywalled html =
+  any (`T.isInfixOf` lower) markers
+  where
+    lower = T.toLower html
+    markers =
+      [ "z+"
+      , "diesen artikel"
+      , "abonnenten"
+      , "einloggen"
+      , "session"
+      ]
 
 nonEmpty :: Text -> Maybe Text
 nonEmpty value
