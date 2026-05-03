@@ -86,6 +86,7 @@ That gives us a Haskell-native application without forcing the whole codebase to
 - The app model stores browse, library, and LingQ article rows for GUI rendering.
 - Batch fetch/save behavior is available as a pure use case over effectful callbacks.
 - App refresh commands can load browse, library, and LingQ rows through ports and emit pure loaded events.
+- Opening a saved article emits a load command and stores loaded article content for rendering.
 - Batch LingQ upload behavior is available as a pure use case over effectful callbacks.
 - LingQ upload now derives date-prefix and section collection behavior from persisted settings.
 - SQLite article persistence is available through `LibraryPort`.

@@ -16,6 +16,7 @@ data Model = Model
   , zeitStatus :: AuthStatus
   , lingqStatus :: AuthStatus
   , selectedArticle :: Maybe ArticleSummary
+  , selectedArticleContent :: Maybe Article
   , browseArticles :: [ArticleSummary]
   , libraryArticles :: [ArticleSummary]
   , lingqArticles :: [ArticleSummary]
@@ -38,6 +39,7 @@ initialModel =
     , zeitStatus = emptyAuth
     , lingqStatus = emptyAuth
     , selectedArticle = Nothing
+    , selectedArticleContent = Nothing
     , browseArticles = []
     , libraryArticles = []
     , lingqArticles = []

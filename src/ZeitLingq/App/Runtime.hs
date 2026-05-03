@@ -5,6 +5,7 @@ module ZeitLingq.App.Runtime
   ) where
 
 import ZeitLingq.App.Update (Command(..), Event(..))
+import ZeitLingq.Domain.Types (NotificationLevel(..))
 import ZeitLingq.Ports
 
 runCommand :: Monad m => AppPorts m -> Command -> m [Event]
@@ -27,6 +28,14 @@ runCommand ports command =
     RefreshLingqLibrary filters -> do
       articles <- loadLibrary library filters
       pure [LingqArticlesLoaded articles]
+    LoadArticle ident -> do
+      article <- loadArticle library ident
+      pure
+        [ maybe
+            (Notify ErrorNotice "Article not found.")
+            ArticleContentLoaded
+            article
+        ]
   where
     zeit = zeitPort ports
     library = libraryPort ports

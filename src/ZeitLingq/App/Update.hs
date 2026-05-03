@@ -16,6 +16,7 @@ data Event
   | ZeitStatusChanged AuthStatus
   | LingqStatusChanged AuthStatus
   | ArticleOpened ArticleSummary
+  | ArticleContentLoaded Article
   | ArticleClosed
   | BrowseArticlesLoaded [ArticleSummary]
   | LibraryArticlesLoaded [ArticleSummary]
@@ -38,6 +39,7 @@ data Command
   | RefreshBrowse Text Int
   | RefreshLibrary WordFilter
   | RefreshLingqLibrary WordFilter
+  | LoadArticle ArticleId
   deriving (Eq, Show)
 
 update :: Event -> Model -> (Model, [Command])
@@ -58,13 +60,19 @@ update event model =
     ArticleOpened article ->
       ( model
           { selectedArticle = Just article
+          , selectedArticleContent = Nothing
           , currentView = ArticleView
           }
-      , [PersistCurrentView ArticleView]
+      , PersistCurrentView ArticleView : maybe [] (pure . LoadArticle) (summaryId article)
+      )
+    ArticleContentLoaded article ->
+      ( model {selectedArticleContent = Just article}
+      , []
       )
     ArticleClosed ->
       ( model
           { selectedArticle = Nothing
+          , selectedArticleContent = Nothing
           , currentView = LibraryView
           }
       , [PersistCurrentView LibraryView]

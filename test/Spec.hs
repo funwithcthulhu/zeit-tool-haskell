@@ -75,7 +75,17 @@ main = hspec $ do
           (nextModel, commands) = update (ArticleOpened summary) initialModel
       currentView nextModel `shouldBe` ArticleView
       selectedArticle nextModel `shouldBe` Just summary
-      commands `shouldBe` [PersistCurrentView ArticleView]
+      selectedArticleContent nextModel `shouldBe` Nothing
+      commands `shouldBe` [PersistCurrentView ArticleView, LoadArticle (ArticleId 7)]
+
+    it "stores loaded article content and clears it when closing" $ do
+      let (loadedModel, loadedCommands) = update (ArticleContentLoaded demoArticle) initialModel
+          (closedModel, closedCommands) = update ArticleClosed loadedModel
+      selectedArticleContent loadedModel `shouldBe` Just demoArticle
+      loadedCommands `shouldBe` []
+      selectedArticleContent closedModel `shouldBe` Nothing
+      currentView closedModel `shouldBe` LibraryView
+      closedCommands `shouldBe` [PersistCurrentView LibraryView]
 
     it "hydrates startup model from the settings port" $ do
       let port =
@@ -148,6 +158,25 @@ main = hspec $ do
         `shouldBe` [LibraryArticlesLoaded [summary]]
       runIdentity (Runtime.runCommand ports (RefreshLingqLibrary filters))
         `shouldBe` [LingqArticlesLoaded [summary]]
+      runIdentity (Runtime.runCommand ports (LoadArticle (ArticleId 1)))
+        `shouldBe` [ArticleContentLoaded demoArticle]
+
+    it "reports a missing article when content cannot be loaded" $ do
+      let summary =
+            ArticleSummary
+              { summaryId = Just (ArticleId 404)
+              , summaryUrl = "https://example.com/missing"
+              , summaryTitle = "Missing"
+              , summarySection = "Wissen"
+              , summaryWordCount = 100
+              , summaryIgnored = False
+              , summaryUploaded = False
+              , summaryKnownPct = Nothing
+              }
+          basePorts = testPorts summary
+          ports = basePorts {libraryPort = (libraryPort basePorts) {loadArticle = \_ -> Identity Nothing}}
+      runIdentity (Runtime.runCommand ports (LoadArticle (ArticleId 404)))
+        `shouldBe` [Notify ErrorNotice "Article not found."]
 
   describe "Pure app view model" $ do
     it "projects navigation and status badges for a GUI adapter" $ do
@@ -210,6 +239,15 @@ main = hspec $ do
                 , browseArticles = [summary]
                 }
       map rowTitle (vmArticleRows viewModel) `shouldBe` ["Screen Row"]
+
+    it "projects loaded article content paragraphs" $ do
+      let viewModel =
+            appViewModel
+              initialModel
+                { currentView = ArticleView
+                , selectedArticleContent = Just demoArticle
+                }
+      vmSelectedArticleParagraphs viewModel `shouldBe` ["eins zwei", "drei vier"]
 
   describe "CLI argument parsing" $ do
     it "defaults to the demo command" $ do

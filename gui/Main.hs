@@ -2,6 +2,7 @@
 
 module Main (main) where
 
+import Data.Text (Text)
 import Monomer
 import ZeitLingq.App.Model (Model, initialModel)
 import ZeitLingq.App.Update (Event(..), update)
@@ -77,6 +78,7 @@ contentBlock vm =
     , label ("Filter: " <> vmActiveFilter vm)
     , label (vmDatePrefix vm)
     , selectedArticleBlock (vmSelectedArticle vm)
+    , articleParagraphsBlock (vmSelectedArticleParagraphs vm)
     , articleRowsBlock (vmArticleRows vm)
     ]
     `styleBasic` [padding 16]
@@ -91,6 +93,13 @@ selectedArticleBlock (Just row) =
     , label (rowMeta row)
     , label (rowKnownPct row <> " | " <> rowUploadStatus row)
     ]
+
+articleParagraphsBlock :: [Text] -> WidgetNode Model GuiEvent
+articleParagraphsBlock [] =
+  spacer
+articleParagraphsBlock paragraphs =
+  vstack (map label paragraphs)
+    `styleBasic` [paddingT 12]
 
 articleRowsBlock :: [ArticleRowView] -> WidgetNode Model GuiEvent
 articleRowsBlock [] =

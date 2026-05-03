@@ -24,6 +24,7 @@ data AppViewModel = AppViewModel
   , vmActiveFilter :: Text
   , vmDatePrefix :: Text
   , vmSelectedArticle :: Maybe ArticleRowView
+  , vmSelectedArticleParagraphs :: [Text]
   , vmArticleRows :: [ArticleRowView]
   } deriving (Eq, Show)
 
@@ -63,6 +64,8 @@ appViewModel model =
           then "Date prefix: on"
           else "Date prefix: off"
     , vmSelectedArticle = articleRowView <$> selectedArticle model
+    , vmSelectedArticleParagraphs =
+        maybe [] articleParagraphs (selectedArticleContent model)
     , vmArticleRows = map articleRowView (rowsForCurrentView model)
     }
 
