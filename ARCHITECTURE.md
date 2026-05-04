@@ -1,6 +1,6 @@
 # Architecture
 
-This project keeps user workflows separate from IO. Article rules, model updates, batch decisions, known-word scoring, and view-model projection are pure. Zeit HTTP, LingQ HTTP, SQLite, settings, audio, and the desktop shell sit behind explicit adapters.
+This is a small personal desktop tool, but the code still keeps local workflow rules separate from IO. Article rules, model updates, batch decisions, known-word scoring, and view-model projection are pure. Zeit HTTP, LingQ HTTP, SQLite, settings, audio, and the desktop shell sit behind explicit adapters.
 
 ## Main Boundaries
 
@@ -9,7 +9,7 @@ This project keeps user workflows separate from IO. Article rules, model updates
 - `ZeitLingq.Core`: pure or callback-driven workflows for fetching, uploading, and known-word scoring.
 - `ZeitLingq.App`: model, events, command runtime, startup loading, and view models.
 - `ZeitLingq.Ports`: records that describe every effect the app runtime can perform.
-- `ZeitLingq.Infrastructure`: production adapters for Zeit, LingQ, SQLite, JSON settings, and audio.
+- `ZeitLingq.Infrastructure`: local adapters for Zeit, LingQ, SQLite, JSON settings, and audio.
 - `gui`: Monomer adapter, theme, browser-session parsing, and user-facing error text.
 - `app`: CLI adapter.
 
@@ -29,7 +29,7 @@ That flow keeps the main behavior testable without Monomer, HTTP, or SQLite. The
 - creates missing columns and indexes idempotently;
 - records the current schema version in `schema_migrations`.
 
-The SQLite adapter is accessed through `LibraryPort`, so tests and future storage backends can use the same app/runtime boundary.
+The SQLite adapter is accessed through `LibraryPort`, which keeps tests from depending on the local database directly.
 
 ## Zeit Authentication
 
@@ -53,7 +53,7 @@ GUI-specific helpers are kept out of `gui/Main.hs`:
 
 ## CLI
 
-The CLI wraps the same adapters as the GUI. `zt` is the preferred short executable for checks and scripts. Long command names still parse for compatibility, but the public docs focus on the shorter commands in [COMMANDS.md](COMMANDS.md).
+The CLI wraps the same adapters as the GUI. `zt` is the short executable for checks and scripts. Long command names still parse for compatibility.
 
 ## Packaging
 

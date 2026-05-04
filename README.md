@@ -2,16 +2,18 @@
 
 [![Haskell CI](https://github.com/funwithcthulhu/zeit-tool-haskell/actions/workflows/haskell-ci.yml/badge.svg)](https://github.com/funwithcthulhu/zeit-tool-haskell/actions/workflows/haskell-ci.yml)
 
-Zeit Tool Haskell is a Windows desktop app for saving Die Zeit articles, managing a local SQLite reading library, and creating LingQ lessons from cleaned article text.
+Personal Haskell/Monomer desktop tool for saving Die Zeit articles locally and managing LingQ import workflows.
 
-## What It Does
+This is personal tooling, not a general-purpose app. It is built around a Windows desktop setup, a local SQLite library, browser-based Zeit login, and a LingQ workflow for turning saved articles into lessons.
 
-- Browses Zeit sections and saves articles into a local library.
-- Keeps article text, metadata, ignored state, LingQ upload state, audio paths, and known-word percentages in SQLite.
-- Imports or syncs LingQ known words and estimates article coverage.
-- Uploads saved articles to LingQ, with optional date prefixes and per-section collection mappings.
-- Uses a real Edge/Chrome session for Zeit subscriber access instead of headless login automation.
-- Provides a short CLI (`zt`) for checks, scripts, and maintenance.
+## What It Does Today
+
+- Browse Zeit sections and save articles into a local SQLite database.
+- Keep article text, metadata, ignored state, LingQ upload state, audio paths, and known-word percentages locally.
+- Import or sync LingQ known words and estimate article coverage.
+- Upload saved articles to LingQ, with optional date prefixes and per-section collection mappings.
+- Import a real Edge/Chrome browser session for Zeit subscriber access instead of trying to automate a headless login.
+- Provide a short CLI (`zt`) for maintenance tasks and quick checks.
 
 ## Build From Source
 
@@ -39,7 +41,7 @@ Run the CLI wrapper:
 
 ## Windows Installer
 
-The installer is built with Inno Setup and installs per user under `%LOCALAPPDATA%\Zeit Tool Haskell`. The app writes `settings.json`, `zeit-tool.db`, logs, audio, and support bundles beside the installed executable, so administrator rights are not needed.
+The installer is mainly for this Windows setup. It installs per user under `%LOCALAPPDATA%\Zeit Tool Haskell`, where the app can write `settings.json`, `zeit-tool.db`, logs, audio, and support bundles without administrator rights.
 
 Build from existing optimized binaries:
 
@@ -55,18 +57,18 @@ Build fresh binaries and then package them:
 
 The installer is written to `dist\ZeitToolHaskellSetup-<version>.exe`. If Inno Setup 6 is missing, the script still creates `dist\installer-staging` and prints the install instructions for the compiler.
 
-## GUI Features
+## Current GUI Coverage
 
-- Zeit browsing with section dropdown, search, hidden URL filtering, only-new filtering, paging, preview, original-link opening, selected fetch, visible fetch, retryable failures, and multi-page article fallback.
-- Library management with workflow presets, duplicate-title review, light/dark theme, compact or comfortable rows, search, section and word filters, ignored/not-uploaded filters, collapsible grouping, sorting, paging, article actions, audio state, and guarded cleanup for destructive actions.
-- LingQ upload with API key or password login, connected-account status, language and collection refresh, fallback collection, per-section collection mapping, date-prefixed titles, existing-lesson updates, course-status sync, selected/visible upload, and retryable failed uploads.
-- Known-word sync/import/clear/recompute, cached article coverage, and library filtering by estimated coverage.
-- Zeit login through cookie paste or browser-assisted Edge/Chrome session import. Browser import stores the cookie header and matching user-agent from the real browser session, then uses those values for article fetches.
-- Diagnostics for live jobs, queued work, cooperative cancellation, queue pause/resume/clear, completed job history, retry lists, recent logs, data folder access, and support bundles.
+- Browse Zeit sections, preview/open articles, fetch individual articles, and batch-fetch selected or visible rows.
+- Work through a local reading library with search, filters, grouping, sorting, audio/original-link actions, duplicate review, and guarded cleanup.
+- Send saved articles to LingQ, refresh languages/collections, map Zeit sections to LingQ collections, and update existing lessons when found.
+- Import or sync known words and keep cached article coverage estimates.
+- Manage Zeit session details through cookie paste or browser-assisted Edge/Chrome session import.
+- Check queued work, retry failures, copy logs, and create support bundles from the Diagnostics view.
 
 ## CLI
 
-The GUI is the main workflow. Use `zt` when a terminal command is faster:
+The GUI is the normal path. Use `zt` when a terminal command is quicker:
 
 ```powershell
 .\zt h
@@ -92,12 +94,12 @@ Environment variables:
 - `LINGQ_API_KEY`: required for LingQ upload and known-word sync.
 - `LINGQ_COLLECTION_ID`: optional fallback LingQ collection.
 
-## Repository Layout
+## Repository Map
 
 - `src/ZeitLingq/Domain`: business types and article rules.
 - `src/ZeitLingq/Text`: German tokenization and stemming.
 - `src/ZeitLingq/Core`: batch fetch, upload, and known-word logic.
-- `src/ZeitLingq/App`: pure model, update loop, command runtime, startup hydration, and view models.
+- `src/ZeitLingq/App`: model, update loop, command runtime, startup hydration, and view models.
 - `src/ZeitLingq/Infrastructure`: Zeit HTTP, LingQ HTTP, SQLite, JSON settings, and audio adapters.
 - `src/ZeitLingq/Ports.hs`: effect boundaries used by the app runtime and tests.
 - `gui/Main.hs`: Monomer event wiring and desktop screens.
@@ -105,19 +107,17 @@ Environment variables:
 - `app/Main.hs`: CLI entry point for both `zeit-lingq-tool` and `zt`.
 - `scripts`: installer and browser-login helpers.
 
-## Data And Reliability
+## Storage Notes
 
 - SQLite schema setup is idempotent and records a schema version in `schema_migrations`.
 - The SQLite adapter enables foreign keys, a busy timeout, WAL journaling, and indexes for common browse/library queries.
 - Settings are stored in JSON so UI preferences and account/session fields survive restarts.
 - Batch fetch and upload failures remain retryable from the GUI.
-- Support bundles collect logs and local metadata needed for troubleshooting.
+- Support bundles collect logs and local metadata for troubleshooting.
 
-## Release Status
-
-The desktop path covers browsing, fetching, local library work, known-word workflows, LingQ upload/status sync, audio, diagnostics, browser-session Zeit login, CLI maintenance commands, and Windows installer packaging.
-
-Known limits:
+## Rough Edges
 
 - Zeit authentication depends on a valid user-controlled browser session. On Windows the GUI can import cookies and user-agent from Edge/Chrome; on other platforms paste a Cookie header manually.
 - The job queue is in memory. Queued work and completed-job history do not survive an app restart.
+- The installer is not code-signed yet, so Windows SmartScreen may show an unknown-publisher warning.
+- The GUI is aimed at this workflow first; it has not been designed as a general Zeit or LingQ client.

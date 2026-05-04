@@ -1,6 +1,6 @@
 # Release Checklist
 
-Use this checklist before publishing a release or tagging a build.
+Use this checklist before tagging a build or packaging a shareable installer from this personal project.
 
 ## Local Checks
 
@@ -39,7 +39,7 @@ Confirm that the script prints a SHA256 hash and writes `dist\ZeitToolHaskellSet
 
 ## Documentation
 
-- README feature list matches the current GUI.
+- README describes the current GUI honestly without making the project sound broader than it is.
 - COMMANDS examples run with `zt`.
 - ARCHITECTURE describes any new module boundary.
 - CHANGELOG has a concise entry for the release.
