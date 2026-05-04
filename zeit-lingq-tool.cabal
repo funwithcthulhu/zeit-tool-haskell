@@ -1,6 +1,6 @@
 cabal-version:   3.14
 name:            zeit-lingq-tool
-version:         0.1.0.0
+version:         0.1.0.1
 synopsis:        Zeit article library and LingQ lesson tool
 description:     Desktop tool for saving Die Zeit articles, managing a local reading library, and creating LingQ lessons.
 license:         BSD-3-Clause
@@ -97,6 +97,8 @@ executable zeit-lingq-tool-gui
     hs-source-dirs:
         gui
     if flag(gui)
+        if os(windows)
+            ghc-options: -optl-mwindows
         build-depends:
             monomer ^>=1.6.0.1,
             zeit-lingq-tool

@@ -22,6 +22,7 @@ cabal build -fgui exe:zeit-lingq-tool-gui
 Check:
 
 - the window opens without a console launcher staying visible;
+- installer and desktop shortcuts open the GUI without a Command Prompt or PowerShell window;
 - Browse loads a Zeit section;
 - Library opens and filters saved rows;
 - LingQ login state displays clearly;
