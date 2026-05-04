@@ -2,33 +2,18 @@
 
 [![Haskell CI](https://github.com/funwithcthulhu/zeit-tool-haskell/actions/workflows/haskell-ci.yml/badge.svg)](https://github.com/funwithcthulhu/zeit-tool-haskell/actions/workflows/haskell-ci.yml)
 
-Zeit Tool Haskell is a Haskell-native desktop workflow for reading Die Zeit articles and turning them into LingQ lessons.
+Zeit Tool Haskell is a Windows desktop app for saving Die Zeit articles, managing a local SQLite reading library, and creating LingQ lessons from cleaned article text.
 
-## Goals
+## What It Does
 
-- Browse Die Zeit sections, fetch and store articles, estimate known-word coverage, and upload lessons to LingQ.
-- Keep business logic in pure modules with explicit effect boundaries.
-- Keep the GUI swappable so the core stays independent from the front-end adapter.
+- Browses Zeit sections and saves articles into a local library.
+- Keeps article text, metadata, ignored state, LingQ upload state, audio paths, and known-word percentages in SQLite.
+- Imports or syncs LingQ known words and estimates article coverage.
+- Uploads saved articles to LingQ, with optional date prefixes and per-section collection mappings.
+- Uses a real Edge/Chrome session for Zeit subscriber access instead of headless login automation.
+- Provides a short CLI (`zt`) for checks, scripts, and maintenance.
 
-## Current Structure
-
-- `src/ZeitLingq/Domain`: stable business types and article rules.
-- `src/ZeitLingq/Core/Batch.hs`: batch article fetch/save workflow.
-- `src/ZeitLingq/Core/Upload.hs`: batch LingQ upload workflow.
-- `src/ZeitLingq/Text/German.hs`: German tokenization and stemming.
-- `src/ZeitLingq/Core/KnownWords.hs`: pure known-word import and percentage estimation.
-- `src/ZeitLingq/App`: GUI-agnostic application model, update loop, and command runtime.
-- `src/ZeitLingq/App/Driver.hs`: event dispatch helper that runs commands and folds follow-up events back into the model.
-- `src/ZeitLingq/App/Startup.hs`: settings-to-model startup hydration for GUI startup.
-- `src/ZeitLingq/App/ViewModel.hs`: pure GUI-facing presentation state for navigation, badges, filters, and article rows.
-- `src/ZeitLingq/Infrastructure/Audio.hs`: article audio filename and download helpers.
-- `src/ZeitLingq/Infrastructure/Lingq.hs`: LingQ HTTP adapter and response parsing helpers.
-- `src/ZeitLingq/Infrastructure/Settings.hs`: JSON-backed user settings adapter.
-- `src/ZeitLingq/Infrastructure/Sqlite.hs`: SQLite-backed article library adapter.
-- `src/ZeitLingq/Infrastructure/Zeit.hs`: Zeit HTTP adapter and HTML extraction helpers.
-- `src/ZeitLingq/Ports.hs`: effect boundaries for Zeit scraping, LingQ, settings, and persistence.
-
-## Build
+## Build From Source
 
 ```powershell
 cd C:\projects\zeit-tool-haskell
@@ -36,95 +21,103 @@ cabal test
 cabal run zt -- h
 ```
 
-On Windows, `run-zeit-tool.ps1` launches the Monomer GUI from the project directory:
+Launch the GUI from the project folder:
 
 ```powershell
 .\run-zeit-tool.ps1
 ```
 
-Use `zt` when you want the terminal harness instead:
-
-```powershell
-.\zt t
-```
-
-`.\run-zeit-tool.ps1 cli <args>` still works for scripts.
-The old `-Cli` switch still works for existing scripts.
-
-The desktop shortcut uses `launch-zeit-tool-gui.vbs` so the GUI opens without leaving a PowerShell window on screen. The launcher prepares the MSYS2 UCRT `pkg-config` paths needed by Monomer, GLEW, FreeType, and SDL2.
-
-## Windows Installer
-
-The repository includes an Inno Setup packaging script for a per-user Windows install. It installs the GUI, CLI, runtime DLLs, browser-login helper, and docs under `%LOCALAPPDATA%\Zeit Tool Haskell`, so the app can write `settings.json`, `zeit-tool.db`, logs, audio, and support bundles without administrator rights.
-
-To rebuild the installer from existing optimized GUI/CLI binaries:
-
-```powershell
-.\scripts\build-installer.ps1 -SkipBuild
-```
-
-For a fresh optimized release build plus installer:
-
-```powershell
-.\scripts\build-installer.ps1
-```
-
-The script writes `dist\ZeitToolHaskellSetup-<version>.exe` and prints its SHA256 hash. If Inno Setup 6 is not installed, the script still creates a portable staging folder at `dist\installer-staging` and tells you how to install the compiler.
-
-## CLI
-
-The CLI is intentionally small now. It is meant for quick checks, automation, and library maintenance, not the main workflow. Use `zt` for short commands; the older long commands still work for existing scripts.
-
-If you are developing from source on Windows, run `.\zt ...` from the project folder. If you installed the app, run `zt.exe` from the install folder or Start Menu CLI shortcut.
-
-Common examples:
+Run the CLI wrapper:
 
 ```powershell
 .\zt h
 .\zt t
 .\zt b wissen -p 2
+```
+
+`.\run-zeit-tool.ps1 cli <args>` and the old `-Cli` switch remain available for existing scripts.
+
+## Windows Installer
+
+The installer is built with Inno Setup and installs per user under `%LOCALAPPDATA%\Zeit Tool Haskell`. The app writes `settings.json`, `zeit-tool.db`, logs, audio, and support bundles beside the installed executable, so administrator rights are not needed.
+
+Build from existing optimized binaries:
+
+```powershell
+.\scripts\build-installer.ps1 -SkipBuild
+```
+
+Build fresh binaries and then package them:
+
+```powershell
+.\scripts\build-installer.ps1
+```
+
+The installer is written to `dist\ZeitToolHaskellSetup-<version>.exe`. If Inno Setup 6 is missing, the script still creates `dist\installer-staging` and prints the install instructions for the compiler.
+
+## GUI Features
+
+- Zeit browsing with section dropdown, search, hidden URL filtering, only-new filtering, paging, preview, original-link opening, selected fetch, visible fetch, retryable failures, and multi-page article fallback.
+- Library management with workflow presets, duplicate-title review, light/dark theme, compact or comfortable rows, search, section and word filters, ignored/not-uploaded filters, collapsible grouping, sorting, paging, article actions, audio state, and guarded cleanup for destructive actions.
+- LingQ upload with API key or password login, connected-account status, language and collection refresh, fallback collection, per-section collection mapping, date-prefixed titles, existing-lesson updates, course-status sync, selected/visible upload, and retryable failed uploads.
+- Known-word sync/import/clear/recompute, cached article coverage, and library filtering by estimated coverage.
+- Zeit login through cookie paste or browser-assisted Edge/Chrome session import. Browser import stores the cookie header and matching user-agent from the real browser session, then uses those values for article fetches.
+- Diagnostics for live jobs, queued work, cooperative cancellation, queue pause/resume/clear, completed job history, retry lists, recent logs, data folder access, and support bundles.
+
+## CLI
+
+The GUI is the main workflow. Use `zt` when a terminal command is faster:
+
+```powershell
+.\zt h
+.\zt t
 .\zt r https://www.zeit.de/wissen/2026-05/example
 .\zt f urls.txt -m 500 -x 2000
 .\zt l
 .\zt hide 1
-.\zt show 1
 .\zt rm old 30 -u
 .\zt k sync
-.\zt k import known-words.txt
 .\zt u 1
 .\zt a 1 -o audio
 .\zt cfg topic wissen
-.\zt cfg date off
 .\zt cfg map Wissen 12345
 ```
 
-Use `-d FILE` for a different SQLite library and `-s FILE` for a different settings file. Full command reference: [COMMANDS.md](COMMANDS.md).
+Use `-d FILE` for another SQLite database and `-s FILE` for another settings file. See [COMMANDS.md](COMMANDS.md) for the full command list.
 
-Set `ZEIT_COOKIE` before running `zt r` if an article needs an authenticated Zeit session. If you are scripting authenticated fetches outside the GUI, you can also set `ZEIT_USER_AGENT` to the browser user-agent that produced the cookie.
-Set `LINGQ_API_KEY` before running `zt u` or `zt k sync`; optionally set `LINGQ_COLLECTION_ID` as an upload fallback. Section-specific LingQ collection mappings and the date-prefix toggle are read from `settings.json`.
+Environment variables:
 
-## GUI
+- `ZEIT_COOKIE`: cookie header for authenticated Zeit fetches outside the GUI.
+- `ZEIT_USER_AGENT`: browser user-agent matching `ZEIT_COOKIE`.
+- `LINGQ_API_KEY`: required for LingQ upload and known-word sync.
+- `LINGQ_COLLECTION_ID`: optional fallback LingQ collection.
 
-The Monomer GUI is the primary desktop entry point. It stays thin: user actions become pure app events, the command runtime talks to ports, and the GUI renders the updated model. This keeps scraping, SQLite, settings, audio, and LingQ code reusable outside the desktop adapter.
+## Repository Layout
 
-The GUI currently supports:
+- `src/ZeitLingq/Domain`: business types and article rules.
+- `src/ZeitLingq/Text`: German tokenization and stemming.
+- `src/ZeitLingq/Core`: batch fetch, upload, and known-word logic.
+- `src/ZeitLingq/App`: pure model, update loop, command runtime, startup hydration, and view models.
+- `src/ZeitLingq/Infrastructure`: Zeit HTTP, LingQ HTTP, SQLite, JSON settings, and audio adapters.
+- `src/ZeitLingq/Ports.hs`: effect boundaries used by the app runtime and tests.
+- `gui/Main.hs`: Monomer event wiring and desktop screens.
+- `gui/ZeitLingq/Gui`: GUI-specific theme, browser-session parsing, and error wording.
+- `app/Main.hs`: CLI entry point for both `zeit-lingq-tool` and `zt`.
+- `scripts`: installer and browser-login helpers.
 
-- Browsing Zeit sections with topic dropdown, search, hidden-url filtering, only-new filtering, paging, preview, original-link opening, single fetch, selected fetch, visible fetch, retryable failed fetches, and multi-page article fallback when a complete view is unavailable.
-- Managing the local library with presets for common reading/upload workflows and duplicate review, compact or comfortable row density, persisted light/dark theme selection, search, section and word filters, ignored/not-uploaded filters, collapsible grouping, sorting, paging, article open/copy/original/audio actions with article metadata and audio availability, and configurable cleanup of ignored, old, uploaded, or unuploaded articles with two-click confirmation for destructive actions.
-- Uploading saved articles to LingQ with API key or password login, a compact connected-account state, language selection, collection refresh, fallback collection selection, per-section collection mapping, date-prefixed lesson titles, existing-lesson updates, upload-status sync from an existing LingQ course, known-word sync/import/clear/recompute, selected/visible upload, and retryable failed uploads.
-- Zeit authentication through manual cookie paste or browser-assisted Edge/Chrome session import. The browser import opens a real installed browser for interactive login, stores the matching browser user-agent with the cookies, and reuses browser-like request headers for article fetches. The GUI warns when the session is missing or likely expired, so subscriber/paywalled fetch failures point back to browser-session import instead of failing silently. This avoids brittle headless login automation while keeping requests aligned with the browser session you created. The GUI also opens the project data folder, the GUI log file, timestamped support bundles, and the Zeit login page.
-- Diagnostics for live batch jobs, queued fetch/upload work, cooperative cancellation, queue pause/resume/clear controls, completed job history, retry lists, support bundles, and copying recent GUI log lines.
+## Data And Reliability
 
-## Current Status
+- SQLite schema setup is idempotent and records a schema version in `schema_migrations`.
+- The SQLite adapter enables foreign keys, a busy timeout, WAL journaling, and indexes for common browse/library queries.
+- Settings are stored in JSON so UI preferences and account/session fields survive restarts.
+- Batch fetch and upload failures remain retryable from the GUI.
+- Support bundles collect logs and local metadata needed for troubleshooting.
 
-- The Haskell core covers Zeit browsing/fetching, SQLite persistence, library maintenance, known-word import/sync/estimation, article audio download/open, LingQ upload, and LingQ course status reconciliation.
-- The Monomer GUI is the feature-complete desktop path for daily use and is launched by `run-zeit-tool.ps1` or the Windows desktop shortcut.
-- The Windows installer packages the GUI, CLI, runtime DLLs, docs, and browser-session helper into a per-user install under LocalAppData.
-- Batch fetch and batch upload show live progress, queue overlapping work instead of rejecting it, and keep per-item failures retryable from the sidebar and Diagnostics view.
-- JSON settings persist the current view, row density, UI theme, Zeit cookie, Zeit browser user-agent, LingQ API key, LingQ language, browse filters, LingQ filters, date-prefix preference, fallback collection, and section collection mappings.
-- The CLI remains available for quick verification and scripting through the short `zt` command, with the longer legacy commands kept for compatibility.
+## Release Status
+
+The desktop path covers browsing, fetching, local library work, known-word workflows, LingQ upload/status sync, audio, diagnostics, browser-session Zeit login, CLI maintenance commands, and Windows installer packaging.
 
 Known limits:
 
-- Zeit authentication is cookie-session based. On Windows, the GUI can launch a real Edge/Chrome window for interactive login and import the resulting cookies plus browser user-agent; this is intentionally closer to a normal user-controlled browser session than an embedded/headless login flow. On other platforms, paste a Cookie header manually.
-- Long-running batch operations now have an in-memory queue, cooperative cancellation, and completed-job history. The queue is not yet persisted across app restarts.
+- Zeit authentication depends on a valid user-controlled browser session. On Windows the GUI can import cookies and user-agent from Edge/Chrome; on other platforms paste a Cookie header manually.
+- The job queue is in memory. Queued work and completed-job history do not survive an app restart.

@@ -34,7 +34,7 @@ module ZeitLingq.Infrastructure.Sqlite
   ) where
 
 import Control.Exception (bracket)
-import Control.Monad (unless)
+import Control.Monad (unless, void)
 import Data.Int (Int64)
 import Data.Foldable (traverse_)
 import Data.Map.Strict qualified as Map
@@ -61,7 +61,7 @@ newtype LibraryDb = LibraryDb Connection
 openLibrary :: FilePath -> IO LibraryDb
 openLibrary path = do
   conn <- open path
-  execute_ conn "PRAGMA foreign_keys = ON"
+  configureConnection conn
   migrate conn
   pure (LibraryDb conn)
 
@@ -96,8 +96,23 @@ sqliteLibraryPort db =
     , loadStats = getStatsSqlite db
     }
 
+currentSchemaVersion :: Int
+currentSchemaVersion = 1
+
+configureConnection :: Connection -> IO ()
+configureConnection conn = do
+  execute_ conn "PRAGMA foreign_keys = ON"
+  execute_ conn "PRAGMA busy_timeout = 5000"
+  void (query_ conn "PRAGMA journal_mode = WAL" :: IO [Only Text])
+  execute_ conn "PRAGMA synchronous = NORMAL"
+
 migrate :: Connection -> IO ()
 migrate conn = do
+  execute_
+    conn
+    "CREATE TABLE IF NOT EXISTS schema_migrations\
+    \ (version INTEGER PRIMARY KEY,\
+    \  applied_at TIMESTAMP NOT NULL)"
   execute_
     conn
     "CREATE TABLE IF NOT EXISTS articles\
@@ -124,6 +139,10 @@ migrate conn = do
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_word_count ON articles(word_count)"
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_date ON articles(date)"
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_ignored ON articles(ignored)"
+  execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_uploaded ON articles(uploaded_to_lingq)"
+  execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_ignored_fetched_at ON articles(ignored, fetched_at)"
+  execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_uploaded_fetched_at ON articles(uploaded_to_lingq, fetched_at)"
+  execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_title ON articles(title)"
   execute_
     conn
     "CREATE TABLE IF NOT EXISTS known_words\
@@ -137,6 +156,11 @@ migrate conn = do
     "CREATE TABLE IF NOT EXISTS ignored_urls\
     \ (url TEXT PRIMARY KEY,\
     \  ignored_at TIMESTAMP NOT NULL)"
+  now <- getCurrentTime
+  execute
+    conn
+    "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)"
+    (currentSchemaVersion, now)
 
 ensureArticleColumns :: Connection -> IO ()
 ensureArticleColumns conn =

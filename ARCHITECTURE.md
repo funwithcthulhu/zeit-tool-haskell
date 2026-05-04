@@ -1,58 +1,60 @@
-# Architecture Notes
+# Architecture
 
-## Functional architecture
+This project keeps user workflows separate from IO. Article rules, model updates, batch decisions, known-word scoring, and view-model projection are pure. Zeit HTTP, LingQ HTTP, SQLite, settings, audio, and the desktop shell sit behind explicit adapters.
 
-The project uses four layers:
+## Main Boundaries
 
-1. `Domain`
-   - Plain immutable data structures.
-   - Pure rules for article formatting, word-count filtering, and LingQ lesson naming.
-2. `Text`
-   - Language-specific normalization and stemming.
-3. `App`
-   - A pure model and event/update loop, intentionally compatible with Elm-style GUI libraries such as Monomer.
-4. `Ports`
-   - Explicit effect boundaries for scraping, persistence, settings, and LingQ.
+- `ZeitLingq.Domain`: article, library, LingQ, settings, and job types.
+- `ZeitLingq.Text`: German tokenization and stemming.
+- `ZeitLingq.Core`: pure or callback-driven workflows for fetching, uploading, and known-word scoring.
+- `ZeitLingq.App`: model, events, command runtime, startup loading, and view models.
+- `ZeitLingq.Ports`: records that describe every effect the app runtime can perform.
+- `ZeitLingq.Infrastructure`: production adapters for Zeit, LingQ, SQLite, JSON settings, and audio.
+- `gui`: Monomer adapter, theme, browser-session parsing, and user-facing error text.
+- `app`: CLI adapter.
 
-## Core modules
+## Event Flow
 
-- `ZeitLingq.Infrastructure.Zeit` handles Zeit HTTP requests and HTML extraction.
-- Zeit sessions are represented as cookie header plus browser user-agent, so GUI imports can reuse the identity of the real browser session that produced the cookies.
-- `ZeitLingq.Core.Batch` handles batch article fetch/save workflows over effect callbacks.
-- `ZeitLingq.Core.Upload` handles LingQ upload workflows over effect callbacks.
-- `ZeitLingq.Infrastructure.Lingq` handles LingQ authentication, collections, known words, and lesson uploads.
-- `ZeitLingq.Infrastructure.Sqlite` provides article library persistence behind `LibraryPort`.
-- `ZeitLingq.Core.KnownWords` handles known-word import and percentage computation.
-- `ZeitLingq.Infrastructure.Audio` handles article audio filenames and downloads.
-- `ZeitLingq.Text.German` handles German tokenization and stemming.
-- `ZeitLingq.App.Model` and `ZeitLingq.App.Update` define GUI-ready state and events.
-- `ZeitLingq.App.ViewModel` projects pure app state into renderer-friendly labels, badges, filters, and current-screen article rows.
-- `ZeitLingq.Infrastructure.Settings` provides JSON settings behind `SettingsPort`.
+The GUI sends a `ZeitLingq.App.Update.Event`. The pure `update` function returns a new `Model` plus commands. `ZeitLingq.App.Runtime` interprets those commands through `AppPorts`, then returns follow-up events. `ZeitLingq.App.Driver` folds those events back into the model.
 
-## GUI direction
+That flow keeps the main behavior testable without Monomer, HTTP, or SQLite. The GUI owns only widget layout, user interaction, background task launching, and small platform side effects such as opening files or URLs.
 
-The desktop GUI uses Monomer because the app state fits a pure model/update flow. Monomer stays as an adapter, not as the center of the architecture, so replacing it later would not touch scraping, persistence, or domain rules.
+## Storage
 
-The optional `zeit-lingq-tool-gui` executable is guarded by the `gui` Cabal flag. The default build keeps native GUI dependencies out of CI and CLI workflows, while `run-zeit-tool.ps1` prepares the Windows UCRT `pkg-config` paths and launches the Monomer shell. The launcher also accepts `.\run-zeit-tool.ps1 cli <command>` for terminal work. The desktop shortcut invokes `launch-zeit-tool-gui.vbs` so the GUI opens without a visible terminal.
+`ZeitLingq.Infrastructure.Sqlite` owns schema creation, migration, and query behavior. Database startup:
 
-The Windows installer uses the same GUI executable and stages the runtime DLLs discovered from the MSYS2 UCRT dependency graph. It installs per-user under LocalAppData so the app can keep its SQLite database, JSON settings, logs, audio, and support bundles beside the executable without elevation.
+- enables foreign keys;
+- sets a busy timeout for concurrent app/CLI access;
+- enables WAL mode when SQLite supports it;
+- creates missing columns and indexes idempotently;
+- records the current schema version in `schema_migrations`.
+
+The SQLite adapter is accessed through `LibraryPort`, so tests and future storage backends can use the same app/runtime boundary.
+
+## Zeit Authentication
+
+Zeit access is browser-session based. The GUI opens the user's installed Edge or Chrome for login, imports the resulting Cookie header and matching user-agent, and passes those values through `ZeitSession`. This avoids brittle headless login code and better matches Zeit's anti-bot posture.
+
+Manual Cookie-header paste remains available for CLI use and for platforms where browser import is not implemented.
+
+## LingQ
+
+`ZeitLingq.Infrastructure.Lingq` handles login, language and collection reads, known-word sync, lesson upload, lesson update, and existing lesson discovery. Upload decisions stay in `ZeitLingq.Core.Upload`, which keeps collection mapping and title behavior easy to test.
+
+## GUI
+
+The Monomer executable is behind the `gui` Cabal flag. The default CLI/test build does not require native GUI libraries. On Windows, `run-zeit-tool.ps1` prepares the MSYS2 UCRT `pkg-config` environment and launches the GUI; `launch-zeit-tool-gui.vbs` is used by the desktop shortcut to avoid a visible terminal.
+
+GUI-specific helpers are kept out of `gui/Main.hs`:
+
+- `ZeitLingq.Gui.Theme`: colors and Monomer theme selection.
+- `ZeitLingq.Gui.BrowserSession`: browser-login JSON/cookie parsing.
+- `ZeitLingq.Gui.Error`: auth-related failure guidance.
 
 ## CLI
 
-The executable provides a terminal interface around the adapters. It is useful for verifying scraper, persistence, settings, known-word, audio, and LingQ behavior without opening the GUI.
+The CLI wraps the same adapters as the GUI. `zt` is the preferred short executable for checks and scripts. Long command names still parse for compatibility, but the public docs focus on the shorter commands in [COMMANDS.md](COMMANDS.md).
 
-The public CLI grammar is intentionally friendlier than the internal command constructors: user-facing commands are grouped by task, such as `known sync`, `lingq upload`, `audio download`, and `delete old`. Named flags such as `--db`, `--settings`, `--page`, `--min`, and `--max` keep paths and filters readable in scripts. The older hyphenated commands still parse so existing automations do not break.
+## Packaging
 
-The CLI also exposes the JSON settings adapter so view preferences, browse section, date-prefix behavior, Zeit browser identity, and section-specific LingQ collection mappings can be exercised from scripts or terminal workflows. The canonical user reference lives in `COMMANDS.md`.
-
-## App runtime
-
-The pure app update loop has a command interpreter for persisted settings, refresh effects, and article content loading. Refresh commands load browse, library, and LingQ article rows through ports and return pure loaded events. Opening a saved article emits a content-load command, and the runtime returns either loaded article content or a notification event. That keeps Monomer or any other GUI layer focused on rendering and event wiring.
-
-`ZeitLingq.App.Driver` composes the pure update function with the command runtime: it dispatches an event, runs generated commands through ports, and folds follow-up events back into the model.
-
-Startup hydration is port-driven: a GUI adapter can load `SettingsPort` into the pure `Model` before rendering its first frame.
-
-Batch fetch/upload queue state is also represented in the pure model. The Monomer adapter owns the actual background producers and a small cooperative cancellation flag, but queuing, pausing, clearing, and completed-job history are modeled as regular app events so the behavior remains testable and renderer-independent.
-
-Zeit login is deliberately browser-session based instead of headless. The GUI opens the user's installed Edge or Chrome for interactive login, imports the authenticated cookie header and matching user-agent, then feeds those values through the `ZeitSession` port boundary.
+`scripts/build-installer.ps1` builds optimized binaries, stages runtime DLLs from the MSYS2 UCRT dependency graph, copies docs and helper scripts, and invokes Inno Setup when available. The installer is per-user so the app can write its database, settings, logs, audio, and support bundles without elevation.

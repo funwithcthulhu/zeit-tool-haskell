@@ -1,6 +1,6 @@
 # Command Reference
 
-Zeit Tool Haskell is primarily a desktop app. The CLI is deliberately short and is mainly for quick checks, scripts, and maintenance.
+Zeit Tool Haskell is primarily a desktop app. The CLI is for quick checks, scripts, and maintenance.
 
 From the project folder on Windows:
 
@@ -14,7 +14,7 @@ From an installed build, use:
 zt.exe h
 ```
 
-If you do not want the wrapper, the same parser is also available as:
+The same parser is also available through Cabal:
 
 ```powershell
 cabal run zt -- h

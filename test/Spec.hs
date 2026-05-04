@@ -832,11 +832,11 @@ main = hspec $ do
       vmSelectedArticleParagraphs viewModel `shouldBe` ["eins zwei", "drei vier"]
 
   describe "CLI argument parsing" $ do
-    it "shows help by default and keeps the demo explicit" $ do
+    it "shows help by default and rejects unknown commands" $ do
       parseArgs [] `shouldBe` Right ShowHelp
       parseArgs ["help"] `shouldBe` Right ShowHelp
       parseArgs ["--help"] `shouldBe` Right ShowHelp
-      parseArgs ["demo"] `shouldBe` Right ShowDemo
+      parseArgs ["demo"] `shouldSatisfy` isLeft
 
     it "parses browse, fetch and library commands" $ do
       parseArgs ["browse", "wissen", "2"] `shouldBe` Right (BrowseZeit "wissen" 2 defaultDbPath)
@@ -1240,6 +1240,27 @@ main = hspec $ do
           loaded <- getArticleSqlite db savedId
           fmap articleTitle loaded `shouldBe` Just "Demo"
 
+    it "records schema version and creates operational indexes" $ do
+      withTempDbPath $ \path -> do
+        withLibrary path $ \db -> do
+          _ <- saveArticleSqlite db demoArticle
+          pure ()
+
+        conn <- SQL.open path
+        versions <- SQL.query_ conn "SELECT version FROM schema_migrations" :: IO [SQL.Only Int]
+        indexes <- SQL.query_ conn "SELECT name FROM sqlite_master WHERE type = 'index'" :: IO [SQL.Only String]
+        SQL.close conn
+
+        let indexNames = [name | SQL.Only name <- indexes]
+            requiredIndexes =
+              [ "idx_articles_uploaded"
+              , "idx_articles_ignored_fetched_at"
+              , "idx_articles_uploaded_fetched_at"
+              , "idx_articles_title"
+              ]
+        versions `shouldContain` [SQL.Only 1]
+        all (`elem` indexNames) requiredIndexes `shouldBe` True
+
     it "bulk-deletes ignored and older articles" $ do
       withLibrary ":memory:" $ \db -> do
         oldUploaded <-
@@ -1448,12 +1469,19 @@ withTempDbPath :: (FilePath -> IO a) -> IO a
 withTempDbPath action = do
   tmp <- getTemporaryDirectory
   let path = tmp </> "zeit-tool-sqlite-test.db"
-  existsBefore <- doesFileExist path
-  when existsBefore (removeFile path)
+  removeIfExists path
+  removeIfExists (path <> "-wal")
+  removeIfExists (path <> "-shm")
   result <- action path
-  stillExists <- doesFileExist path
-  when stillExists (removeFile path)
+  removeIfExists path
+  removeIfExists (path <> "-wal")
+  removeIfExists (path <> "-shm")
   pure result
+
+removeIfExists :: FilePath -> IO ()
+removeIfExists path = do
+  exists <- doesFileExist path
+  when exists (removeFile path)
 
 decodeValue :: BL.ByteString -> Value
 decodeValue raw =

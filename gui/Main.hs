@@ -4,13 +4,11 @@ module Main (main) where
 
 import Control.Exception (SomeException, displayException, try)
 import Control.Applicative ((<|>))
-import Data.Aeson (FromJSON(..), eitherDecodeStrict', withObject, (.:))
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding (encodeUtf8)
 import Data.Time (UTCTime, addUTCTime, getCurrentTime, utctDay)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Monomer hiding (Model)
@@ -34,6 +32,9 @@ import ZeitLingq.App.Update (Event(..), update)
 import ZeitLingq.App.ViewModel
 import ZeitLingq.Domain.Section (allSections)
 import ZeitLingq.Domain.Types
+import ZeitLingq.Gui.BrowserSession
+import ZeitLingq.Gui.Error
+import ZeitLingq.Gui.Theme
 import ZeitLingq.Infrastructure.Audio
 import ZeitLingq.Infrastructure.Lingq
 import ZeitLingq.Infrastructure.Settings
@@ -41,22 +42,10 @@ import ZeitLingq.Infrastructure.Sqlite
 import ZeitLingq.Infrastructure.Zeit
 import ZeitLingq.Ports
 
-data BrowserZeitSession = BrowserZeitSession
-  { browserCookieHeader :: Text
-  , browserUserAgent :: Text
-  } deriving (Eq, Show)
-
 data GuiRuntime = GuiRuntime
   { guiPorts :: AppPorts IO
   , guiCancelFlag :: IORef Bool
   }
-
-instance FromJSON BrowserZeitSession where
-  parseJSON =
-    withObject "BrowserZeitSession" $ \obj ->
-      BrowserZeitSession
-        <$> obj .: "cookieHeader"
-        <*> obj .: "userAgent"
 
 data GuiEvent
   = GuiInit
@@ -170,90 +159,6 @@ logPath = "logs/app.log"
 
 zeitLoginUrl :: Text
 zeitLoginUrl = "https://meine.zeit.de/anmelden?url=https%3A%2F%2Fwww.zeit.de%2Findex&entry_service=sonstige"
-
-data Palette = Palette
-  { paletteAppBg :: Color
-  , palettePanelBg :: Color
-  , palettePanelAlt :: Color
-  , paletteBorder :: Color
-  , palettePrimary :: Color
-  , palettePrimaryText :: Color
-  , paletteMainText :: Color
-  , paletteMutedText :: Color
-  , paletteWarning :: Color
-  , paletteDanger :: Color
-  , paletteDangerBg :: Color
-  }
-
-paletteFor :: UiTheme -> Palette
-paletteFor DarkUiTheme =
-  Palette
-    { paletteAppBg = rgbHex "#0d1117"
-    , palettePanelBg = rgbHex "#121923"
-    , palettePanelAlt = rgbHex "#182232"
-    , paletteBorder = rgbHex "#2a3a4f"
-    , palettePrimary = rgbHex "#5dd6a5"
-    , palettePrimaryText = rgbHex "#071111"
-    , paletteMainText = rgbHex "#edf3f7"
-    , paletteMutedText = rgbHex "#98a6b8"
-    , paletteWarning = rgbHex "#f3b047"
-    , paletteDanger = rgbHex "#ff6b6b"
-    , paletteDangerBg = rgbHex "#3a1f27"
-    }
-paletteFor LightUiTheme =
-  Palette
-    { paletteAppBg = rgbHex "#f6f2ea"
-    , palettePanelBg = rgbHex "#fffdf7"
-    , palettePanelAlt = rgbHex "#eee7dc"
-    , paletteBorder = rgbHex "#d9ccba"
-    , palettePrimary = rgbHex "#0f8a7a"
-    , palettePrimaryText = rgbHex "#fbfffb"
-    , paletteMainText = rgbHex "#17211d"
-    , paletteMutedText = rgbHex "#637268"
-    , paletteWarning = rgbHex "#9a5b05"
-    , paletteDanger = rgbHex "#bd3b12"
-    , paletteDangerBg = rgbHex "#fff0e8"
-    }
-
-palette :: Model -> Palette
-palette = paletteFor . uiTheme
-
-appBgColor :: Model -> Color
-appBgColor = paletteAppBg . palette
-
-panelBgColor :: Model -> Color
-panelBgColor = palettePanelBg . palette
-
-panelAltColor :: Model -> Color
-panelAltColor = palettePanelAlt . palette
-
-borderColor :: Model -> Color
-borderColor = paletteBorder . palette
-
-primaryColor :: Model -> Color
-primaryColor = palettePrimary . palette
-
-primaryTextColor :: Model -> Color
-primaryTextColor = palettePrimaryText . palette
-
-mainTextColor :: Model -> Color
-mainTextColor = paletteMainText . palette
-
-mutedTextColor :: Model -> Color
-mutedTextColor = paletteMutedText . palette
-
-warningColor :: Model -> Color
-warningColor = paletteWarning . palette
-
-dangerColor :: Model -> Color
-dangerColor = paletteDanger . palette
-
-dangerBgColor :: Model -> Color
-dangerBgColor = paletteDangerBg . palette
-
-monomerThemeFor :: UiTheme -> Theme
-monomerThemeFor DarkUiTheme = darkTheme
-monomerThemeFor LightUiTheme = lightTheme
 
 buildUI :: WidgetEnv Model GuiEvent -> Model -> WidgetNode Model GuiEvent
 buildUI _ model =
@@ -2213,23 +2118,6 @@ importZeitSessionViaBrowser
             ExitFailure code ->
               fail (T.unpack ("Browser-assisted Zeit login failed (" <> tshow code <> "): " <> details))
 
-parseBrowserZeitSession :: Text -> BrowserZeitSession
-parseBrowserZeitSession raw =
-  case eitherDecodeStrict' (encodeUtf8 raw) of
-    Right session -> normalizeBrowserZeitSession session
-    Left _ ->
-      BrowserZeitSession
-        { browserCookieHeader = T.strip raw
-        , browserUserAgent = defaultZeitUserAgent
-        }
-
-normalizeBrowserZeitSession :: BrowserZeitSession -> BrowserZeitSession
-normalizeBrowserZeitSession session =
-  session
-    { browserCookieHeader = T.strip (browserCookieHeader session)
-    , browserUserAgent = normalizeZeitUserAgent (browserUserAgent session)
-    }
-
 runDeleteOlderAppEvent :: AppPorts IO -> Model -> Int -> Bool -> Bool -> IO GuiEvent
 runDeleteOlderAppEvent ports model days onlyUploaded onlyUnuploaded =
   safeGuiTask $ do
@@ -2287,31 +2175,6 @@ cleanExceptionText raw =
   case T.stripSuffix ")" =<< T.stripPrefix "user error (" raw of
     Just inner -> inner
     Nothing -> raw
-
-friendlyFailureMessage :: Text -> Text
-friendlyFailureMessage message
-  | isZeitAuthFailureText message = message <> " " <> zeitAuthGuidance
-  | otherwise = message
-
-fetchFailuresNeedZeitLogin :: [(Text, Text)] -> Bool
-fetchFailuresNeedZeitLogin =
-  any (isZeitAuthFailureText . snd)
-
-isZeitAuthFailureText :: Text -> Bool
-isZeitAuthFailureText message =
-  any (`T.isInfixOf` lower)
-    [ "session expired"
-    , "paywall"
-    , "behind a paywall"
-    , "einloggen"
-    , "zeit request failed"
-    ]
-  where
-    lower = T.toLower message
-
-zeitAuthGuidance :: Text
-zeitAuthGuidance =
-  "Open the Zeit tab and use Browser login & import so requests reuse your real Edge/Chrome session."
 
 runSideEffect :: Model -> IO () -> Text -> IO GuiEvent
 runSideEffect model action message =

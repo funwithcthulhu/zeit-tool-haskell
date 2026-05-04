@@ -16,7 +16,6 @@ import ZeitLingq.Domain.Types (View(..), WordFilter(..))
 
 data CliCommand
   = ShowHelp
-  | ShowDemo
   | ListSections
   | BrowseZeit Text Int FilePath
   | FetchArticle Text FilePath
@@ -57,7 +56,6 @@ parseArgs rawArgs
   | otherwise =
       case args of
         [] -> Right ShowHelp
-        ["demo"] -> Right ShowDemo
         [command] | lower command `elem` ["topics", "sections", "t"] -> Right ListSections
         command : rest ->
           case lower command of

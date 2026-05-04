@@ -1,19 +1,20 @@
 cabal-version:   3.14
 name:            zeit-lingq-tool
 version:         0.1.0.0
-synopsis:        Haskell-first Zeit to LingQ desktop workflow
-description:     Pure domain and app-state core for browsing Zeit articles and creating LingQ lessons.
+synopsis:        Zeit article library and LingQ lesson tool
+description:     Desktop tool for saving Die Zeit articles, managing a local reading library, and creating LingQ lessons.
 license:         BSD-3-Clause
 license-file:    LICENSE
 category:        Application
-author:          OpenAI Codex
-maintainer:      noreply@example.com
+author:          Zeit Tool Haskell contributors
+maintainer:      funwithcthulhu
 build-type:      Simple
 extra-doc-files:
     ARCHITECTURE.md
     CHANGELOG.md
     COMMANDS.md
     README.md
+    RELEASE.md
 
 source-repository head
     type:     git
@@ -89,6 +90,10 @@ executable zt
 executable zeit-lingq-tool-gui
     import:           warnings, core-deps
     main-is:          Main.hs
+    other-modules:
+        ZeitLingq.Gui.BrowserSession
+        ZeitLingq.Gui.Error
+        ZeitLingq.Gui.Theme
     hs-source-dirs:
         gui
     if flag(gui)
