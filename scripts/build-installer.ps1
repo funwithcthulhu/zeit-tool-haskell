@@ -212,6 +212,7 @@ Copy-IfExists -Source (Join-Path $repoRoot 'README.md') -Destination (Join-Path 
 Copy-IfExists -Source (Join-Path $repoRoot 'ARCHITECTURE.md') -Destination (Join-Path $stageDir 'docs\ARCHITECTURE.md')
 Copy-IfExists -Source (Join-Path $repoRoot 'CHANGELOG.md') -Destination (Join-Path $stageDir 'docs\CHANGELOG.md')
 Copy-IfExists -Source (Join-Path $repoRoot 'COMMANDS.md') -Destination (Join-Path $stageDir 'docs\COMMANDS.md')
+Copy-IfExists -Source (Join-Path $repoRoot 'RELEASE.md') -Destination (Join-Path $stageDir 'docs\RELEASE.md')
 
 $installerReadme = @"
 Zeit Tool Haskell $Version

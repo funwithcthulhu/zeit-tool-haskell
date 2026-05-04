@@ -43,7 +43,7 @@ Manual Cookie-header paste remains available for CLI use and for platforms where
 
 ## GUI
 
-The Monomer executable is behind the `gui` Cabal flag. The default CLI/test build does not require native GUI libraries. On Windows, `run-zeit-tool.ps1` prepares the MSYS2 UCRT `pkg-config` environment and launches the GUI; `launch-zeit-tool-gui.vbs` is used by the desktop shortcut to avoid a visible terminal.
+The Monomer executable is behind the `gui` Cabal flag. The default CLI/test build does not require native GUI libraries. On Windows, `run-zeit-tool.ps1` prepares the MSYS2 UCRT `pkg-config` environment and launches the GUI. The development desktop shortcut calls that script with PowerShell hidden and records startup failures in `logs\shortcut-launch.log`.
 
 GUI-specific helpers are kept out of `gui/Main.hs`:
 
