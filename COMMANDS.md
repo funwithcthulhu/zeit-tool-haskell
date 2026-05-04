@@ -1,6 +1,6 @@
 # Command Reference
 
-Zeit Tool Haskell is primarily a personal desktop utility. The CLI is for quick checks, scripts, and maintenance.
+Zeit Tool Haskell is a personal desktop utility. The CLI is for quick checks, scripts, and maintenance.
 
 From the project folder on Windows:
 

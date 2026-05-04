@@ -222,7 +222,7 @@ Launch:
 - Desktop shortcut, if selected during setup
 - CLI: zt.exe from the install folder or Start Menu CLI shortcut
 
-Friendly CLI examples:
+CLI examples:
 - zt h
 - zt t
 - zt b wissen -p 2
@@ -233,13 +233,13 @@ Friendly CLI examples:
 Full CLI reference:
 - docs\COMMANDS.md
 
-Data storage:
-- settings.json, zeit-tool.db, logs, audio, and support bundles are written beside the installed executable.
+Local data:
+- settings.json, zeit-tool.db, logs, audio, and troubleshooting bundles are written beside the installed executable.
 - The default installer target is under LocalAppData so the app can write its own data without administrator rights.
 
 Zeit login:
 - Use the GUI's Browser login & import action. It opens a real Edge/Chrome window and imports your authenticated zeit.de cookies plus the matching browser user-agent.
-- This avoids brittle headless login automation and keeps article requests aligned with the browser session you created interactively.
+- The app does not try to automate a headless Zeit login.
 
 LingQ:
 - Connect an API key or password login from the LingQ view before uploading.
