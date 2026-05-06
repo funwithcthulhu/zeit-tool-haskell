@@ -1,18 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.Cli
-  ( CliCommand(..)
-  , defaultDbPath
-  , defaultSettingsPath
-  , parseArgs
-  , usageText
-  ) where
+module ZeitLingq.Cli (
+  CliCommand (..),
+  defaultDbPath,
+  defaultSettingsPath,
+  parseArgs,
+  usageText,
+) where
 
-import Data.Text (Text)
-import Data.Text qualified as T
 import Data.List (isPrefixOf)
 import Data.Maybe (fromMaybe)
-import ZeitLingq.Domain.Types (View(..), WordFilter(..))
+import Data.Text (Text)
+import Data.Text qualified as T
+import ZeitLingq.Domain.Types (View (..), WordFilter (..))
 
 data CliCommand
   = ShowHelp
@@ -112,8 +112,8 @@ parseArgs rawArgs
             "set" -> parseSettings rest
             _ | isUrl command -> parseFetch "url" (command : rest)
             _ -> invalidCommand command
-  where
-    args = concatMap expandEquals rawArgs
+ where
+  args = concatMap expandEquals rawArgs
 
 usageText :: String
 usageText =
@@ -216,8 +216,8 @@ parseBatchFetch commandName args = do
     ([sourcePath, legacyDb, minValue, maxValue], Nothing, Nothing, Nothing) ->
       BatchFetch sourcePath legacyDb
         <$> ( WordFilter
-              <$> fmap Just (parsePositiveInt "min-words" minValue)
-              <*> fmap Just (parsePositiveInt "max-words" maxValue)
+                <$> fmap Just (parsePositiveInt "min-words" minValue)
+                <*> fmap Just (parsePositiveInt "max-words" maxValue)
             )
     _ -> invalidCommand commandName
 
@@ -229,7 +229,8 @@ parseDbOnly commandName constructor args = do
     ([legacyDb], Nothing) -> Right (constructor legacyDb)
     _ -> invalidCommand commandName
 
-parseArticleIdWithDb :: String -> (Int -> FilePath -> CliCommand) -> [String] -> Either String CliCommand
+parseArticleIdWithDb ::
+  String -> (Int -> FilePath -> CliCommand) -> [String] -> Either String CliCommand
 parseArticleIdWithDb commandName constructor args = do
   (remaining, dbOpt) <- takeValueOption dbOptionLabels args
   case (remaining, dbOpt) of
@@ -265,15 +266,14 @@ parseDeleteOld args = do
       (remaining, onlyUnuploaded) = takeSwitch ["--unuploaded", "-n"] withoutUploaded
   if onlyUploaded && onlyUnuploaded
     then Left ("Use either --uploaded or --unuploaded, not both.\n\n" <> usageText)
-    else
-      case remaining of
-        [days] ->
-          DeleteOlderThan
-            <$> parsePositiveInt "days" days
-            <*> pure onlyUploaded
-            <*> pure onlyUnuploaded
-            <*> pure (fromMaybe defaultDbPath dbOpt)
-        _ -> invalidCommand "delete old"
+    else case remaining of
+      [days] ->
+        DeleteOlderThan
+          <$> parsePositiveInt "days" days
+          <*> pure onlyUploaded
+          <*> pure onlyUnuploaded
+          <*> pure (fromMaybe defaultDbPath dbOpt)
+      _ -> invalidCommand "delete old"
 
 parseDeleteOldLegacy :: String -> Bool -> Bool -> [String] -> Either String CliCommand
 parseDeleteOldLegacy commandName onlyUploaded onlyUnuploaded args = do
@@ -303,10 +303,10 @@ parseHide hidden args =
         "url" -> parseUrlWithDb commandName urlConstructor rest
         _ | isUrl subcommand -> parseUrlWithDb commandName urlConstructor args
         _ -> parseArticleIdWithDb commandName articleConstructor args
-  where
-    commandName = if hidden then "hide" else "show"
-    articleConstructor = if hidden then IgnoreArticle else UnignoreArticle
-    urlConstructor = if hidden then IgnoreUrl else UnignoreUrl
+ where
+  commandName = if hidden then "hide" else "show"
+  articleConstructor = if hidden then IgnoreArticle else UnignoreArticle
+  urlConstructor = if hidden then IgnoreUrl else UnignoreUrl
 
 parseKnown :: [String] -> Either String CliCommand
 parseKnown [] = Right (KnownWordsInfo defaultDbPath)
@@ -401,8 +401,9 @@ parseSettings args = do
   (remaining, settingsOpt) <- takeValueOption settingsOptionLabels args
   case remaining of
     [] -> Right (ShowSettings (fromMaybe defaultSettingsPath settingsOpt))
-    [legacySettings] | settingsOpt == Nothing && not (isSettingsSubcommand legacySettings) ->
-      Right (ShowSettings legacySettings)
+    [legacySettings]
+      | settingsOpt == Nothing && not (isSettingsSubcommand legacySettings) ->
+          Right (ShowSettings legacySettings)
     subcommand : values ->
       case lower subcommand of
         "set-view" -> parseSettingsView "settings set-view" settingsOpt values
@@ -442,7 +443,9 @@ parseSettingsDatePrefix :: String -> Maybe FilePath -> [String] -> Either String
 parseSettingsDatePrefix commandName settingsOpt values =
   case values of
     enabledValue : rest ->
-      SetSettingsDatePrefix <$> parseToggle "date-prefix" enabledValue <*> parseSettingsPath commandName settingsOpt rest
+      SetSettingsDatePrefix
+        <$> parseToggle "date-prefix" enabledValue
+        <*> parseSettingsPath commandName settingsOpt rest
     _ -> invalidCommand commandName
 
 parseSettingsCollection :: String -> Maybe FilePath -> [String] -> Either String CliCommand
@@ -478,16 +481,16 @@ parseMaybePositive label (Just raw) = Just <$> parsePositiveInt label raw
 
 takeValueOption :: [String] -> [String] -> Either String ([String], Maybe String)
 takeValueOption labels = go [] Nothing
-  where
-    go kept found [] = Right (reverse kept, found)
-    go _ _ [arg]
-      | lower arg `elem` labels =
-          Left ("Missing value for " <> arg <> ".\n\n" <> usageText)
-    go kept _ (arg : value : rest)
-      | lower arg `elem` labels =
-          go kept (Just value) rest
-    go kept found (arg : rest) =
-      go (arg : kept) found rest
+ where
+  go kept found [] = Right (reverse kept, found)
+  go _ _ [arg]
+    | lower arg `elem` labels =
+        Left ("Missing value for " <> arg <> ".\n\n" <> usageText)
+  go kept _ (arg : value : rest)
+    | lower arg `elem` labels =
+        go kept (Just value) rest
+  go kept found (arg : rest) =
+    go (arg : kept) found rest
 
 takeSwitch :: [String] -> [String] -> ([String], Bool)
 takeSwitch labels args =

@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.Gui.Error
-  ( fetchFailuresNeedZeitLogin
-  , friendlyFailureMessage
-  , zeitAuthGuidance
-  ) where
+module ZeitLingq.Gui.Error (
+  fetchFailuresNeedZeitLogin,
+  friendlyFailureMessage,
+  zeitAuthGuidance,
+) where
 
 import Data.Text (Text)
-import Data.Text qualified as T
-import ZeitLingq.Domain.Types (ArticleFetchFailure(..))
+import qualified Data.Text as T
+import ZeitLingq.Domain.Types (ArticleFetchFailure (..))
 
 friendlyFailureMessage :: Text -> Text
 friendlyFailureMessage message
@@ -21,15 +21,16 @@ fetchFailuresNeedZeitLogin =
 
 isZeitAuthFailureText :: Text -> Bool
 isZeitAuthFailureText message =
-  any (`T.isInfixOf` lower)
+  any
+    (`T.isInfixOf` lower)
     [ "session expired"
     , "paywall"
     , "behind a paywall"
     , "einloggen"
     , "zeit request failed"
     ]
-  where
-    lower = T.toLower message
+ where
+  lower = T.toLower message
 
 zeitAuthGuidance :: Text
 zeitAuthGuidance =

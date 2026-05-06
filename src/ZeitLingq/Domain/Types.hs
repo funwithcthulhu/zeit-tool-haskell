@@ -1,42 +1,42 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.Domain.Types
-  ( Article(..)
-  , ArticleId(..)
-  , ArticleSummary(..)
-  , AuthStatus(..)
-  , CompletedJob(..)
-  , ArticleFetchFailure(..)
-  , JobKind(..)
-  , LibraryPage(..)
-  , LibraryPreset(..)
-  , LibraryQuery(..)
-  , LibrarySort(..)
-  , LibraryStats(..)
-  , LingqCollection(..)
-  , LingqLanguage(..)
-  , LingqLesson(..)
-  , LingqRemoteLesson(..)
-  , Notification(..)
-  , NotificationLevel(..)
-  , ProgressStatus(..)
-  , QueuedJob(..)
-  , RowDensity(..)
-  , Section(..)
-  , UiTheme(..)
-  , ArticleUploadFailure(..)
-  , View(..)
-  , WordFilter(..)
-  , defaultLibraryQuery
-  ) where
+module ZeitLingq.Domain.Types (
+  Article (..),
+  ArticleId (..),
+  ArticleSummary (..),
+  AuthStatus (..),
+  CompletedJob (..),
+  ArticleFetchFailure (..),
+  JobKind (..),
+  LibraryPage (..),
+  LibraryPreset (..),
+  LibraryQuery (..),
+  LibrarySort (..),
+  LibraryStats (..),
+  LingqCollection (..),
+  LingqLanguage (..),
+  LingqLesson (..),
+  LingqRemoteLesson (..),
+  Notification (..),
+  NotificationLevel (..),
+  ProgressStatus (..),
+  QueuedJob (..),
+  RowDensity (..),
+  Section (..),
+  UiTheme (..),
+  ArticleUploadFailure (..),
+  View (..),
+  WordFilter (..),
+  defaultLibraryQuery,
+) where
 
 import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
 
-newtype ArticleId = ArticleId { unArticleId :: Int }
+newtype ArticleId = ArticleId {unArticleId :: Int}
   deriving (Eq, Ord, Show, Generic)
 
 data View
@@ -57,14 +57,16 @@ data NotificationLevel
 data Notification = Notification
   { notificationLevel :: NotificationLevel
   , notificationMessage :: Text
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data ProgressStatus = ProgressStatus
   { progressLabel :: Text
   , progressCurrent :: Int
   , progressTotal :: Int
   , progressDetail :: Text
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data JobKind
   = FetchJob
@@ -91,34 +93,40 @@ data CompletedJob = CompletedJob
   , completedJobLabel :: Text
   , completedJobSummary :: Text
   , completedJobSucceeded :: Bool
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data ArticleFetchFailure = ArticleFetchFailure
   { articleFetchFailureUrl :: Text
   , articleFetchFailureReason :: Text
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data ArticleUploadFailure = ArticleUploadFailure
   { articleUploadFailureId :: ArticleId
   , articleUploadFailureTitle :: Maybe Text
   , articleUploadFailureReason :: Text
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data AuthStatus = AuthStatus
   { authLoggedIn :: Bool
   , authLabel :: Maybe Text
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data Section = Section
   { sectionId :: Text
   , sectionLabel :: Text
   , sectionPath :: Text
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data WordFilter = WordFilter
   { minWords :: Maybe Int
   , maxWords :: Maybe Int
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data LibraryQuery = LibraryQuery
   { librarySearch :: Maybe Text
@@ -131,7 +139,8 @@ data LibraryQuery = LibraryQuery
   , librarySort :: LibrarySort
   , libraryLimit :: Int
   , libraryOffset :: Int
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data LibrarySort
   = LibrarySortNewest
@@ -164,7 +173,8 @@ data UiTheme
 data LibraryPage = LibraryPage
   { libraryPageArticles :: [ArticleSummary]
   , libraryPageTotal :: Int
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 defaultLibraryQuery :: LibraryQuery
 defaultLibraryQuery =
@@ -184,25 +194,29 @@ defaultLibraryQuery =
 data LingqLesson = LingqLesson
   { lessonId :: Text
   , lessonUrl :: Text
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data LingqRemoteLesson = LingqRemoteLesson
   { remoteLessonId :: Text
   , remoteLessonTitle :: Text
   , remoteLessonOriginalUrl :: Maybe Text
   , remoteLessonUrl :: Text
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data LingqLanguage = LingqLanguage
   { languageCode :: Text
   , languageTitle :: Text
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data LingqCollection = LingqCollection
   { collectionId :: Text
   , collectionTitle :: Text
   , collectionLessonsCount :: Int
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data ArticleSummary = ArticleSummary
   { summaryId :: Maybe ArticleId
@@ -213,7 +227,8 @@ data ArticleSummary = ArticleSummary
   , summaryIgnored :: Bool
   , summaryUploaded :: Bool
   , summaryKnownPct :: Maybe Int
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data Article = Article
   { articleId :: Maybe ArticleId
@@ -230,11 +245,13 @@ data Article = Article
   , articleAudioUrl :: Maybe Text
   , articleAudioPath :: Maybe FilePath
   , articleKnownPct :: Maybe Int
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
 data LibraryStats = LibraryStats
   { totalArticles :: Int
   , uploadedArticles :: Int
   , averageWordCount :: Int
   , sectionCounts :: Map Text Int
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)

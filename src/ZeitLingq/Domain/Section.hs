@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.Domain.Section
-  ( allSections
-  , lookupSection
-  ) where
+module ZeitLingq.Domain.Section (
+  allSections,
+  lookupSection,
+) where
 
 import Data.Text (Text)
-import ZeitLingq.Domain.Types (Section(..))
+import ZeitLingq.Domain.Types (Section (..))
 
 allSections :: [Section]
 allSections =
@@ -38,8 +38,8 @@ allSections =
 
 lookupSection :: Text -> Maybe Section
 lookupSection wanted = go allSections
-  where
-    go [] = Nothing
-    go (section:rest)
-      | sectionId section == wanted = Just section
-      | otherwise = go rest
+ where
+  go [] = Nothing
+  go (section : rest)
+    | sectionId section == wanted = Just section
+    | otherwise = go rest

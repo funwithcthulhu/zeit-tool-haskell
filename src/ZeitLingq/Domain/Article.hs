@@ -1,17 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.Domain.Article
-  ( BatchDecision(..)
-  , applyWordFilter
-  , articleBodyText
-  , articleSummary
-  , composeCleanText
-  , lessonTitle
-  , wordCount
-  ) where
+module ZeitLingq.Domain.Article (
+  BatchDecision (..),
+  applyWordFilter,
+  articleBodyText,
+  articleSummary,
+  composeCleanText,
+  lessonTitle,
+  wordCount,
+) where
 
 import Data.Text (Text)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import ZeitLingq.Domain.Types
@@ -46,14 +46,14 @@ composeCleanText article =
         , articleBodyText article
         ]
     )
-  where
-    nonEmptyAuthor =
-      let author = articleAuthor article
-       in if T.null author then Nothing else Just author
+ where
+  nonEmptyAuthor =
+    let author = articleAuthor article
+     in if T.null author then Nothing else Just author
 
-    prefixedLine value
-      | T.null value = ""
-      | otherwise = "\n" <> value
+  prefixedLine value
+    | T.null value = ""
+    | otherwise = "\n" <> value
 
 applyWordFilter :: WordFilter -> Article -> BatchDecision
 applyWordFilter filters article =
@@ -61,26 +61,26 @@ applyWordFilter filters article =
     (Just minValue, _) | totalWords < minValue -> SkipBelowMinimum totalWords minValue
     (_, Just maxValue) | totalWords > maxValue -> SkipAboveMaximum totalWords maxValue
     _ -> KeepArticle
-  where
-    totalWords = wordCount article
+ where
+  totalWords = wordCount article
 
 lessonTitle :: Day -> Bool -> Text -> Text
 lessonTitle today shouldPrefix rawTitle
   | not shouldPrefix = title
   | alreadyPrefixed = title
   | otherwise = stamp <> " - " <> title
-  where
-    title =
-      if T.null (T.strip rawTitle)
-        then "Untitled"
-        else T.strip rawTitle
-    stamp = T.pack (formatTime defaultTimeLocale "%F" today)
-    alreadyPrefixed =
-      case T.splitOn " " title of
-        firstToken : _
-          | T.length firstToken == 10 ->
-              T.all (\ch -> ch == '-' || ('0' <= ch && ch <= '9')) firstToken
-        _ -> False
+ where
+  title =
+    if T.null (T.strip rawTitle)
+      then "Untitled"
+      else T.strip rawTitle
+  stamp = T.pack (formatTime defaultTimeLocale "%F" today)
+  alreadyPrefixed =
+    case T.splitOn " " title of
+      firstToken : _
+        | T.length firstToken == 10 ->
+            T.all (\ch -> ch == '-' || ('0' <= ch && ch <= '9')) firstToken
+      _ -> False
 
 articleSummary :: Article -> ArticleSummary
 articleSummary article =

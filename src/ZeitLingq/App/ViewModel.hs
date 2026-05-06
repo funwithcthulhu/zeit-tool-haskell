@@ -1,19 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.App.ViewModel
-  ( AppViewModel(..)
-  , ArticleRowView(..)
-  , NavItem(..)
-  , StatusBadge(..)
-  , appViewModel
-  , articleRowView
-  , viewLabel
-  , wordFilterLabel
-  ) where
+module ZeitLingq.App.ViewModel (
+  AppViewModel (..),
+  ArticleRowView (..),
+  NavItem (..),
+  StatusBadge (..),
+  appViewModel,
+  articleRowView,
+  viewLabel,
+  wordFilterLabel,
+) where
 
 import Data.Text (Text)
 import Data.Text qualified as T
-import ZeitLingq.App.Model (Model(..))
+import ZeitLingq.App.Model (Model (..))
 import ZeitLingq.Domain.Types
 
 data AppViewModel = AppViewModel
@@ -26,19 +26,22 @@ data AppViewModel = AppViewModel
   , vmSelectedArticle :: Maybe ArticleRowView
   , vmSelectedArticleParagraphs :: [Text]
   , vmArticleRows :: [ArticleRowView]
-  } deriving (Eq, Show)
+  }
+  deriving (Eq, Show)
 
 data NavItem = NavItem
   { navView :: View
   , navLabel :: Text
   , navActive :: Bool
-  } deriving (Eq, Show)
+  }
+  deriving (Eq, Show)
 
 data StatusBadge = StatusBadge
   { statusName :: Text
   , statusText :: Text
   , statusConnected :: Bool
-  } deriving (Eq, Show)
+  }
+  deriving (Eq, Show)
 
 data ArticleRowView = ArticleRowView
   { rowId :: Maybe ArticleId
@@ -46,7 +49,8 @@ data ArticleRowView = ArticleRowView
   , rowMeta :: Text
   , rowKnownPct :: Text
   , rowUploadStatus :: Text
-  } deriving (Eq, Show)
+  }
+  deriving (Eq, Show)
 
 appViewModel :: Model -> AppViewModel
 appViewModel model =
@@ -162,5 +166,5 @@ knownPctLabel :: Maybe Int -> Text
 knownPctLabel Nothing = "known: -"
 knownPctLabel (Just pct) = "known: " <> tshow pct <> "%"
 
-tshow :: Show a => a -> Text
+tshow :: (Show a) => a -> Text
 tshow = T.pack . show

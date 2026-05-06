@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.App.Update
-  ( Command(..)
-  , Event(..)
-  , update
-  ) where
+module ZeitLingq.App.Update (
+  Command (..),
+  Event (..),
+  update,
+) where
 
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
@@ -13,7 +13,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (Day, UTCTime)
-import ZeitLingq.App.Model (Model(..))
+import ZeitLingq.App.Model (Model (..))
 import ZeitLingq.Domain.Types
 
 data Event
@@ -163,32 +163,32 @@ update :: Event -> Model -> (Model, [Command])
 update event model =
   case event of
     ViewSelected nextView ->
-      let nextModel = model {currentView = nextView}
+      let nextModel = model{currentView = nextView}
        in ( nextModel
           , PersistCurrentView nextView : refreshCommands nextModel
           )
     ZeitStatusChanged status ->
-      ( model {zeitStatus = status}
+      ( model{zeitStatus = status}
       , []
       )
     LingqStatusChanged status ->
-      ( model {lingqStatus = status}
+      ( model{lingqStatus = status}
       , []
       )
     ZeitCookieChanged cookie ->
-      ( model {zeitCookieText = cookie}
+      ( model{zeitCookieText = cookie}
       , []
       )
     ZeitUserAgentChanged userAgent ->
-      ( model {zeitUserAgentText = userAgent}
+      ( model{zeitUserAgentText = userAgent}
       , []
       )
     ZeitCookieLoginRequested cookie ->
-      ( model {zeitCookieText = cookie}
+      ( model{zeitCookieText = cookie}
       , [LoginZeitWithCookie cookie]
       )
     ZeitBrowserSessionLoginRequested cookie userAgent ->
-      ( model {zeitCookieText = cookie, zeitUserAgentText = userAgent}
+      ( model{zeitCookieText = cookie, zeitUserAgentText = userAgent}
       , [LoginZeitWithBrowserSession cookie userAgent]
       )
     ZeitLogoutRequested ->
@@ -196,15 +196,15 @@ update event model =
       , [LogoutZeit]
       )
     LingqApiKeyChanged apiKey ->
-      ( model {lingqApiKeyText = apiKey}
+      ( model{lingqApiKeyText = apiKey}
       , []
       )
     LingqUsernameChanged username ->
-      ( model {lingqUsernameText = username}
+      ( model{lingqUsernameText = username}
       , []
       )
     LingqPasswordChanged password ->
-      ( model {lingqPasswordText = password}
+      ( model{lingqPasswordText = password}
       , []
       )
     LingqLanguageChanged languageCode ->
@@ -228,11 +228,11 @@ update event model =
               <> [RefreshLingqCollections nextLanguage | authLoggedIn (lingqStatus model)]
           )
     LingqApiKeyLoginRequested apiKey ->
-      ( model {lingqApiKeyText = apiKey}
+      ( model{lingqApiKeyText = apiKey}
       , [LoginLingqWithApiKey apiKey]
       )
     LingqPasswordLoginRequested username password ->
-      ( model {lingqUsernameText = username, lingqPasswordText = password}
+      ( model{lingqUsernameText = username, lingqPasswordText = password}
       , [LoginLingqWithPassword username password]
       )
     LingqLogoutRequested ->
@@ -249,7 +249,7 @@ update event model =
       , PersistCurrentView ArticleView : maybe [] (pure . LoadArticle) (summaryId article)
       )
     ArticleContentLoaded article ->
-      ( model {selectedArticleContent = Just article}
+      ( model{selectedArticleContent = Just article}
       , []
       )
     ArticleClosed ->
@@ -288,7 +288,15 @@ update event model =
       )
     ArticleUploadRequested day fallbackCollection ident ->
       ( model
-      , [UploadSavedArticle day (lingqLanguage model) fallbackCollection (sectionCollections model) (datePrefixEnabled model) ident]
+      ,
+        [ UploadSavedArticle
+            day
+            (lingqLanguage model)
+            fallbackCollection
+            (sectionCollections model)
+            (datePrefixEnabled model)
+            ident
+        ]
       )
     ArticleAudioDownloadRequested audioDir ident ->
       ( model
@@ -307,24 +315,24 @@ update event model =
       , [SetBrowseUrlUnignored url]
       )
     BrowseSelectionToggled url ->
-      ( model {browseSelectedUrls = toggleSetMember url (browseSelectedUrls model)}
+      ( model{browseSelectedUrls = toggleSetMember url (browseSelectedUrls model)}
       , []
       )
     BrowseSelectionChanged urls ->
-      ( model {browseSelectedUrls = urls}
+      ( model{browseSelectedUrls = urls}
       , []
       )
     BrowseShowHiddenChanged enabled ->
-      let nextModel = model {browseShowHidden = enabled, browseSelectedUrls = Set.empty}
+      let nextModel = model{browseShowHidden = enabled, browseSelectedUrls = Set.empty}
        in ( nextModel
           , [RefreshBrowse (browseSectionId nextModel) (browsePage nextModel) enabled]
           )
     BrowseOnlyNewChanged enabled ->
-      ( model {browseOnlyNew = enabled, browseSelectedUrls = Set.empty}
+      ( model{browseOnlyNew = enabled, browseSelectedUrls = Set.empty}
       , [PersistBrowseOnlyNew enabled]
       )
     BrowseSearchChanged search ->
-      ( model {browseSearch = search, browseSelectedUrls = Set.empty}
+      ( model{browseSearch = search, browseSelectedUrls = Set.empty}
       , []
       )
     BrowseBatchFetchRequested articles ->
@@ -333,18 +341,26 @@ update event model =
       )
     LingqBatchUploadRequested day fallbackCollection articles ->
       ( model
-      , [UploadSavedArticles day (lingqLanguage model) fallbackCollection (sectionCollections model) (datePrefixEnabled model) (uploadableIds articles)]
+      ,
+        [ UploadSavedArticles
+            day
+            (lingqLanguage model)
+            fallbackCollection
+            (sectionCollections model)
+            (datePrefixEnabled model)
+            (uploadableIds articles)
+        ]
       )
     LingqStatusSyncRequested languageCode collectionId ->
       ( model
       , [SyncLingqStatus languageCode collectionId]
       )
     LingqSelectionToggled ident ->
-      ( model {lingqSelectedIds = toggleSetMember ident (lingqSelectedIds model)}
+      ( model{lingqSelectedIds = toggleSetMember ident (lingqSelectedIds model)}
       , []
       )
     LingqSelectionChanged idents ->
-      ( model {lingqSelectedIds = idents}
+      ( model{lingqSelectedIds = idents}
       , []
       )
     KnownWordsSyncRequested languageCode ->
@@ -352,7 +368,7 @@ update event model =
       , [SyncKnownWordsFromLingq languageCode]
       )
     KnownWordsImportTextChanged text ->
-      ( model {knownImportText = text}
+      ( model{knownImportText = text}
       , []
       )
     KnownWordsImportRequested languageCode text replaceExisting ->
@@ -368,7 +384,7 @@ update event model =
       , [ClearKnownWords languageCode]
       )
     KnownWordsInfoLoaded total ->
-      ( model {knownStemTotal = total}
+      ( model{knownStemTotal = total}
       , []
       )
     LingqLanguagesRefreshRequested ->
@@ -376,7 +392,7 @@ update event model =
       , [RefreshLingqLanguages]
       )
     LingqLanguagesLoaded languages ->
-      ( model {lingqLanguages = languagesWithCurrent (lingqLanguage model) languages}
+      ( model{lingqLanguages = languagesWithCurrent (lingqLanguage model) languages}
       , []
       )
     LingqCollectionsRefreshRequested languageCode ->
@@ -384,24 +400,24 @@ update event model =
       , [RefreshLingqCollections languageCode]
       )
     LingqCollectionsLoaded collections ->
-      ( model {lingqCollections = collections}
+      ( model{lingqCollections = collections}
       , []
       )
     LingqFallbackCollectionChanged collectionId ->
       let nextCollection = nonEmptyText collectionId
-       in ( model {lingqFallbackCollection = nextCollection}
+       in ( model{lingqFallbackCollection = nextCollection}
           , [PersistLingqFallbackCollection nextCollection]
           )
     LingqOnlyNotUploadedChanged enabled ->
-      ( model {lingqOnlyNotUploaded = enabled, lingqSelectedIds = Set.empty}
+      ( model{lingqOnlyNotUploaded = enabled, lingqSelectedIds = Set.empty}
       , [PersistLingqOnlyNotUploaded enabled, RefreshLingqLibrary (lingqFilter model) enabled]
       )
     LingqKnownImportVisibilityChanged enabled ->
-      ( model {lingqShowKnownImport = enabled}
+      ( model{lingqShowKnownImport = enabled}
       , []
       )
     LingqSectionMappingsVisibilityChanged enabled ->
-      ( model {lingqShowSectionMappings = enabled}
+      ( model{lingqShowSectionMappings = enabled}
       , []
       )
     BrowseArticlesLoaded articles ->
@@ -412,7 +428,7 @@ update event model =
       , []
       )
     LibraryArticlesLoaded articles ->
-      ( model {libraryArticles = articles, libraryTotal = length articles}
+      ( model{libraryArticles = articles, libraryTotal = length articles}
       , []
       )
     LibraryPageLoaded page ->
@@ -423,7 +439,7 @@ update event model =
       , []
       )
     LibraryStatsLoaded stats ->
-      ( model {libraryStats = Just stats}
+      ( model{libraryStats = Just stats}
       , []
       )
     LingqArticlesLoaded articles ->
@@ -434,16 +450,16 @@ update event model =
       , []
       )
     BatchFetchFinished failures ->
-      ( model {failedFetches = failures, activeProgress = Nothing}
+      ( model{failedFetches = failures, activeProgress = Nothing}
       , []
       )
     BatchUploadFinished failures ->
-      ( model {failedUploads = failures, activeProgress = Nothing}
+      ( model{failedUploads = failures, activeProgress = Nothing}
       , []
       )
     FetchJobQueued label articles ->
       if null articles
-        then (model {notification = Just (Notification ErrorNotice "No articles to queue.")}, [])
+        then (model{notification = Just (Notification ErrorNotice "No articles to queue.")}, [])
         else
           let job = QueuedFetchJob (nextJobId model) label (browseFilter model) articles
            in ( model
@@ -455,7 +471,7 @@ update event model =
               )
     UploadJobQueued label articles ->
       if null articles
-        then (model {notification = Just (Notification ErrorNotice "No articles to queue.")}, [])
+        then (model{notification = Just (Notification ErrorNotice "No articles to queue.")}, [])
         else
           let job = QueuedUploadJob (nextJobId model) label articles
            in ( model
@@ -466,17 +482,18 @@ update event model =
               , []
               )
     QueuedJobStarted job ->
-      ( model {queuedJobs = filter ((/= queuedJobId job) . queuedJobId) (queuedJobs model)}
+      ( model{queuedJobs = filter ((/= queuedJobId job) . queuedJobId) (queuedJobs model)}
       , []
       )
     CompletedJobRecorded job ->
-      ( model {completedJobs = take 30 (job : completedJobs model)}
+      ( model{completedJobs = take 30 (job : completedJobs model)}
       , []
       )
     JobQueuePausedChanged paused ->
       ( model
           { jobQueuePaused = paused
-          , notification = Just (Notification InfoNotice (if paused then "Job queue paused." else "Job queue resumed."))
+          , notification =
+              Just (Notification InfoNotice (if paused then "Job queue paused." else "Job queue resumed."))
           }
       , []
       )
@@ -495,19 +512,19 @@ update event model =
       , []
       )
     FailureListsCleared ->
-      ( model {failedFetches = [], failedUploads = []}
+      ( model{failedFetches = [], failedUploads = []}
       , []
       )
     ProgressChanged progress ->
-      ( model {activeProgress = progress}
+      ( model{activeProgress = progress}
       , []
       )
     RowDensityChanged density ->
-      ( model {rowDensity = density}
+      ( model{rowDensity = density}
       , [PersistRowDensity density]
       )
     UiThemeChanged theme ->
-      ( model {uiTheme = theme}
+      ( model{uiTheme = theme}
       , [PersistUiTheme theme]
       )
     RefreshCurrentView ->
@@ -515,24 +532,24 @@ update event model =
       , refreshCommands model
       )
     Notify level message ->
-      ( model {notification = Just (Notification level message)}
+      ( model{notification = Just (Notification level message)}
       , []
       )
     NotificationCleared ->
-      ( model {notification = Nothing}
+      ( model{notification = Nothing}
       , []
       )
     BrowseSectionSelected sectionIdValue ->
-      ( model {browseSectionId = sectionIdValue, browsePage = 1, browseSelectedUrls = Set.empty}
+      ( model{browseSectionId = sectionIdValue, browsePage = 1, browseSelectedUrls = Set.empty}
       , [PersistBrowseSection sectionIdValue, RefreshBrowse sectionIdValue 1 (browseShowHidden model)]
       )
     BrowsePageChanged page ->
       let nextPage = max 1 page
-       in ( model {browsePage = nextPage, browseSelectedUrls = Set.empty}
+       in ( model{browsePage = nextPage, browseSelectedUrls = Set.empty}
           , [RefreshBrowse (browseSectionId model) nextPage (browseShowHidden model)]
           )
     BrowseFilterChanged filters ->
-      ( model {browseFilter = filters}
+      ( model{browseFilter = filters}
       , [PersistBrowseFilter filters]
       )
     LibraryFilterChanged filters ->
@@ -541,7 +558,7 @@ update event model =
               { libraryWordFilter = filters
               , libraryOffset = 0
               }
-       in ( model {libraryFilter = filters, libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
+       in ( model{libraryFilter = filters, libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibrarySearchChanged search ->
@@ -550,7 +567,7 @@ update event model =
               { librarySearch = nonEmptyText search
               , libraryOffset = 0
               }
-       in ( model {libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
+       in ( model{libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibrarySectionChanged sectionName ->
@@ -559,7 +576,7 @@ update event model =
               { librarySection = nonEmptyText sectionName
               , libraryOffset = 0
               }
-       in ( model {libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
+       in ( model{libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibraryIncludeIgnoredChanged enabled ->
@@ -569,7 +586,7 @@ update event model =
               , libraryOnlyIgnored = libraryOnlyIgnored (libraryQuery model) && enabled
               , libraryOffset = 0
               }
-       in ( model {libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
+       in ( model{libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibraryOnlyIgnoredChanged enabled ->
@@ -579,7 +596,7 @@ update event model =
               , libraryIncludeIgnored = enabled || libraryIncludeIgnored (libraryQuery model)
               , libraryOffset = 0
               }
-       in ( model {libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
+       in ( model{libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibraryOnlyNotUploadedChanged enabled ->
@@ -588,7 +605,7 @@ update event model =
               { libraryOnlyNotUploaded = enabled
               , libraryOffset = 0
               }
-       in ( model {libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
+       in ( model{libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibrarySortChanged sortMode ->
@@ -597,13 +614,13 @@ update event model =
               { librarySort = sortMode
               , libraryOffset = 0
               }
-       in ( model {libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
+       in ( model{libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibraryPresetChanged preset ->
       let nextQuery =
             if preset == LibraryPresetCustom
-              then (libraryQuery model) {libraryOffset = 0}
+              then (libraryQuery model){libraryOffset = 0}
               else libraryQueryForPreset preset
        in ( model
               { libraryPreset = preset
@@ -622,15 +639,19 @@ update event model =
                     else libraryLimit defaultLibraryQuery
               , libraryOffset = 0
               }
-       in ( model {libraryGroupBySection = enabled, libraryPreset = LibraryPresetCustom, libraryQuery = nextQuery}
+       in ( model
+              { libraryGroupBySection = enabled
+              , libraryPreset = LibraryPresetCustom
+              , libraryQuery = nextQuery
+              }
           , [RefreshLibraryPage nextQuery]
           )
     LibrarySectionCollapseToggled sectionName ->
-      ( model {libraryCollapsedSections = toggleSetMember sectionName (libraryCollapsedSections model)}
+      ( model{libraryCollapsedSections = toggleSetMember sectionName (libraryCollapsedSections model)}
       , []
       )
     LibraryDeleteDaysChanged daysText ->
-      ( model {libraryDeleteDaysText = daysText}
+      ( model{libraryDeleteDaysText = daysText}
       , []
       )
     LibraryPageChanged offset ->
@@ -638,7 +659,7 @@ update event model =
             (libraryQuery model)
               { libraryOffset = max 0 offset
               }
-       in ( model {libraryQuery = nextQuery}
+       in ( model{libraryQuery = nextQuery}
           , [RefreshLibraryPage nextQuery]
           )
     LibraryDeleteIgnoredRequested ->
@@ -650,15 +671,15 @@ update event model =
       , [DeleteOlderArticles cutoff onlyUploaded onlyUnuploaded]
       )
     LingqFilterChanged filters ->
-      ( model {lingqFilter = filters}
+      ( model{lingqFilter = filters}
       , [PersistLingqFilter filters, RefreshLingqLibrary filters (lingqOnlyNotUploaded model)]
       )
     DatePrefixToggled enabled ->
-      ( model {datePrefixEnabled = enabled}
+      ( model{datePrefixEnabled = enabled}
       , [PersistDatePrefix enabled]
       )
     SectionCollectionsChanged mappings ->
-      ( model {sectionCollections = mappings}
+      ( model{sectionCollections = mappings}
       , [PersistSectionCollections mappings]
       )
 
@@ -668,7 +689,9 @@ refreshCommands model =
     BrowseView -> [RefreshBrowse (browseSectionId model) (browsePage model) (browseShowHidden model)]
     LibraryView -> [RefreshLibraryPage (libraryQuery model), LoadLibraryStats]
     LingqView ->
-      [RefreshLingqLibrary (lingqFilter model) (lingqOnlyNotUploaded model), LoadKnownWordsInfo (lingqLanguage model)]
+      [ RefreshLingqLibrary (lingqFilter model) (lingqOnlyNotUploaded model)
+      , LoadKnownWordsInfo (lingqLanguage model)
+      ]
         <> if authLoggedIn (lingqStatus model)
           then [RefreshLingqLanguages, RefreshLingqCollections (lingqLanguage model)]
           else []
@@ -689,8 +712,8 @@ nonEmptyText :: Text -> Maybe Text
 nonEmptyText value
   | stripped == "" = Nothing
   | otherwise = Just stripped
-  where
-    stripped = stripText value
+ where
+  stripped = stripText value
 
 stripText :: Text -> Text
 stripText = T.strip
@@ -699,8 +722,8 @@ normalizeLanguageCode :: Text -> Text
 normalizeLanguageCode value
   | T.null stripped = "de"
   | otherwise = stripped
-  where
-    stripped = T.toLower (T.strip value)
+ where
+  stripped = T.toLower (T.strip value)
 
 languagesWithCurrent :: Text -> [LingqLanguage] -> [LingqLanguage]
 languagesWithCurrent current languages
@@ -728,7 +751,7 @@ libraryQueryForPreset preset =
         , libraryOnlyNotUploaded = True
         }
     LibraryPresetNotUploaded ->
-      defaultLibraryQuery {libraryOnlyNotUploaded = True}
+      defaultLibraryQuery{libraryOnlyNotUploaded = True}
     LibraryPresetDuplicateReview ->
       defaultLibraryQuery
         { libraryIncludeIgnored = True
@@ -738,7 +761,7 @@ libraryQueryForPreset preset =
     LibraryPresetCustom ->
       defaultLibraryQuery
 
-toggleSetMember :: Ord a => a -> Set a -> Set a
+toggleSetMember :: (Ord a) => a -> Set a -> Set a
 toggleSetMember value values
   | Set.member value values = Set.delete value values
   | otherwise = Set.insert value values
@@ -746,16 +769,16 @@ toggleSetMember value values
 pruneBrowseSelection :: [ArticleSummary] -> Set Text -> Set Text
 pruneBrowseSelection articles selected =
   Set.intersection selected visibleUrls
-  where
-    visibleUrls = Set.fromList (map summaryUrl articles)
+ where
+  visibleUrls = Set.fromList (map summaryUrl articles)
 
 pruneLingqSelection :: [ArticleSummary] -> Set ArticleId -> Set ArticleId
 pruneLingqSelection articles selected =
   Set.intersection selected visibleIds
-  where
-    visibleIds =
-      Set.fromList
-        [ ident
-        | article <- articles
-        , Just ident <- [summaryId article]
-        ]
+ where
+  visibleIds =
+    Set.fromList
+      [ ident
+      | article <- articles
+      , Just ident <- [summaryId article]
+      ]

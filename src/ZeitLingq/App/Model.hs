@@ -1,16 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.App.Model
-  ( Model(..)
-  , PendingConfirmation(..)
-  , emptyAuth
-  , initialModel
-  ) where
+module ZeitLingq.App.Model (
+  Model (..),
+  PendingConfirmation (..),
+  emptyAuth,
+  initialModel,
+) where
 
 import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text (Text)
 import ZeitLingq.Domain.Types
 
@@ -75,7 +75,8 @@ data Model = Model
   , lingqFilter :: WordFilter
   , datePrefixEnabled :: Bool
   , sectionCollections :: Map Text Text
-  } deriving (Eq, Show)
+  }
+  deriving (Eq, Show)
 
 emptyAuth :: AuthStatus
 emptyAuth = AuthStatus False Nothing

@@ -1,20 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.Gui.BrowserSession
-  ( BrowserZeitSession(..)
-  , parseBrowserZeitSession
-  ) where
+module ZeitLingq.Gui.BrowserSession (
+  BrowserZeitSession (..),
+  parseBrowserZeitSession,
+) where
 
-import Data.Aeson (FromJSON(..), eitherDecodeStrict', withObject, (.:))
+import Data.Aeson (FromJSON (..), eitherDecodeStrict', withObject, (.:))
 import Data.Text (Text)
-import Data.Text qualified as T
+import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import ZeitLingq.Infrastructure.Zeit (defaultZeitUserAgent, normalizeZeitUserAgent)
 
 data BrowserZeitSession = BrowserZeitSession
   { browserCookieHeader :: Text
   , browserUserAgent :: Text
-  } deriving (Eq, Show)
+  }
+  deriving (Eq, Show)
 
 instance FromJSON BrowserZeitSession where
   parseJSON =

@@ -3,10 +3,10 @@
 module Main (main) where
 
 import Data.Foldable (for_)
-import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
-import Data.Text qualified as T
-import Data.Text.IO qualified as TIO
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
+import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 import Data.Time (addUTCTime, getCurrentTime, utctDay)
 import System.Environment (getArgs, lookupEnv)
 import System.Exit (exitFailure)
@@ -19,10 +19,10 @@ import ZeitLingq.Core.KnownWords (importKnownWordStems)
 import ZeitLingq.Core.Upload
 import ZeitLingq.Domain.Section (allSections)
 import ZeitLingq.Domain.Types
-import ZeitLingq.Infrastructure.Sqlite
 import ZeitLingq.Infrastructure.Audio
 import ZeitLingq.Infrastructure.Lingq
 import ZeitLingq.Infrastructure.Settings
+import ZeitLingq.Infrastructure.Sqlite
 import ZeitLingq.Infrastructure.Zeit
 
 main :: IO ()
@@ -69,9 +69,8 @@ runCommand (ShowLibrary dbPath) =
     articles <- getArticlesSqlite db (WordFilter Nothing Nothing)
     if null articles
       then putStrLn "No saved articles."
-      else
-        for_ articles $ \article ->
-          putStrLn (showSummary article)
+      else for_ articles $ \article ->
+        putStrLn (showSummary article)
 runCommand (ShowStats dbPath) =
   withLibrary dbPath $ \db ->
     getStatsSqlite db >>= TIO.putStr . formatStats
@@ -195,15 +194,15 @@ runCommand (ShowSettings settingsPath) =
   loadSettings settingsPath >>= TIO.putStr . formatSettings
 runCommand (SetSettingsView view settingsPath) = do
   _ <- updateSettingsFile settingsPath $ \settings ->
-    settings {settingsCurrentView = view}
+    settings{settingsCurrentView = view}
   putStrLn ("Saved current view: " <> T.unpack (viewToText view))
 runCommand (SetSettingsBrowseSection sectionId settingsPath) = do
   _ <- updateSettingsFile settingsPath $ \settings ->
-    settings {settingsBrowseSection = sectionId}
+    settings{settingsBrowseSection = sectionId}
   putStrLn ("Saved browse section: " <> T.unpack sectionId)
 runCommand (SetSettingsDatePrefix enabled settingsPath) = do
   _ <- updateSettingsFile settingsPath $ \settings ->
-    settings {settingsDatePrefixEnabled = enabled}
+    settings{settingsDatePrefixEnabled = enabled}
   putStrLn ("Saved date prefix: " <> T.unpack (boolText enabled))
 runCommand (SetSettingsSectionCollection sectionName collectionId settingsPath) = do
   _ <- updateSettingsFile settingsPath $ \settings ->
@@ -248,14 +247,14 @@ formatStats stats =
       ]
         <> sectionLines
     )
-  where
-    sections = Map.toList (sectionCounts stats)
-    sectionLines
-      | null sections = ["  -"]
-      | otherwise =
-          map
-            (\(sectionName, total) -> "  " <> sectionName <> ": " <> tshow total)
-            sections
+ where
+  sections = Map.toList (sectionCounts stats)
+  sectionLines
+    | null sections = ["  -"]
+    | otherwise =
+        map
+          (\(sectionName, total) -> "  " <> sectionName <> ": " <> tshow total)
+          sections
 
 withExistingArticle :: LibraryDb -> Int -> (ArticleId -> IO ()) -> IO ()
 withExistingArticle db ident action = do
@@ -265,7 +264,7 @@ withExistingArticle db ident action = do
     Nothing -> putStrLn ("Article not found: " <> show ident)
     Just _ -> action articleIdValue
 
-tshow :: Show a => a -> T.Text
+tshow :: (Show a) => a -> T.Text
 tshow = T.pack . show
 
 firstText :: Either LingqError LingqLesson -> Either T.Text LingqLesson
@@ -288,11 +287,11 @@ formatSettings settings =
       ]
         <> collectionLines
     )
-  where
-    mappings = Map.toList (settingsSectionCollections settings)
-    collectionLines
-      | null mappings = ["  -"]
-      | otherwise = map formatCollection mappings
+ where
+  mappings = Map.toList (settingsSectionCollections settings)
+  collectionLines
+    | null mappings = ["  -"]
+    | otherwise = map formatCollection mappings
 
 formatCollection :: (T.Text, T.Text) -> T.Text
 formatCollection (sectionName, collectionId) =

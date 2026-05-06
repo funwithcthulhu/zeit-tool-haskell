@@ -1,42 +1,42 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.Infrastructure.Sqlite
-  ( LibraryDb
-  , addKnownWordsSqlite
-  , closeLibrary
-  , deleteArticleSqlite
-  , deleteIgnoredSqlite
-  , deleteOlderThanSqlite
-  , getArticleSqlite
-  , getArticlesByQuerySqlite
-  , getArticlesSqlite
-  , getKnownStemCountSqlite
-  , getKnownStemsSqlite
-  , getKnownWordsSyncedAtSqlite
-  , getIgnoredUrlsSqlite
-  , getStatsSqlite
-  , clearKnownWordsSqlite
-  , clearAllKnownPctSqlite
-  , computeKnownPctSqlite
-  , saveKnownWordsSqlite
-  , ignoreUrlSqlite
-  , markUploadedSqlite
-  , openLibrary
-  , saveArticleSqlite
-  , setAudioPathSqlite
-  , setAudioUrlSqlite
-  , setIgnoredSqlite
-  , sqliteLibraryPort
-  , unignoreUrlSqlite
-  , updateKnownPctSqlite
-  , withLibrary
-  ) where
+module ZeitLingq.Infrastructure.Sqlite (
+  LibraryDb,
+  addKnownWordsSqlite,
+  closeLibrary,
+  deleteArticleSqlite,
+  deleteIgnoredSqlite,
+  deleteOlderThanSqlite,
+  getArticleSqlite,
+  getArticlesByQuerySqlite,
+  getArticlesSqlite,
+  getKnownStemCountSqlite,
+  getKnownStemsSqlite,
+  getKnownWordsSyncedAtSqlite,
+  getIgnoredUrlsSqlite,
+  getStatsSqlite,
+  clearKnownWordsSqlite,
+  clearAllKnownPctSqlite,
+  computeKnownPctSqlite,
+  saveKnownWordsSqlite,
+  ignoreUrlSqlite,
+  markUploadedSqlite,
+  openLibrary,
+  saveArticleSqlite,
+  setAudioPathSqlite,
+  setAudioUrlSqlite,
+  setIgnoredSqlite,
+  sqliteLibraryPort,
+  unignoreUrlSqlite,
+  updateKnownPctSqlite,
+  withLibrary,
+) where
 
 import Control.Exception (bracket)
 import Control.Monad (unless, void)
-import Data.Int (Int64)
 import Data.Foldable (traverse_)
+import Data.Int (Int64)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
@@ -47,14 +47,14 @@ import Data.Time (UTCTime, getCurrentTime)
 import Database.SQLite.Simple
 import Database.SQLite.Simple.FromRow (RowParser)
 import Database.SQLite.Simple.ToField (toField)
-import ZeitLingq.Domain.Article
-  ( articleBodyText
-  , composeCleanText
-  , wordCount
-  )
-import ZeitLingq.Domain.Types
 import ZeitLingq.Core.KnownWords (estimateKnownPct)
-import ZeitLingq.Ports (LibraryPort(..))
+import ZeitLingq.Domain.Article (
+  articleBodyText,
+  composeCleanText,
+  wordCount,
+ )
+import ZeitLingq.Domain.Types
+import ZeitLingq.Ports (LibraryPort (..))
 
 newtype LibraryDb = LibraryDb Connection
 
@@ -140,8 +140,12 @@ migrate conn = do
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_date ON articles(date)"
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_ignored ON articles(ignored)"
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_uploaded ON articles(uploaded_to_lingq)"
-  execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_ignored_fetched_at ON articles(ignored, fetched_at)"
-  execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_uploaded_fetched_at ON articles(uploaded_to_lingq, fetched_at)"
+  execute_
+    conn
+    "CREATE INDEX IF NOT EXISTS idx_articles_ignored_fetched_at ON articles(ignored, fetched_at)"
+  execute_
+    conn
+    "CREATE INDEX IF NOT EXISTS idx_articles_uploaded_fetched_at ON articles(uploaded_to_lingq, fetched_at)"
   execute_ conn "CREATE INDEX IF NOT EXISTS idx_articles_title ON articles(title)"
   execute_
     conn
@@ -209,7 +213,11 @@ instance FromRow ArticleColumnInfo where
 saveArticleSqlite :: LibraryDb -> Article -> IO ArticleId
 saveArticleSqlite (LibraryDb conn) article = do
   now <- getCurrentTime
-  existing <- query conn "SELECT id, uploaded_to_lingq, lingq_lesson_id, lingq_lesson_url, ignored, audio_path, known_pct FROM articles WHERE url = ?" (Only (articleUrl article))
+  existing <-
+    query
+      conn
+      "SELECT id, uploaded_to_lingq, lingq_lesson_id, lingq_lesson_url, ignored, audio_path, known_pct FROM articles WHERE url = ?"
+      (Only (articleUrl article))
   let preserved = case existing of
         row : _ -> Just (row :: PreservedFields)
         [] -> Nothing
@@ -261,17 +269,27 @@ saveArticleSqlite (LibraryDb conn) article = do
 
 getArticleSqlite :: LibraryDb -> ArticleId -> IO (Maybe Article)
 getArticleSqlite (LibraryDb conn) (ArticleId ident) = do
-  rows <- query conn "SELECT id, url, title, subtitle, author, date, section, body_text, fetched_at, uploaded_to_lingq, lingq_lesson_id, lingq_lesson_url, ignored, audio_url, audio_path, known_pct FROM articles WHERE id = ?" (Only ident)
+  rows <-
+    query
+      conn
+      ( "SELECT id, url, title, subtitle, author, date, section, body_text, fetched_at, "
+          <> "uploaded_to_lingq, lingq_lesson_id, lingq_lesson_url, ignored, audio_url, "
+          <> "audio_path, known_pct FROM articles WHERE id = ?"
+      )
+      (Only ident)
   pure $ case rows of
     row : _ -> Just (articleFromRow row)
     [] -> Nothing
 
 getArticlesSqlite :: LibraryDb -> WordFilter -> IO [ArticleSummary]
 getArticlesSqlite db filters =
-  libraryPageArticles <$> getArticlesByQuerySqlite db defaultLibraryQuery
-    { libraryWordFilter = filters
-    , libraryLimit = 10000
-    }
+  libraryPageArticles
+    <$> getArticlesByQuerySqlite
+      db
+      defaultLibraryQuery
+        { libraryWordFilter = filters
+        , libraryLimit = 10000
+        }
 
 getArticlesByQuerySqlite :: LibraryDb -> LibraryQuery -> IO LibraryPage
 getArticlesByQuerySqlite (LibraryDb conn) libraryQuery = do
@@ -282,65 +300,66 @@ getArticlesByQuerySqlite (LibraryDb conn) libraryQuery = do
       { libraryPageArticles = map summaryFromRow rows
       , libraryPageTotal = total
       }
-  where
-    (whereClause, whereParams) = libraryWhere libraryQuery
-    countQuery =
-      Query ("SELECT COUNT(*) FROM articles WHERE " <> whereClause)
-    pageQuery =
-      Query
-        ( "SELECT id, url, title, section, word_count, ignored, uploaded_to_lingq, known_pct\
-          \ FROM articles\
-          \ WHERE "
-            <> whereClause
-            <> " ORDER BY "
-            <> libraryOrderBy (librarySort libraryQuery)
-            <> " LIMIT ? OFFSET ?"
-        )
-    pageParams =
-      whereParams
-        <> [ SQLInteger (safeLimit (libraryLimit libraryQuery))
-           , SQLInteger (safeOffset (libraryOffset libraryQuery))
-           ]
+ where
+  (whereClause, whereParams) = libraryWhere libraryQuery
+  countQuery =
+    Query ("SELECT COUNT(*) FROM articles WHERE " <> whereClause)
+  pageQuery =
+    Query
+      ( "SELECT id, url, title, section, word_count, ignored, uploaded_to_lingq, known_pct\
+        \ FROM articles\
+        \ WHERE "
+          <> whereClause
+          <> " ORDER BY "
+          <> libraryOrderBy (librarySort libraryQuery)
+          <> " LIMIT ? OFFSET ?"
+      )
+  pageParams =
+    whereParams
+      <> [ SQLInteger (safeLimit (libraryLimit libraryQuery))
+         , SQLInteger (safeOffset (libraryOffset libraryQuery))
+         ]
 
 libraryWhere :: LibraryQuery -> (Text, [SQLData])
 libraryWhere libraryQuery =
   (T.intercalate " AND " (map fst fragments), concatMap snd fragments)
-  where
-    filters = libraryWordFilter libraryQuery
-    fragments =
-      [ ("1=1", [])
-      ]
-        <> maybeFragment (librarySearch libraryQuery) searchFragment
-        <> maybeFragment (librarySection libraryQuery) sectionFragment
-        <> maybeFragment (minWords filters) minWordsFragment
-        <> maybeFragment (maxWords filters) maxWordsFragment
-        <> ignoredFragments
-        <> notUploadedFragments
-        <> duplicateTitleFragments
+ where
+  filters = libraryWordFilter libraryQuery
+  fragments =
+    [ ("1=1", [])
+    ]
+      <> maybeFragment (librarySearch libraryQuery) searchFragment
+      <> maybeFragment (librarySection libraryQuery) sectionFragment
+      <> maybeFragment (minWords filters) minWordsFragment
+      <> maybeFragment (maxWords filters) maxWordsFragment
+      <> ignoredFragments
+      <> notUploadedFragments
+      <> duplicateTitleFragments
 
-    searchFragment raw =
-      let term = "%" <> T.strip raw <> "%"
-       in [("(title LIKE ? OR body_text LIKE ?)", [SQLText term, SQLText term]) | not (T.null (T.strip raw))]
-    sectionFragment raw =
-      [("section = ?", [SQLText raw]) | not (T.null (T.strip raw))]
-    minWordsFragment value =
-      [("word_count >= ?", [SQLInteger (fromIntegral value)])]
-    maxWordsFragment value =
-      [("word_count <= ?", [SQLInteger (fromIntegral value)])]
-    ignoredFragments
-      | libraryOnlyIgnored libraryQuery = [("ignored = 1", [])]
-      | libraryIncludeIgnored libraryQuery = []
-      | otherwise = [("ignored = 0", [])]
-    notUploadedFragments
-      | libraryOnlyNotUploaded libraryQuery = [("uploaded_to_lingq = 0", [])]
-      | otherwise = []
-    duplicateTitleFragments
-      | libraryOnlyDuplicateTitles libraryQuery =
-          [ ( "lower(title) IN (SELECT lower(title) FROM articles GROUP BY lower(title) HAVING COUNT(*) > 1)"
-            , []
-            )
-          ]
-      | otherwise = []
+  searchFragment raw =
+    let term = "%" <> T.strip raw <> "%"
+     in [("(title LIKE ? OR body_text LIKE ?)", [SQLText term, SQLText term]) | not (T.null (T.strip raw))]
+  sectionFragment raw =
+    [("section = ?", [SQLText raw]) | not (T.null (T.strip raw))]
+  minWordsFragment value =
+    [("word_count >= ?", [SQLInteger (fromIntegral value)])]
+  maxWordsFragment value =
+    [("word_count <= ?", [SQLInteger (fromIntegral value)])]
+  ignoredFragments
+    | libraryOnlyIgnored libraryQuery = [("ignored = 1", [])]
+    | libraryIncludeIgnored libraryQuery = []
+    | otherwise = [("ignored = 0", [])]
+  notUploadedFragments
+    | libraryOnlyNotUploaded libraryQuery = [("uploaded_to_lingq = 0", [])]
+    | otherwise = []
+  duplicateTitleFragments
+    | libraryOnlyDuplicateTitles libraryQuery =
+        [
+          ( "lower(title) IN (SELECT lower(title) FROM articles GROUP BY lower(title) HAVING COUNT(*) > 1)"
+          , []
+          )
+        ]
+    | otherwise = []
 
 libraryOrderBy :: LibrarySort -> Text
 libraryOrderBy sortMode =
@@ -380,23 +399,23 @@ deleteOlderThanSqlite (LibraryDb conn) cutoff onlyUploaded onlyUnuploaded = do
   [Only deleted] <- query conn countQuery params
   execute conn deleteQuery params
   pure deleted
-  where
-    (whereClause, params) =
-      deleteOlderWhere cutoff onlyUploaded onlyUnuploaded
-    countQuery =
-      Query ("SELECT COUNT(*) FROM articles WHERE " <> whereClause)
-    deleteQuery =
-      Query ("DELETE FROM articles WHERE " <> whereClause)
+ where
+  (whereClause, params) =
+    deleteOlderWhere cutoff onlyUploaded onlyUnuploaded
+  countQuery =
+    Query ("SELECT COUNT(*) FROM articles WHERE " <> whereClause)
+  deleteQuery =
+    Query ("DELETE FROM articles WHERE " <> whereClause)
 
 deleteOlderWhere :: UTCTime -> Bool -> Bool -> (Text, [SQLData])
 deleteOlderWhere cutoff onlyUploaded onlyUnuploaded =
   (T.intercalate " AND " (map fst fragments), concatMap snd fragments)
-  where
-    fragments =
-      [ ("fetched_at < ?", [SQLText (T.pack (show cutoff))])
-      ]
-        <> [("uploaded_to_lingq = 1", []) | onlyUploaded]
-        <> [("uploaded_to_lingq = 0", []) | onlyUnuploaded]
+ where
+  fragments =
+    [ ("fetched_at < ?", [SQLText (T.pack (show cutoff))])
+    ]
+      <> [("uploaded_to_lingq = 1", []) | onlyUploaded]
+      <> [("uploaded_to_lingq = 0", []) | onlyUnuploaded]
 
 setIgnoredSqlite :: LibraryDb -> ArticleId -> Bool -> IO ()
 setIgnoredSqlite (LibraryDb conn) (ArticleId ident) ignored =
@@ -417,7 +436,7 @@ getIgnoredUrlsSqlite (LibraryDb conn) = do
   pure [url | Only url <- rows]
 
 markUploadedSqlite :: LibraryDb -> ArticleId -> LingqLesson -> IO ()
-markUploadedSqlite (LibraryDb conn) (ArticleId ident) LingqLesson {lessonId, lessonUrl} =
+markUploadedSqlite (LibraryDb conn) (ArticleId ident) LingqLesson{lessonId, lessonUrl} =
   execute
     conn
     "UPDATE articles SET uploaded_to_lingq = 1, lingq_lesson_id = ?, lingq_lesson_url = ? WHERE id = ?"
@@ -435,7 +454,8 @@ getStatsSqlite :: LibraryDb -> IO LibraryStats
 getStatsSqlite (LibraryDb conn) = do
   [Only totalArticles] <- query_ conn "SELECT COUNT(*) FROM articles"
   [Only uploadedArticles] <- query_ conn "SELECT COUNT(*) FROM articles WHERE uploaded_to_lingq = 1"
-  [Only avgWords] <- query_ conn "SELECT CAST(COALESCE(ROUND(AVG(word_count)), 0) AS INTEGER) FROM articles"
+  [Only avgWords] <-
+    query_ conn "SELECT CAST(COALESCE(ROUND(AVG(word_count)), 0) AS INTEGER) FROM articles"
   sectionRows <- query_ conn "SELECT section, COUNT(*) FROM articles GROUP BY section"
   pure
     LibraryStats
@@ -450,13 +470,19 @@ saveKnownWordsSqlite (LibraryDb conn) languageCode stems = do
   now <- getCurrentTime
   withTransaction conn $ do
     execute conn "DELETE FROM known_words WHERE lang = ?" (Only languageCode)
-    executeMany conn "INSERT OR IGNORE INTO known_words (lang, stem, synced_at) VALUES (?, ?, ?)" (knownWordRows languageCode now stems)
+    executeMany
+      conn
+      "INSERT OR IGNORE INTO known_words (lang, stem, synced_at) VALUES (?, ?, ?)"
+      (knownWordRows languageCode now stems)
   pure (Set.size stems)
 
 addKnownWordsSqlite :: LibraryDb -> Text -> Set Text -> IO Int
 addKnownWordsSqlite (LibraryDb conn) languageCode stems = do
   now <- getCurrentTime
-  executeMany conn "INSERT OR IGNORE INTO known_words (lang, stem, synced_at) VALUES (?, ?, ?)" (knownWordRows languageCode now stems)
+  executeMany
+    conn
+    "INSERT OR IGNORE INTO known_words (lang, stem, synced_at) VALUES (?, ?, ?)"
+    (knownWordRows languageCode now stems)
   pure (Set.size stems)
 
 clearKnownWordsSqlite :: LibraryDb -> Text -> IO ()
@@ -475,7 +501,8 @@ getKnownStemsSqlite (LibraryDb conn) languageCode = do
 
 getKnownWordsSyncedAtSqlite :: LibraryDb -> Text -> IO (Maybe UTCTime)
 getKnownWordsSyncedAtSqlite (LibraryDb conn) languageCode = do
-  [Only syncedAt] <- query conn "SELECT MAX(synced_at) FROM known_words WHERE lang = ?" (Only languageCode)
+  [Only syncedAt] <-
+    query conn "SELECT MAX(synced_at) FROM known_words WHERE lang = ?" (Only languageCode)
   pure syncedAt
 
 updateKnownPctSqlite :: LibraryDb -> ArticleId -> Maybe Int -> IO ()
@@ -534,26 +561,46 @@ data ArticleWrite = ArticleWrite
   }
 
 instance ToRow ArticleWrite where
-  toRow ArticleWrite {writeId, writeUrl, writeTitle, writeSubtitle, writeAuthor, writeDate, writeSection, writeBodyText, writeCleanText, writeWordCount, writeFetchedAt, writeUploaded, writeLessonId, writeLessonUrl, writeIgnored, writeAudioUrl, writeAudioPath, writeKnownPct} =
-    [ toField writeId
-    , toField writeUrl
-    , toField writeTitle
-    , toField writeSubtitle
-    , toField writeAuthor
-    , toField writeDate
-    , toField writeSection
-    , toField writeBodyText
-    , toField writeCleanText
-    , toField writeWordCount
-    , toField writeFetchedAt
-    , toField writeUploaded
-    , toField writeLessonId
-    , toField writeLessonUrl
-    , toField writeIgnored
-    , toField writeAudioUrl
-    , toField writeAudioPath
-    , toField writeKnownPct
-    ]
+  toRow
+    ArticleWrite
+      { writeId
+      , writeUrl
+      , writeTitle
+      , writeSubtitle
+      , writeAuthor
+      , writeDate
+      , writeSection
+      , writeBodyText
+      , writeCleanText
+      , writeWordCount
+      , writeFetchedAt
+      , writeUploaded
+      , writeLessonId
+      , writeLessonUrl
+      , writeIgnored
+      , writeAudioUrl
+      , writeAudioPath
+      , writeKnownPct
+      } =
+      [ toField writeId
+      , toField writeUrl
+      , toField writeTitle
+      , toField writeSubtitle
+      , toField writeAuthor
+      , toField writeDate
+      , toField writeSection
+      , toField writeBodyText
+      , toField writeCleanText
+      , toField writeWordCount
+      , toField writeFetchedAt
+      , toField writeUploaded
+      , toField writeLessonId
+      , toField writeLessonUrl
+      , toField writeIgnored
+      , toField writeAudioUrl
+      , toField writeAudioPath
+      , toField writeKnownPct
+      ]
 
 instance FromRow PreservedFields where
   fromRow = do
@@ -576,23 +623,24 @@ instance FromRow PreservedFields where
         , preservedKnownPct = knownPct
         }
 
-data ArticleRow = ArticleRow
-  Int
-  Text
-  Text
-  Text
-  Text
-  (Maybe Text)
-  Text
-  Text
-  UTCTime
-  Int
-  Text
-  Text
-  Int
-  (Maybe Text)
-  (Maybe Text)
-  (Maybe Int)
+data ArticleRow
+  = ArticleRow
+      Int
+      Text
+      Text
+      Text
+      Text
+      (Maybe Text)
+      Text
+      Text
+      UTCTime
+      Int
+      Text
+      Text
+      Int
+      (Maybe Text)
+      (Maybe Text)
+      (Maybe Int)
 
 instance FromRow ArticleRow where
   fromRow =
@@ -615,36 +663,55 @@ instance FromRow ArticleRow where
       <*> field
 
 articleFromRow :: ArticleRow -> Article
-articleFromRow (ArticleRow ident url title subtitle author publishedAt section body fetchedAt uploaded remoteLessonId remoteLessonUrl ignored audioUrl audioPath knownPct) =
-  Article
-    { articleId = Just (ArticleId ident)
-    , articleUrl = url
-    , articleTitle = title
-    , articleSubtitle = subtitle
-    , articleAuthor = author
-    , articleDate = publishedAt
-    , articleSection = section
-    , articleParagraphs = splitParagraphs body
-    , articleFetchedAt = Just fetchedAt
-    , articleUploadedLesson =
-        if uploaded == 1 && not (T.null remoteLessonId)
-          then Just (LingqLesson remoteLessonId remoteLessonUrl)
-          else Nothing
-    , articleIgnored = uploadedIntToBool ignored
-    , articleAudioUrl = nonEmptyText audioUrl
-    , articleAudioPath = nonEmptyTextPath audioPath
-    , articleKnownPct = knownPct
-    }
+articleFromRow
+  ( ArticleRow
+      ident
+      url
+      title
+      subtitle
+      author
+      publishedAt
+      section
+      body
+      fetchedAt
+      uploaded
+      remoteLessonId
+      remoteLessonUrl
+      ignored
+      audioUrl
+      audioPath
+      knownPct
+    ) =
+    Article
+      { articleId = Just (ArticleId ident)
+      , articleUrl = url
+      , articleTitle = title
+      , articleSubtitle = subtitle
+      , articleAuthor = author
+      , articleDate = publishedAt
+      , articleSection = section
+      , articleParagraphs = splitParagraphs body
+      , articleFetchedAt = Just fetchedAt
+      , articleUploadedLesson =
+          if uploaded == 1 && not (T.null remoteLessonId)
+            then Just (LingqLesson remoteLessonId remoteLessonUrl)
+            else Nothing
+      , articleIgnored = uploadedIntToBool ignored
+      , articleAudioUrl = nonEmptyText audioUrl
+      , articleAudioPath = nonEmptyTextPath audioPath
+      , articleKnownPct = knownPct
+      }
 
-data SummaryRow = SummaryRow
-  Int
-  Text
-  Text
-  Text
-  Int
-  Int
-  Int
-  (Maybe Int)
+data SummaryRow
+  = SummaryRow
+      Int
+      Text
+      Text
+      Text
+      Int
+      Int
+      Int
+      (Maybe Int)
 
 instance FromRow SummaryRow where
   fromRow =

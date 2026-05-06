@@ -1,15 +1,22 @@
 # Zeit Tool Haskell
 
-[![Haskell CI](https://github.com/funwithcthulhu/zeit-tool-haskell/actions/workflows/haskell-ci.yml/badge.svg)](https://github.com/funwithcthulhu/zeit-tool-haskell/actions/workflows/haskell-ci.yml)
+[![Haskell CI][ci-badge]][ci-workflow]
 
-Personal Haskell/Monomer desktop app for saving Die Zeit articles and turning some of them into LingQ lessons.
+[ci-badge]:
+  https://github.com/funwithcthulhu/zeit-tool-haskell/actions/workflows/haskell-ci.yml/badge.svg
+[ci-workflow]: https://github.com/funwithcthulhu/zeit-tool-haskell/actions/workflows/haskell-ci.yml
 
-This is not a general Zeit or LingQ client. It assumes a Windows desktop, a local SQLite library, browser-based Zeit login, and a LingQ workflow for German articles.
+Personal Haskell/Monomer desktop app for saving Die Zeit articles and turning some of them into
+LingQ lessons.
+
+This is not a general Zeit or LingQ client. It assumes a Windows desktop, a local SQLite library,
+browser-based Zeit login, and a LingQ workflow for German articles.
 
 ## What It Does
 
 - Browses Die Zeit sections and saves article text locally.
-- Stores article metadata, ignored state, upload state, audio paths, and known-word percentages in SQLite.
+- Stores article metadata, ignored state, upload state, audio paths, and known-word percentages in
+  SQLite.
 - Imports or syncs LingQ known words and estimates rough coverage for saved articles.
 - Creates or updates LingQ lessons from saved articles.
 - Maps Zeit section names to LingQ collection ids for lesson grouping.
@@ -70,7 +77,8 @@ The `zt` executable is for quick checks and maintenance:
 .\zt cfg map Wissen 12345
 ```
 
-Use `-d FILE` for another SQLite database and `-s FILE` for another settings file. See [COMMANDS.md](COMMANDS.md) for the command list.
+Use `-d FILE` for another SQLite database and `-s FILE` for another settings file. See
+[COMMANDS.md](COMMANDS.md) for the command list.
 
 Environment variables:
 
@@ -81,20 +89,24 @@ Environment variables:
 
 ## Installer
 
-The installer is for this Windows setup. It installs per user under `%LOCALAPPDATA%\Zeit Tool Haskell`, so the app can write `settings.json`, `zeit-tool.db`, logs, audio, and support bundles without administrator rights.
+The installer is for this Windows setup. It installs per user under
+`%LOCALAPPDATA%\Zeit Tool Haskell`, so the app can write `settings.json`, `zeit-tool.db`, logs,
+audio, and support bundles without administrator rights.
 
 ```powershell
 .\scripts\build-installer.ps1
 ```
 
-Use `.\scripts\build-installer.ps1 -SkipBuild` when the release binaries already exist. The installer is written to `dist\ZeitToolHaskellSetup-<version>.exe`.
+Use `.\scripts\build-installer.ps1 -SkipBuild` when the release binaries already exist. The
+installer is written to `dist\ZeitToolHaskellSetup-<version>.exe`.
 
 ## Code Map
 
 - `src/ZeitLingq/Domain`: article, section, library, LingQ, job, and settings types.
 - `src/ZeitLingq/Text`: German tokenization and stemming.
 - `src/ZeitLingq/Core`: fetch filtering, upload decisions, and known-word scoring.
-- `src/ZeitLingq/App`: model, update loop, runtime commands, startup loading, upload preferences, and view-model projection.
+- `src/ZeitLingq/App`: model, update loop, runtime commands, startup loading, upload preferences,
+  and view-model projection.
 - `src/ZeitLingq/Infrastructure`: Zeit HTTP, LingQ HTTP, SQLite, JSON settings, and audio adapters.
 - `src/ZeitLingq/Ports.hs`: effect records used by the runtime and tests.
 - `gui/Main.hs`: Monomer screens, GUI events, queued batch producers, and desktop actions.
@@ -104,7 +116,8 @@ Use `.\scripts\build-installer.ps1 -SkipBuild` when the release binaries already
 
 ## Rough Edges
 
-- Zeit authentication depends on a browser session I control. If the session expires, fetches fail until I import or paste fresh cookies.
+- Zeit authentication depends on a browser session I control. If the session expires, fetches fail
+  until I import or paste fresh cookies.
 - Browser-assisted Zeit login is Windows Edge/Chrome only.
 - The job queue is in memory. Queued work and completed-job history do not survive restart.
 - The installer is unsigned, so Windows SmartScreen may warn about the publisher.

@@ -1,11 +1,11 @@
-module ZeitLingq.App.Startup
-  ( loadInitialModel
-  ) where
+module ZeitLingq.App.Startup (
+  loadInitialModel,
+) where
 
-import ZeitLingq.App.Model (Model(..), initialModel)
-import ZeitLingq.Ports (SettingsPort(..))
+import ZeitLingq.App.Model (Model (..), initialModel)
+import ZeitLingq.Ports (SettingsPort (..))
 
-loadInitialModel :: Monad m => SettingsPort m -> m Model
+loadInitialModel :: (Monad m) => SettingsPort m -> m Model
 loadInitialModel settings = do
   view <- loadCurrentView settings
   zeitCookie <- loadZeitCookie settings

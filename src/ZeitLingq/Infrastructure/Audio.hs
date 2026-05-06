@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.Infrastructure.Audio
-  ( AudioDownloadError(..)
-  , audioFilename
-  , downloadArticleAudio
-  , openAudioPath
-  ) where
+module ZeitLingq.Infrastructure.Audio (
+  AudioDownloadError (..),
+  audioFilename,
+  downloadArticleAudio,
+  openAudioPath,
+) where
 
 import Data.ByteString.Lazy qualified as BL
 import Data.Char (isAsciiLower, isDigit)
@@ -32,31 +32,31 @@ downloadArticleAudio audioDir article =
         then pure (Right path)
         else downloadFresh
     Nothing -> downloadFresh
-  where
-    downloadFresh =
-      case articleAudioUrl article of
-        Nothing -> pure (Left ArticleHasNoAudioUrl)
-        Just url -> do
-          createDirectoryIfMissing True audioDir
-          request <- parseRequest (T.unpack url)
-          response <- httpLBS (setRequestHeader "User-Agent" ["ZeitToolHaskell/0.1"] request)
-          let status = getResponseStatusCode response
-          if status >= 200 && status < 300
-            then do
-              let path = audioDir </> audioFilename article
-              BL.writeFile path (getResponseBody response)
-              pure (Right path)
-            else pure (Left (AudioHttpError status "Audio download failed."))
+ where
+  downloadFresh =
+    case articleAudioUrl article of
+      Nothing -> pure (Left ArticleHasNoAudioUrl)
+      Just url -> do
+        createDirectoryIfMissing True audioDir
+        request <- parseRequest (T.unpack url)
+        response <- httpLBS (setRequestHeader "User-Agent" ["ZeitToolHaskell/0.1"] request)
+        let status = getResponseStatusCode response
+        if status >= 200 && status < 300
+          then do
+            let path = audioDir </> audioFilename article
+            BL.writeFile path (getResponseBody response)
+            pure (Right path)
+          else pure (Left (AudioHttpError status "Audio download failed."))
 
 audioFilename :: Article -> FilePath
 audioFilename article =
   idPart <> "-" <> slugPart <> "." <> T.unpack (audioExtension (articleAudioUrl article))
-  where
-    idPart = maybe "article" (show . unArticleId) (articleId article)
-    slugPart =
-      case safeSlug (articleTitle article) of
-        "" -> "untitled"
-        value -> value
+ where
+  idPart = maybe "article" (show . unArticleId) (articleId article)
+  slugPart =
+    case safeSlug (articleTitle article) of
+      "" -> "untitled"
+      value -> value
 
 safeSlug :: Text -> FilePath
 safeSlug =
@@ -85,8 +85,8 @@ audioExtension maybeUrl =
   case maybeUrl >>= findExtension . stripQuery of
     Just ext -> ext
     Nothing -> "mp3"
-  where
-    stripQuery = head . T.splitOn "?" . head . T.splitOn "#"
+ where
+  stripQuery = head . T.splitOn "?" . head . T.splitOn "#"
 
 findExtension :: Text -> Maybe Text
 findExtension url
@@ -95,8 +95,8 @@ findExtension url
   | ".ogg" `T.isSuffixOf` lower = Just "ogg"
   | ".aac" `T.isSuffixOf` lower = Just "aac"
   | otherwise = Nothing
-  where
-    lower = T.toLower url
+ where
+  lower = T.toLower url
 
 openAudioPath :: FilePath -> IO ()
 openAudioPath path =

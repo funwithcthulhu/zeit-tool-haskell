@@ -1,23 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.Gui.Theme
-  ( appBgColor
-  , borderColor
-  , dangerBgColor
-  , dangerColor
-  , mainTextColor
-  , monomerThemeFor
-  , mutedTextColor
-  , panelAltColor
-  , panelBgColor
-  , primaryColor
-  , primaryTextColor
-  , warningColor
-  ) where
+module ZeitLingq.Gui.Theme (
+  appBgColor,
+  borderColor,
+  dangerBgColor,
+  dangerColor,
+  mainTextColor,
+  monomerThemeFor,
+  mutedTextColor,
+  panelAltColor,
+  panelBgColor,
+  primaryColor,
+  primaryTextColor,
+  warningColor,
+) where
 
 import Monomer (Color, Theme, darkTheme, lightTheme, rgbHex)
-import ZeitLingq.App.Model (Model(..))
-import ZeitLingq.Domain.Types (UiTheme(..))
+import ZeitLingq.App.Model (Model (..))
+import ZeitLingq.Domain.Types (UiTheme (..))
 
 data Palette = Palette
   { paletteAppBg :: Color

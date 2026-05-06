@@ -2,24 +2,24 @@
 
 module Main (main) where
 
-import Data.Set qualified as Set
-import Data.Time (UTCTime(..), fromGregorian)
-import Data.Map.Strict qualified as Map
 import Control.Monad (when)
 import Data.Aeson (Value, eitherDecode)
 import Data.ByteString.Lazy qualified as BL
 import Data.Either (isLeft)
-import Data.Functor.Identity (Identity(..), runIdentity)
+import Data.Functor.Identity (Identity (..), runIdentity)
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Time (UTCTime (..), fromGregorian)
 import Database.SQLite.Simple qualified as SQL
 import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
 import Test.Hspec
 import ZeitLingq.App.Driver
-import ZeitLingq.App.Model (Model(..), initialModel)
+import ZeitLingq.App.Model (Model (..), initialModel)
 import ZeitLingq.App.Runtime qualified as Runtime
 import ZeitLingq.App.Startup
-import ZeitLingq.App.UploadConfig
 import ZeitLingq.App.Update
+import ZeitLingq.App.UploadConfig
 import ZeitLingq.App.ViewModel
 import ZeitLingq.Cli
 import ZeitLingq.Core.Batch
@@ -28,12 +28,19 @@ import ZeitLingq.Core.KnownWords (estimateKnownPct, importKnownWordStems)
 import ZeitLingq.Core.Upload
 import ZeitLingq.Domain.Article
 import ZeitLingq.Domain.Types
-import ZeitLingq.Infrastructure.Settings
 import ZeitLingq.Infrastructure.Audio
-import ZeitLingq.Infrastructure.Sqlite
 import ZeitLingq.Infrastructure.Lingq
+import ZeitLingq.Infrastructure.Settings
+import ZeitLingq.Infrastructure.Sqlite
 import ZeitLingq.Infrastructure.Zeit
-import ZeitLingq.Ports (AppPorts(..), AudioPort(..), LibraryPort(..), LingqPort(..), SettingsPort(..), ZeitPort(..))
+import ZeitLingq.Ports (
+  AppPorts (..),
+  AudioPort (..),
+  LibraryPort (..),
+  LingqPort (..),
+  SettingsPort (..),
+  ZeitPort (..),
+ )
 import ZeitLingq.Text.German
 
 main :: IO ()
@@ -87,7 +94,8 @@ main = hspec $ do
       loadedCommands `shouldBe` []
       selectedArticleContent closedModel `shouldBe` Nothing
       currentView closedModel `shouldBe` LibraryView
-      closedCommands `shouldBe` [PersistCurrentView LibraryView, RefreshLibraryPage defaultLibraryQuery, LoadLibraryStats]
+      closedCommands
+        `shouldBe` [PersistCurrentView LibraryView, RefreshLibraryPage defaultLibraryQuery, LoadLibraryStats]
 
     it "hydrates startup model from the settings port" $ do
       let port =
@@ -163,7 +171,7 @@ main = hspec $ do
 
     it "emits refresh commands with screen context" $ do
       let filters = WordFilter (Just 400) (Just 1200)
-          browseModel = initialModel {browseSectionId = "wissen", browsePage = 2}
+          browseModel = initialModel{browseSectionId = "wissen", browsePage = 2}
       snd (update (BrowseSectionSelected "kultur") initialModel)
         `shouldBe` [PersistBrowseSection "kultur", RefreshBrowse "kultur" 1 False]
       browsePage (fst (update (BrowseSectionSelected "kultur") browseModel)) `shouldBe` 1
@@ -172,13 +180,13 @@ main = hspec $ do
       snd (update (BrowseFilterChanged filters) browseModel)
         `shouldBe` [PersistBrowseFilter filters]
       snd (update (LibraryFilterChanged filters) initialModel)
-        `shouldBe` [RefreshLibraryPage defaultLibraryQuery {libraryWordFilter = filters}]
+        `shouldBe` [RefreshLibraryPage defaultLibraryQuery{libraryWordFilter = filters}]
       snd (update (LingqFilterChanged filters) initialModel)
         `shouldBe` [PersistLingqFilter filters, RefreshLingqLibrary filters True]
 
     it "updates rich library queries for search, toggles and paging" $ do
-      let baseQuery = defaultLibraryQuery {libraryOffset = 30}
-          baseModel = initialModel {libraryQuery = baseQuery}
+      let baseQuery = defaultLibraryQuery{libraryOffset = 30}
+          baseModel = initialModel{libraryQuery = baseQuery}
           (searchModel, searchCommands) = update (LibrarySearchChanged " Alpha ") baseModel
           (sectionModel, sectionCommands) = update (LibrarySectionChanged "Wissen") baseModel
           (ignoredModel, ignoredCommands) = update (LibraryIncludeIgnoredChanged True) baseModel
@@ -191,18 +199,21 @@ main = hspec $ do
           (collapsedModel, collapsedCommands) = update (LibrarySectionCollapseToggled "Wissen") initialModel
           (expandedModel, expandedCommands) = update (LibrarySectionCollapseToggled "Wissen") collapsedModel
           (pageModel, pageCommands) = update (LibraryPageChanged 60) baseModel
-      libraryQuery searchModel `shouldBe` baseQuery {librarySearch = Just "Alpha", libraryOffset = 0}
+      libraryQuery searchModel `shouldBe` baseQuery{librarySearch = Just "Alpha", libraryOffset = 0}
       libraryPreset searchModel `shouldBe` LibraryPresetCustom
       searchCommands `shouldBe` [RefreshLibraryPage (libraryQuery searchModel)]
-      libraryQuery sectionModel `shouldBe` baseQuery {librarySection = Just "Wissen", libraryOffset = 0}
+      libraryQuery sectionModel `shouldBe` baseQuery{librarySection = Just "Wissen", libraryOffset = 0}
       sectionCommands `shouldBe` [RefreshLibraryPage (libraryQuery sectionModel)]
-      libraryQuery ignoredModel `shouldBe` baseQuery {libraryIncludeIgnored = True, libraryOnlyIgnored = False, libraryOffset = 0}
+      libraryQuery ignoredModel
+        `shouldBe` baseQuery{libraryIncludeIgnored = True, libraryOnlyIgnored = False, libraryOffset = 0}
       ignoredCommands `shouldBe` [RefreshLibraryPage (libraryQuery ignoredModel)]
-      libraryQuery onlyIgnoredModel `shouldBe` baseQuery {libraryIncludeIgnored = True, libraryOnlyIgnored = True, libraryOffset = 0}
+      libraryQuery onlyIgnoredModel
+        `shouldBe` baseQuery{libraryIncludeIgnored = True, libraryOnlyIgnored = True, libraryOffset = 0}
       onlyIgnoredCommands `shouldBe` [RefreshLibraryPage (libraryQuery onlyIgnoredModel)]
-      libraryQuery onlyNotUploadedModel `shouldBe` baseQuery {libraryOnlyNotUploaded = True, libraryOffset = 0}
+      libraryQuery onlyNotUploadedModel
+        `shouldBe` baseQuery{libraryOnlyNotUploaded = True, libraryOffset = 0}
       onlyNotUploadedCommands `shouldBe` [RefreshLibraryPage (libraryQuery onlyNotUploadedModel)]
-      libraryQuery sortModel `shouldBe` baseQuery {librarySort = LibrarySortLongest, libraryOffset = 0}
+      libraryQuery sortModel `shouldBe` baseQuery{librarySort = LibrarySortLongest, libraryOffset = 0}
       sortCommands `shouldBe` [RefreshLibraryPage (libraryQuery sortModel)]
       libraryPreset presetModel `shouldBe` LibraryPresetStandardReads
       libraryQuery presetModel
@@ -219,13 +230,13 @@ main = hspec $ do
           }
       duplicatePresetCommands `shouldBe` [RefreshLibraryPage (libraryQuery duplicatePresetModel)]
       libraryGroupBySection groupModel `shouldBe` True
-      libraryQuery groupModel `shouldBe` baseQuery {libraryLimit = 5000, libraryOffset = 0}
+      libraryQuery groupModel `shouldBe` baseQuery{libraryLimit = 5000, libraryOffset = 0}
       groupCommands `shouldBe` [RefreshLibraryPage (libraryQuery groupModel)]
       libraryCollapsedSections collapsedModel `shouldBe` Set.singleton "Wissen"
       collapsedCommands `shouldBe` []
       libraryCollapsedSections expandedModel `shouldBe` Set.empty
       expandedCommands `shouldBe` []
-      libraryQuery pageModel `shouldBe` baseQuery {libraryOffset = 60}
+      libraryQuery pageModel `shouldBe` baseQuery{libraryOffset = 60}
       pageCommands `shouldBe` [RefreshLibraryPage (libraryQuery pageModel)]
 
     it "turns GUI row actions into app commands" $ do
@@ -239,7 +250,7 @@ main = hspec $ do
               , summaryIgnored = False
               , summaryUploaded = False
               , summaryKnownPct = Nothing
-          }
+              }
       snd (update (ZeitCookieLoginRequested "cookie=value") initialModel)
         `shouldBe` [LoginZeitWithCookie "cookie=value"]
       snd (update (ZeitBrowserSessionLoginRequested "cookie=value" "Browser UA") initialModel)
@@ -260,7 +271,11 @@ main = hspec $ do
         `shouldBe` [DeleteSavedArticle (ArticleId 15)]
       snd (update (ArticleIgnoredChanged (ArticleId 15) True) initialModel)
         `shouldBe` [SetArticleIgnored (ArticleId 15) True]
-      snd (update (ArticleUploadRequested (fromGregorian 2026 5 2) (Just "fallback") (ArticleId 15)) initialModel)
+      snd
+        ( update
+            (ArticleUploadRequested (fromGregorian 2026 5 2) (Just "fallback") (ArticleId 15))
+            initialModel
+        )
         `shouldBe` [UploadSavedArticle (fromGregorian 2026 5 2) "de" (Just "fallback") Map.empty True (ArticleId 15)]
       snd (update (BrowseArticleHidden "https://example.com/fetch") initialModel)
         `shouldBe` [SetBrowseUrlIgnored "https://example.com/fetch"]
@@ -353,20 +368,20 @@ main = hspec $ do
           ports = testPorts summary
           filters = WordFilter Nothing Nothing
       runIdentity (Runtime.runCommand ports (RefreshBrowse "kultur" 2 False))
-        `shouldBe` [BrowseArticlesLoaded [summary {summarySection = "kultur"}]]
+        `shouldBe` [BrowseArticlesLoaded [summary{summarySection = "kultur"}]]
       runIdentity (Runtime.runCommand ports (RefreshLibrary filters))
         `shouldBe` [LibraryArticlesLoaded [summary]]
       runIdentity (Runtime.runCommand ports (RefreshLibraryPage defaultLibraryQuery))
         `shouldBe` [LibraryPageLoaded (LibraryPage [summary] 1)]
       runIdentity (Runtime.runCommand ports LoadLibraryStats)
         `shouldBe` [ LibraryStatsLoaded
-                       ( LibraryStats
-                           { totalArticles = 1
-                           , uploadedArticles = 0
-                           , averageWordCount = summaryWordCount summary
-                           , sectionCounts = Map.singleton (summarySection summary) 1
-                           }
-                       )
+                      ( LibraryStats
+                          { totalArticles = 1
+                          , uploadedArticles = 0
+                          , averageWordCount = summaryWordCount summary
+                          , sectionCounts = Map.singleton (summarySection summary) 1
+                          }
+                      )
                    ]
       runIdentity (Runtime.runCommand ports (RefreshLingqLibrary filters True))
         `shouldBe` [LingqArticlesLoaded [summary]]
@@ -389,7 +404,9 @@ main = hspec $ do
               }
           ports = testPorts summary
       runIdentity (Runtime.runCommand ports (LoginZeitWithCookie "cookie=value"))
-        `shouldBe` [ZeitStatusChanged (AuthStatus True (Just "cookie session")), Notify SuccessNotice "Saved Zeit cookie session."]
+        `shouldBe` [ ZeitStatusChanged (AuthStatus True (Just "cookie session"))
+                   , Notify SuccessNotice "Saved Zeit cookie session."
+                   ]
       runIdentity (Runtime.runCommand ports (LoginZeitWithBrowserSession "cookie=value" "Browser UA"))
         `shouldBe` [ ZeitStatusChanged (AuthStatus True (Just "browser session"))
                    , ZeitCookieChanged "cookie=value"
@@ -397,9 +414,15 @@ main = hspec $ do
                    , Notify SuccessNotice "Imported Zeit browser session."
                    ]
       runIdentity (Runtime.runCommand ports LogoutZeit)
-        `shouldBe` [ZeitStatusChanged (AuthStatus False (Just "disconnected")), ZeitCookieChanged "", Notify SuccessNotice "Disconnected Zeit session."]
+        `shouldBe` [ ZeitStatusChanged (AuthStatus False (Just "disconnected"))
+                   , ZeitCookieChanged ""
+                   , Notify SuccessNotice "Disconnected Zeit session."
+                   ]
       runIdentity (Runtime.runCommand ports (LoginLingqWithApiKey "api-key"))
-        `shouldBe` [LingqStatusChanged (AuthStatus True (Just "API key")), Notify SuccessNotice "Connected LingQ API key.", RefreshCurrentView]
+        `shouldBe` [ LingqStatusChanged (AuthStatus True (Just "API key"))
+                   , Notify SuccessNotice "Connected LingQ API key."
+                   , RefreshCurrentView
+                   ]
       runIdentity (Runtime.runCommand ports LogoutLingq)
         `shouldBe` [ LingqStatusChanged (AuthStatus False (Just "disconnected"))
                    , LingqApiKeyChanged ""
@@ -420,7 +443,7 @@ main = hspec $ do
               , summaryKnownPct = Nothing
               }
           basePorts = testPorts summary
-          ports = basePorts {libraryPort = (libraryPort basePorts) {loadArticle = \_ -> Identity Nothing}}
+          ports = basePorts{libraryPort = (libraryPort basePorts){loadArticle = \_ -> Identity Nothing}}
       runIdentity (Runtime.runCommand ports (LoadArticle (ArticleId 404)))
         `shouldBe` [Notify ErrorNotice "Article not found."]
 
@@ -440,12 +463,12 @@ main = hspec $ do
       runIdentity (Runtime.runCommand ports (FetchAndSaveArticle summary))
         `shouldBe` [ Notify SuccessNotice "Saved article Save Me."
                    , LibraryArticlesLoaded
-                       [ summary
-                           { summaryId = Just (ArticleId 1)
-                           , summarySection = "Wissen"
-                           , summaryWordCount = 4
-                           }
-                       ]
+                      [ summary
+                          { summaryId = Just (ArticleId 1)
+                          , summarySection = "Wissen"
+                          , summaryWordCount = 4
+                          }
+                      ]
                    , RefreshCurrentView
                    ]
       runIdentity (Runtime.runCommand ports (DeleteSavedArticle (ArticleId 1)))
@@ -470,10 +493,14 @@ main = hspec $ do
             basePorts
               { libraryPort =
                   (libraryPort basePorts)
-                    { loadArticle = \_ -> Identity (Just (demoArticle {articleId = Just (ArticleId 1)}))
+                    { loadArticle = \_ -> Identity (Just (demoArticle{articleId = Just (ArticleId 1)}))
                     }
               }
-      runIdentity (Runtime.runCommand ports (UploadSavedArticle (fromGregorian 2026 5 2) "de" Nothing Map.empty True (ArticleId 1)))
+      runIdentity
+        ( Runtime.runCommand
+            ports
+            (UploadSavedArticle (fromGregorian 2026 5 2) "de" Nothing Map.empty True (ArticleId 1))
+        )
         `shouldBe` [ Notify SuccessNotice "Uploaded 2026-05-02 - Demo to LingQ."
                    , RefreshCurrentView
                    ]
@@ -495,10 +522,15 @@ main = hspec $ do
             basePorts
               { libraryPort =
                   (libraryPort basePorts)
-                    { loadArticle = \_ -> Identity (Just (demoArticle {articleId = Just (ArticleId 1)}))
+                    { loadArticle = \_ -> Identity (Just (demoArticle{articleId = Just (ArticleId 1)}))
                     }
               }
-      runIdentity (Runtime.runCommand ports (UploadSavedArticles (fromGregorian 2026 5 2) "de" Nothing Map.empty True [ArticleId 1, ArticleId 2]))
+      runIdentity
+        ( Runtime.runCommand
+            ports
+            ( UploadSavedArticles (fromGregorian 2026 5 2) "de" Nothing Map.empty True [ArticleId 1, ArticleId 2]
+            )
+        )
         `shouldBe` [ BatchUploadFinished []
                    , Notify SuccessNotice "Batch upload: uploaded 2, failed 0."
                    , RefreshCurrentView
@@ -516,7 +548,7 @@ main = hspec $ do
               , summaryUploaded = False
               , summaryKnownPct = Nothing
               }
-          hidden = visible {summaryUrl = "https://example.com/hidden", summaryTitle = "Hidden"}
+          hidden = visible{summaryUrl = "https://example.com/hidden", summaryTitle = "Hidden"}
           basePorts = testPorts visible
           ports =
             basePorts
@@ -532,7 +564,7 @@ main = hspec $ do
       runIdentity (Runtime.runCommand ports (RefreshBrowse "wissen" 1 False))
         `shouldBe` [BrowseArticlesLoaded [visible]]
       runIdentity (Runtime.runCommand ports (RefreshBrowse "wissen" 1 True))
-        `shouldBe` [BrowseArticlesLoaded [visible, hidden {summaryIgnored = True}]]
+        `shouldBe` [BrowseArticlesLoaded [visible, hidden{summaryIgnored = True}]]
       runIdentity (Runtime.runCommand ports (SetBrowseUrlIgnored "https://example.com/new"))
         `shouldBe` [Notify SuccessNotice "Article hidden from browse.", RefreshCurrentView]
       runIdentity (Runtime.runCommand ports (SetBrowseUrlUnignored "https://example.com/hidden"))
@@ -550,9 +582,10 @@ main = hspec $ do
               , summaryUploaded = False
               , summaryKnownPct = Nothing
               }
-          second = first {summaryUrl = "https://example.com/two", summaryTitle = "Two"}
+          second = first{summaryUrl = "https://example.com/two", summaryTitle = "Two"}
           ports = testPorts first
-      runIdentity (Runtime.runCommand ports (FetchAndSaveArticles (WordFilter Nothing Nothing) [first, second]))
+      runIdentity
+        (Runtime.runCommand ports (FetchAndSaveArticles (WordFilter Nothing Nothing) [first, second]))
         `shouldBe` [ BatchFetchFinished []
                    , Notify SuccessNotice "Batch fetch: saved 2, skipped 0, failed 0."
                    , RefreshCurrentView
@@ -580,7 +613,12 @@ main = hspec $ do
                     }
               , libraryPort =
                   (libraryPort basePorts)
-                    { loadArticle = \_ -> Identity (Just (demoArticle {articleId = Just (ArticleId 1), articleAudioUrl = Just "https://cdn.example/demo.mp3"}))
+                    { loadArticle = \_ ->
+                        Identity
+                          ( Just
+                              ( demoArticle{articleId = Just (ArticleId 1), articleAudioUrl = Just "https://cdn.example/demo.mp3"}
+                              )
+                          )
                     }
               }
       runIdentity (Runtime.runCommand ports (DownloadArticleAudio "audio" (ArticleId 1)))
@@ -591,7 +629,9 @@ main = hspec $ do
             ports
               { libraryPort =
                   (libraryPort ports)
-                    { loadArticle = \_ -> Identity (Just (demoArticle {articleId = Just (ArticleId 1), articleAudioPath = Just "audio\\demo.mp3"}))
+                    { loadArticle = \_ ->
+                        Identity
+                          (Just (demoArticle{articleId = Just (ArticleId 1), articleAudioPath = Just "audio\\demo.mp3"}))
                     }
               }
       runIdentity (Runtime.runCommand openPorts (OpenArticleAudio (ArticleId 1)))
@@ -740,7 +780,7 @@ main = hspec $ do
               }
           model = runIdentity (dispatchEvent (testPorts summary) initialModel (BrowseSectionSelected "kultur"))
       browseSectionId model `shouldBe` "kultur"
-      browseArticles model `shouldBe` [summary {summarySection = "kultur"}]
+      browseArticles model `shouldBe` [summary{summarySection = "kultur"}]
 
     it "dispatches article-open commands and folds loaded content into the model" $ do
       let summary =
@@ -800,7 +840,7 @@ main = hspec $ do
           , rowKnownPct = "known: 73%"
           , rowUploadStatus = "uploaded"
           }
-      rowUploadStatus (articleRowView (summary {summaryIgnored = True})) `shouldBe` "ignored"
+      rowUploadStatus (articleRowView (summary{summaryIgnored = True})) `shouldBe` "ignored"
 
     it "projects current screen rows" $ do
       let summary =
@@ -840,73 +880,113 @@ main = hspec $ do
 
     it "parses browse, fetch and library commands" $ do
       parseArgs ["browse", "wissen", "2"] `shouldBe` Right (BrowseZeit "wissen" 2 defaultDbPath)
-      parseArgs ["browse", "wissen", "2", "custom.db"] `shouldBe` Right (BrowseZeit "wissen" 2 "custom.db")
-      parseArgs ["fetch", "https://www.zeit.de/wissen/2026-05/beispiel"] `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
-      parseArgs ["batch-fetch", "urls.txt", "custom.db", "500", "2000"] `shouldBe` Right (BatchFetch "urls.txt" "custom.db" (WordFilter (Just 500) (Just 2000)))
+      parseArgs ["browse", "wissen", "2", "custom.db"]
+        `shouldBe` Right (BrowseZeit "wissen" 2 "custom.db")
+      parseArgs ["fetch", "https://www.zeit.de/wissen/2026-05/beispiel"]
+        `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
+      parseArgs ["batch-fetch", "urls.txt", "custom.db", "500", "2000"]
+        `shouldBe` Right (BatchFetch "urls.txt" "custom.db" (WordFilter (Just 500) (Just 2000)))
       parseArgs ["library", "custom.db"] `shouldBe` Right (ShowLibrary "custom.db")
       parseArgs ["stats"] `shouldBe` Right (ShowStats defaultDbPath)
       parseArgs ["delete-article", "42", "custom.db"] `shouldBe` Right (DeleteArticle 42 "custom.db")
-      parseArgs ["delete-older-than", "30", "custom.db"] `shouldBe` Right (DeleteOlderThan 30 False False "custom.db")
-      parseArgs ["delete-older-than-uploaded", "30"] `shouldBe` Right (DeleteOlderThan 30 True False defaultDbPath)
-      parseArgs ["delete-older-than-unuploaded", "30"] `shouldBe` Right (DeleteOlderThan 30 False True defaultDbPath)
+      parseArgs ["delete-older-than", "30", "custom.db"]
+        `shouldBe` Right (DeleteOlderThan 30 False False "custom.db")
+      parseArgs ["delete-older-than-uploaded", "30"]
+        `shouldBe` Right (DeleteOlderThan 30 True False defaultDbPath)
+      parseArgs ["delete-older-than-unuploaded", "30"]
+        `shouldBe` Right (DeleteOlderThan 30 False True defaultDbPath)
       parseArgs ["delete-ignored", "custom.db"] `shouldBe` Right (DeleteIgnored "custom.db")
       parseArgs ["ignore-article", "42"] `shouldBe` Right (IgnoreArticle 42 defaultDbPath)
       parseArgs ["unignore-article", "42", "custom.db"] `shouldBe` Right (UnignoreArticle 42 "custom.db")
       parseArgs ["known-sync", "custom.db"] `shouldBe` Right (SyncKnownWords "custom.db")
-      parseArgs ["known-import", "words.txt", "custom.db"] `shouldBe` Right (ImportKnownWords "words.txt" "custom.db")
+      parseArgs ["known-import", "words.txt", "custom.db"]
+        `shouldBe` Right (ImportKnownWords "words.txt" "custom.db")
       parseArgs ["known-info"] `shouldBe` Right (KnownWordsInfo defaultDbPath)
       parseArgs ["known-compute", "custom.db"] `shouldBe` Right (ComputeKnownPct "custom.db")
-      parseArgs ["lingq-upload", "42", "custom.db"] `shouldBe` Right (UploadLingq 42 "custom.db" defaultSettingsPath)
-      parseArgs ["lingq-upload", "42", "custom.db", "settings.dev.json"] `shouldBe` Right (UploadLingq 42 "custom.db" "settings.dev.json")
-      parseArgs ["audio-download", "42", "audio-cache", "custom.db"] `shouldBe` Right (DownloadAudio 42 "audio-cache" "custom.db")
-      parseArgs ["ignore-url", "https://example.com", "custom.db"] `shouldBe` Right (IgnoreUrl "https://example.com" "custom.db")
-      parseArgs ["unignore-url", "https://example.com"] `shouldBe` Right (UnignoreUrl "https://example.com" defaultDbPath)
+      parseArgs ["lingq-upload", "42", "custom.db"]
+        `shouldBe` Right (UploadLingq 42 "custom.db" defaultSettingsPath)
+      parseArgs ["lingq-upload", "42", "custom.db", "settings.dev.json"]
+        `shouldBe` Right (UploadLingq 42 "custom.db" "settings.dev.json")
+      parseArgs ["audio-download", "42", "audio-cache", "custom.db"]
+        `shouldBe` Right (DownloadAudio 42 "audio-cache" "custom.db")
+      parseArgs ["ignore-url", "https://example.com", "custom.db"]
+        `shouldBe` Right (IgnoreUrl "https://example.com" "custom.db")
+      parseArgs ["unignore-url", "https://example.com"]
+        `shouldBe` Right (UnignoreUrl "https://example.com" defaultDbPath)
       parseArgs ["ignored"] `shouldBe` Right (ListIgnored defaultDbPath)
       parseArgs ["settings"] `shouldBe` Right (ShowSettings defaultSettingsPath)
       parseArgs ["settings", "settings.dev.json"] `shouldBe` Right (ShowSettings "settings.dev.json")
-      parseArgs ["settings", "set-view", "library"] `shouldBe` Right (SetSettingsView LibraryView defaultSettingsPath)
-      parseArgs ["settings", "set-view", "diagnostics"] `shouldBe` Right (SetSettingsView DiagnosticsView defaultSettingsPath)
-      parseArgs ["settings", "set-browse-section", "wissen", "settings.dev.json"] `shouldBe` Right (SetSettingsBrowseSection "wissen" "settings.dev.json")
-      parseArgs ["settings", "set-date-prefix", "off", "settings.dev.json"] `shouldBe` Right (SetSettingsDatePrefix False "settings.dev.json")
-      parseArgs ["settings", "set-collection", "Wissen", "course-1"] `shouldBe` Right (SetSettingsSectionCollection "Wissen" "course-1" defaultSettingsPath)
-      parseArgs ["settings", "clear-collection", "Wissen"] `shouldBe` Right (ClearSettingsSectionCollection "Wissen" defaultSettingsPath)
+      parseArgs ["settings", "set-view", "library"]
+        `shouldBe` Right (SetSettingsView LibraryView defaultSettingsPath)
+      parseArgs ["settings", "set-view", "diagnostics"]
+        `shouldBe` Right (SetSettingsView DiagnosticsView defaultSettingsPath)
+      parseArgs ["settings", "set-browse-section", "wissen", "settings.dev.json"]
+        `shouldBe` Right (SetSettingsBrowseSection "wissen" "settings.dev.json")
+      parseArgs ["settings", "set-date-prefix", "off", "settings.dev.json"]
+        `shouldBe` Right (SetSettingsDatePrefix False "settings.dev.json")
+      parseArgs ["settings", "set-collection", "Wissen", "course-1"]
+        `shouldBe` Right (SetSettingsSectionCollection "Wissen" "course-1" defaultSettingsPath)
+      parseArgs ["settings", "clear-collection", "Wissen"]
+        `shouldBe` Right (ClearSettingsSectionCollection "Wissen" defaultSettingsPath)
 
     it "parses the simplified grouped commands and named flags" $ do
       parseArgs ["topics"] `shouldBe` Right ListSections
-      parseArgs ["browse", "--page", "3", "--db", "custom.db"] `shouldBe` Right (BrowseZeit "index" 3 "custom.db")
-      parseArgs ["browse", "wissen", "--page=3", "--db=custom.db"] `shouldBe` Right (BrowseZeit "wissen" 3 "custom.db")
-      parseArgs ["read", "https://www.zeit.de/wissen/2026-05/beispiel", "--db", "custom.db"] `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" "custom.db")
-      parseArgs ["fetch-list", "urls.txt", "--min", "500", "--max", "2000", "--db", "custom.db"] `shouldBe` Right (BatchFetch "urls.txt" "custom.db" (WordFilter (Just 500) (Just 2000)))
+      parseArgs ["browse", "--page", "3", "--db", "custom.db"]
+        `shouldBe` Right (BrowseZeit "index" 3 "custom.db")
+      parseArgs ["browse", "wissen", "--page=3", "--db=custom.db"]
+        `shouldBe` Right (BrowseZeit "wissen" 3 "custom.db")
+      parseArgs ["read", "https://www.zeit.de/wissen/2026-05/beispiel", "--db", "custom.db"]
+        `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" "custom.db")
+      parseArgs ["fetch-list", "urls.txt", "--min", "500", "--max", "2000", "--db", "custom.db"]
+        `shouldBe` Right (BatchFetch "urls.txt" "custom.db" (WordFilter (Just 500) (Just 2000)))
       parseArgs ["list", "--db", "custom.db"] `shouldBe` Right (ShowLibrary "custom.db")
-      parseArgs ["hide", "article", "42", "--db", "custom.db"] `shouldBe` Right (IgnoreArticle 42 "custom.db")
+      parseArgs ["hide", "article", "42", "--db", "custom.db"]
+        `shouldBe` Right (IgnoreArticle 42 "custom.db")
       parseArgs ["show", "article", "42"] `shouldBe` Right (UnignoreArticle 42 defaultDbPath)
-      parseArgs ["hide", "url", "https://example.com", "--db", "custom.db"] `shouldBe` Right (IgnoreUrl "https://example.com" "custom.db")
-      parseArgs ["show", "https://example.com"] `shouldBe` Right (UnignoreUrl "https://example.com" defaultDbPath)
+      parseArgs ["hide", "url", "https://example.com", "--db", "custom.db"]
+        `shouldBe` Right (IgnoreUrl "https://example.com" "custom.db")
+      parseArgs ["show", "https://example.com"]
+        `shouldBe` Right (UnignoreUrl "https://example.com" defaultDbPath)
       parseArgs ["hidden", "--db", "custom.db"] `shouldBe` Right (ListIgnored "custom.db")
-      parseArgs ["delete", "article", "42", "--db", "custom.db"] `shouldBe` Right (DeleteArticle 42 "custom.db")
-      parseArgs ["delete", "old", "30", "--uploaded", "--db", "custom.db"] `shouldBe` Right (DeleteOlderThan 30 True False "custom.db")
-      parseArgs ["delete", "old", "30", "--unuploaded"] `shouldBe` Right (DeleteOlderThan 30 False True defaultDbPath)
+      parseArgs ["delete", "article", "42", "--db", "custom.db"]
+        `shouldBe` Right (DeleteArticle 42 "custom.db")
+      parseArgs ["delete", "old", "30", "--uploaded", "--db", "custom.db"]
+        `shouldBe` Right (DeleteOlderThan 30 True False "custom.db")
+      parseArgs ["delete", "old", "30", "--unuploaded"]
+        `shouldBe` Right (DeleteOlderThan 30 False True defaultDbPath)
       parseArgs ["delete", "ignored", "--db", "custom.db"] `shouldBe` Right (DeleteIgnored "custom.db")
       parseArgs ["known", "sync", "--db", "custom.db"] `shouldBe` Right (SyncKnownWords "custom.db")
-      parseArgs ["known", "import", "words.txt", "--db", "custom.db"] `shouldBe` Right (ImportKnownWords "words.txt" "custom.db")
+      parseArgs ["known", "import", "words.txt", "--db", "custom.db"]
+        `shouldBe` Right (ImportKnownWords "words.txt" "custom.db")
       parseArgs ["known", "recompute"] `shouldBe` Right (ComputeKnownPct defaultDbPath)
       parseArgs ["known"] `shouldBe` Right (KnownWordsInfo defaultDbPath)
-      parseArgs ["lingq", "upload", "42", "--db", "custom.db", "--settings", "settings.dev.json"] `shouldBe` Right (UploadLingq 42 "custom.db" "settings.dev.json")
-      parseArgs ["audio", "download", "42", "--to", "audio-cache", "--db", "custom.db"] `shouldBe` Right (DownloadAudio 42 "audio-cache" "custom.db")
-      parseArgs ["settings", "--settings", "settings.dev.json"] `shouldBe` Right (ShowSettings "settings.dev.json")
-      parseArgs ["settings", "view", "library", "--settings", "settings.dev.json"] `shouldBe` Right (SetSettingsView LibraryView "settings.dev.json")
-      parseArgs ["settings", "topic", "wissen"] `shouldBe` Right (SetSettingsBrowseSection "wissen" defaultSettingsPath)
-      parseArgs ["settings", "date-prefix", "off"] `shouldBe` Right (SetSettingsDatePrefix False defaultSettingsPath)
-      parseArgs ["settings", "collection", "Wissen", "course-1", "--settings", "settings.dev.json"] `shouldBe` Right (SetSettingsSectionCollection "Wissen" "course-1" "settings.dev.json")
-      parseArgs ["settings", "forget-collection", "Wissen"] `shouldBe` Right (ClearSettingsSectionCollection "Wissen" defaultSettingsPath)
+      parseArgs ["lingq", "upload", "42", "--db", "custom.db", "--settings", "settings.dev.json"]
+        `shouldBe` Right (UploadLingq 42 "custom.db" "settings.dev.json")
+      parseArgs ["audio", "download", "42", "--to", "audio-cache", "--db", "custom.db"]
+        `shouldBe` Right (DownloadAudio 42 "audio-cache" "custom.db")
+      parseArgs ["settings", "--settings", "settings.dev.json"]
+        `shouldBe` Right (ShowSettings "settings.dev.json")
+      parseArgs ["settings", "view", "library", "--settings", "settings.dev.json"]
+        `shouldBe` Right (SetSettingsView LibraryView "settings.dev.json")
+      parseArgs ["settings", "topic", "wissen"]
+        `shouldBe` Right (SetSettingsBrowseSection "wissen" defaultSettingsPath)
+      parseArgs ["settings", "date-prefix", "off"]
+        `shouldBe` Right (SetSettingsDatePrefix False defaultSettingsPath)
+      parseArgs ["settings", "collection", "Wissen", "course-1", "--settings", "settings.dev.json"]
+        `shouldBe` Right (SetSettingsSectionCollection "Wissen" "course-1" "settings.dev.json")
+      parseArgs ["settings", "forget-collection", "Wissen"]
+        `shouldBe` Right (ClearSettingsSectionCollection "Wissen" defaultSettingsPath)
 
     it "parses short human-friendly aliases" $ do
       parseArgs ["h"] `shouldBe` Right ShowHelp
       parseArgs ["t"] `shouldBe` Right ListSections
       parseArgs ["b", "wissen", "-p", "2"] `shouldBe` Right (BrowseZeit "wissen" 2 defaultDbPath)
-      parseArgs ["r", "https://www.zeit.de/wissen/2026-05/beispiel"] `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
-      parseArgs ["https://www.zeit.de/wissen/2026-05/beispiel"] `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
-      parseArgs ["f", "urls.txt", "-m", "500", "-x", "2000"] `shouldBe` Right (BatchFetch "urls.txt" defaultDbPath (WordFilter (Just 500) (Just 2000)))
+      parseArgs ["r", "https://www.zeit.de/wissen/2026-05/beispiel"]
+        `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
+      parseArgs ["https://www.zeit.de/wissen/2026-05/beispiel"]
+        `shouldBe` Right (FetchArticle "https://www.zeit.de/wissen/2026-05/beispiel" defaultDbPath)
+      parseArgs ["f", "urls.txt", "-m", "500", "-x", "2000"]
+        `shouldBe` Right (BatchFetch "urls.txt" defaultDbPath (WordFilter (Just 500) (Just 2000)))
       parseArgs ["l"] `shouldBe` Right (ShowLibrary defaultDbPath)
       parseArgs ["s"] `shouldBe` Right (ShowStats defaultDbPath)
       parseArgs ["rm", "42"] `shouldBe` Right (DeleteArticle 42 defaultDbPath)
@@ -917,12 +997,16 @@ main = hspec $ do
       parseArgs ["k", "re"] `shouldBe` Right (ComputeKnownPct defaultDbPath)
       parseArgs ["u", "42"] `shouldBe` Right (UploadLingq 42 defaultDbPath defaultSettingsPath)
       parseArgs ["lingq", "42"] `shouldBe` Right (UploadLingq 42 defaultDbPath defaultSettingsPath)
-      parseArgs ["a", "42", "-o", "audio-cache"] `shouldBe` Right (DownloadAudio 42 "audio-cache" defaultDbPath)
+      parseArgs ["a", "42", "-o", "audio-cache"]
+        `shouldBe` Right (DownloadAudio 42 "audio-cache" defaultDbPath)
       parseArgs ["cfg", "v", "library"] `shouldBe` Right (SetSettingsView LibraryView defaultSettingsPath)
-      parseArgs ["cfg", "t", "wissen"] `shouldBe` Right (SetSettingsBrowseSection "wissen" defaultSettingsPath)
+      parseArgs ["cfg", "t", "wissen"]
+        `shouldBe` Right (SetSettingsBrowseSection "wissen" defaultSettingsPath)
       parseArgs ["cfg", "date", "off"] `shouldBe` Right (SetSettingsDatePrefix False defaultSettingsPath)
-      parseArgs ["cfg", "map", "Wissen", "course-1"] `shouldBe` Right (SetSettingsSectionCollection "Wissen" "course-1" defaultSettingsPath)
-      parseArgs ["cfg", "unmap", "Wissen"] `shouldBe` Right (ClearSettingsSectionCollection "Wissen" defaultSettingsPath)
+      parseArgs ["cfg", "map", "Wissen", "course-1"]
+        `shouldBe` Right (SetSettingsSectionCollection "Wissen" "course-1" defaultSettingsPath)
+      parseArgs ["cfg", "unmap", "Wissen"]
+        `shouldBe` Right (ClearSettingsSectionCollection "Wissen" defaultSettingsPath)
 
     it "rejects invalid settings values" $ do
       parseArgs ["settings", "set-view", "nope"] `shouldSatisfy` isLeft
@@ -941,7 +1025,7 @@ main = hspec $ do
               , summaryUploaded = False
               , summaryKnownPct = Nothing
               }
-          ignored = visible {summaryUrl = "https://example.com/ignored", summaryTitle = "Ignored"}
+          ignored = visible{summaryUrl = "https://example.com/ignored", summaryTitle = "Ignored"}
       hideIgnoredSummaries (Set.singleton "https://example.com/ignored") [visible, ignored]
         `shouldBe` [visible]
 
@@ -949,8 +1033,8 @@ main = hspec $ do
     it "saves successful articles and skips articles outside the word filter" $ do
       let fetcher url
             | url == "bad" = pure (Left "network")
-            | url == "short" = pure (Right demoArticle {articleUrl = url, articleParagraphs = ["eins zwei"]})
-            | otherwise = pure (Right demoArticle {articleUrl = url})
+            | url == "short" = pure (Right demoArticle{articleUrl = url, articleParagraphs = ["eins zwei"]})
+            | otherwise = pure (Right demoArticle{articleUrl = url})
           saver _ = pure (ArticleId 42)
       results <- batchFetchArticles fetcher saver (WordFilter (Just 3) Nothing) ["ok", "short", "bad"]
       results
@@ -989,18 +1073,21 @@ main = hspec $ do
               , uploadDay = fromGregorian 2026 5 2
               }
           uploader lang collection article =
-            pure (Right (LingqLesson (lang <> ":" <> maybe "none" id collection) ("lesson:" <> articleTitle article)))
+            pure
+              ( Right (LingqLesson (lang <> ":" <> maybe "none" id collection) ("lesson:" <> articleTitle article))
+              )
           updater _ _ _ = do
             expectationFailure "updater should not be called for new lessons"
             pure (Left "unexpected update")
           marker _ _ =
             pure ()
-      results <- batchUploadArticles uploader updater marker config [demoArticle {articleId = Just (ArticleId 3)}]
+      results <-
+        batchUploadArticles uploader updater marker config [demoArticle{articleId = Just (ArticleId 3)}]
       results
         `shouldBe` [ UploadSucceeded
-                       (ArticleId 3)
-                       "2026-05-02 - Demo"
-                       (LingqLesson "de:wissen-course" "lesson:2026-05-02 - Demo")
+                      (ArticleId 3)
+                      "2026-05-02 - Demo"
+                      (LingqLesson "de:wissen-course" "lesson:2026-05-02 - Demo")
                    ]
 
     it "updates existing LingQ lessons instead of creating duplicates" $ do
@@ -1026,12 +1113,12 @@ main = hspec $ do
           updater
           marker
           config
-          [demoArticle {articleId = Just (ArticleId 3), articleUploadedLesson = Just existing}]
+          [demoArticle{articleId = Just (ArticleId 3), articleUploadedLesson = Just existing}]
       results
         `shouldBe` [ UploadSucceeded
-                       (ArticleId 3)
-                       "Demo"
-                       (LingqLesson "de:old-lesson" "updated:Demo")
+                      (ArticleId 3)
+                      "Demo"
+                      (LingqLesson "de:old-lesson" "updated:Demo")
                    ]
 
     it "returns upload failures without marking them" $ do
@@ -1046,9 +1133,11 @@ main = hspec $ do
           uploader _ _ _ = pure (Left "upload failed")
           updater _ _ _ = pure (Left "update failed")
           marker _ _ = expectationFailure "marker should not be called"
-      results <- batchUploadArticles uploader updater marker config [demoArticle {articleId = Just (ArticleId 4)}]
+      results <-
+        batchUploadArticles uploader updater marker config [demoArticle{articleId = Just (ArticleId 4)}]
       results `shouldBe` [UploadFailed (Just (ArticleId 4)) "Demo" "upload failed"]
-      articleUploadFailures results `shouldBe` [ArticleUploadFailure (ArticleId 4) (Just "Demo") "upload failed"]
+      articleUploadFailures results
+        `shouldBe` [ArticleUploadFailure (ArticleId 4) (Just "Demo") "upload failed"]
 
   describe "SQLite library adapter" $ do
     it "saves and reloads articles with summaries and stats" $ do
@@ -1072,17 +1161,19 @@ main = hspec $ do
         markUploadedSqlite db savedId (LingqLesson "lesson-1" "https://lingq.example/lesson-1")
         setIgnoredSqlite db savedId True
 
-        _ <- saveArticleSqlite db demoArticle {articleTitle = "Demo refetched"}
+        _ <- saveArticleSqlite db demoArticle{articleTitle = "Demo refetched"}
         loaded <- getArticleSqlite db savedId
 
         fmap articleTitle loaded `shouldBe` Just "Demo refetched"
         fmap articleIgnored loaded `shouldBe` Just True
-        fmap articleUploadedLesson loaded `shouldBe` Just (Just (LingqLesson "lesson-1" "https://lingq.example/lesson-1"))
+        fmap articleUploadedLesson loaded
+          `shouldBe` Just (Just (LingqLesson "lesson-1" "https://lingq.example/lesson-1"))
 
     it "deletes and hides articles by id" $ do
       withLibrary ":memory:" $ \db -> do
         firstId <- saveArticleSqlite db demoArticle
-        secondId <- saveArticleSqlite db demoArticle {articleUrl = "https://example.com/2", articleTitle = "Other"}
+        secondId <-
+          saveArticleSqlite db demoArticle{articleUrl = "https://example.com/2", articleTitle = "Other"}
 
         setIgnoredSqlite db firstId True
         visibleAfterIgnore <- getArticlesSqlite db (WordFilter Nothing Nothing)
@@ -1098,7 +1189,8 @@ main = hspec $ do
     it "queries library pages with search, section, ignored, uploaded, and paging filters" $ do
       withLibrary ":memory:" $ \db -> do
         alphaId <-
-          saveArticleSqlite db
+          saveArticleSqlite
+            db
             demoArticle
               { articleUrl = "https://example.com/alpha"
               , articleTitle = "Alpha Wissen"
@@ -1106,7 +1198,8 @@ main = hspec $ do
               , articleFetchedAt = Just (dayTime 1)
               }
         betaId <-
-          saveArticleSqlite db
+          saveArticleSqlite
+            db
             demoArticle
               { articleUrl = "https://example.com/beta"
               , articleTitle = "Beta Kultur"
@@ -1115,7 +1208,8 @@ main = hspec $ do
               , articleFetchedAt = Just (dayTime 2)
               }
         ignoredId <-
-          saveArticleSqlite db
+          saveArticleSqlite
+            db
             demoArticle
               { articleUrl = "https://example.com/ignored"
               , articleTitle = "Ignored Alpha"
@@ -1126,7 +1220,8 @@ main = hspec $ do
         setIgnoredSqlite db ignoredId True
 
         page <-
-          getArticlesByQuerySqlite db
+          getArticlesByQuerySqlite
+            db
             LibraryQuery
               { librarySearch = Just "Alpha"
               , librarySection = Just "Wissen"
@@ -1143,7 +1238,8 @@ main = hspec $ do
         map summaryId (libraryPageArticles page) `shouldBe` [Just ignoredId, Just alphaId]
 
         ignoredPage <-
-          getArticlesByQuerySqlite db
+          getArticlesByQuerySqlite
+            db
             LibraryQuery
               { librarySearch = Nothing
               , librarySection = Nothing
@@ -1159,7 +1255,8 @@ main = hspec $ do
         map summaryId (libraryPageArticles ignoredPage) `shouldBe` [Just ignoredId]
 
         paged <-
-          getArticlesByQuerySqlite db
+          getArticlesByQuerySqlite
+            db
             LibraryQuery
               { librarySearch = Nothing
               , librarySection = Nothing
@@ -1175,17 +1272,25 @@ main = hspec $ do
         libraryPageTotal paged `shouldBe` 3
         map summaryId (libraryPageArticles paged) `shouldBe` [Just betaId]
 
-        sortedByLength <- getArticlesByQuerySqlite db defaultLibraryQuery {libraryIncludeIgnored = True, librarySort = LibrarySortLongest}
-        map summaryId (libraryPageArticles sortedByLength) `shouldBe` [Just betaId, Just ignoredId, Just alphaId]
+        sortedByLength <-
+          getArticlesByQuerySqlite
+            db
+            defaultLibraryQuery{libraryIncludeIgnored = True, librarySort = LibrarySortLongest}
+        map summaryId (libraryPageArticles sortedByLength)
+          `shouldBe` [Just betaId, Just ignoredId, Just alphaId]
 
     it "filters duplicate title review pages" $ do
       withLibrary ":memory:" $ \db -> do
-        firstId <- saveArticleSqlite db demoArticle {articleUrl = "https://example.com/a", articleTitle = "Same Title"}
-        secondId <- saveArticleSqlite db demoArticle {articleUrl = "https://example.com/b", articleTitle = "same title"}
-        _ <- saveArticleSqlite db demoArticle {articleUrl = "https://example.com/c", articleTitle = "Different"}
+        firstId <-
+          saveArticleSqlite db demoArticle{articleUrl = "https://example.com/a", articleTitle = "Same Title"}
+        secondId <-
+          saveArticleSqlite db demoArticle{articleUrl = "https://example.com/b", articleTitle = "same title"}
+        _ <-
+          saveArticleSqlite db demoArticle{articleUrl = "https://example.com/c", articleTitle = "Different"}
 
         duplicatePage <-
-          getArticlesByQuerySqlite db
+          getArticlesByQuerySqlite
+            db
             defaultLibraryQuery
               { libraryIncludeIgnored = True
               , libraryOnlyDuplicateTitles = True
@@ -1226,7 +1331,8 @@ main = hspec $ do
       withLibrary ":memory:" $ \db -> do
         ignoreUrlSqlite db "https://www.zeit.de/wissen/2026-05/a"
         ignoreUrlSqlite db "https://www.zeit.de/wissen/2026-05/b"
-        getIgnoredUrlsSqlite db `shouldReturn` ["https://www.zeit.de/wissen/2026-05/a", "https://www.zeit.de/wissen/2026-05/b"]
+        getIgnoredUrlsSqlite db
+          `shouldReturn` ["https://www.zeit.de/wissen/2026-05/a", "https://www.zeit.de/wissen/2026-05/b"]
 
         unignoreUrlSqlite db "https://www.zeit.de/wissen/2026-05/a"
         getIgnoredUrlsSqlite db `shouldReturn` ["https://www.zeit.de/wissen/2026-05/b"]
@@ -1234,7 +1340,9 @@ main = hspec $ do
     it "migrates older article tables before saving new records" $ do
       withTempDbPath $ \path -> do
         conn <- SQL.open path
-        SQL.execute_ conn "CREATE TABLE articles (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT UNIQUE NOT NULL, title TEXT NOT NULL)"
+        SQL.execute_
+          conn
+          "CREATE TABLE articles (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT UNIQUE NOT NULL, title TEXT NOT NULL)"
         SQL.close conn
 
         withLibrary path $ \db -> do
@@ -1250,7 +1358,8 @@ main = hspec $ do
 
         conn <- SQL.open path
         versions <- SQL.query_ conn "SELECT version FROM schema_migrations" :: IO [SQL.Only Int]
-        indexes <- SQL.query_ conn "SELECT name FROM sqlite_master WHERE type = 'index'" :: IO [SQL.Only String]
+        indexes <-
+          SQL.query_ conn "SELECT name FROM sqlite_master WHERE type = 'index'" :: IO [SQL.Only String]
         SQL.close conn
 
         let indexNames = [name | SQL.Only name <- indexes]
@@ -1266,28 +1375,32 @@ main = hspec $ do
     it "bulk-deletes ignored and older articles" $ do
       withLibrary ":memory:" $ \db -> do
         oldUploaded <-
-          saveArticleSqlite db
+          saveArticleSqlite
+            db
             demoArticle
               { articleUrl = "https://example.com/old-uploaded"
               , articleTitle = "Old uploaded"
               , articleFetchedAt = Just (dayTime 1)
               }
         oldUnuploaded <-
-          saveArticleSqlite db
+          saveArticleSqlite
+            db
             demoArticle
               { articleUrl = "https://example.com/old-unuploaded"
               , articleTitle = "Old unuploaded"
               , articleFetchedAt = Just (dayTime 1)
               }
         oldIgnored <-
-          saveArticleSqlite db
+          saveArticleSqlite
+            db
             demoArticle
               { articleUrl = "https://example.com/old-ignored"
               , articleTitle = "Old ignored"
               , articleFetchedAt = Just (dayTime 1)
               }
         recent <-
-          saveArticleSqlite db
+          saveArticleSqlite
+            db
             demoArticle
               { articleUrl = "https://example.com/recent"
               , articleTitle = "Recent"
@@ -1356,11 +1469,16 @@ main = hspec $ do
       parseCollectionsValue value `shouldBe` Right [LingqCollection "12" "Wissen" 3]
 
     it "parses LingQ language responses" $ do
-      let value = decodeValue "{\"results\":[{\"code\":\"DE\",\"title\":\"German\"},{\"code\":\"es\",\"title\":\"Spanish\"}]}"
-      parseLanguagesValue value `shouldBe` Right [LingqLanguage "de" "German", LingqLanguage "es" "Spanish"]
+      let value =
+            decodeValue
+              "{\"results\":[{\"code\":\"DE\",\"title\":\"German\"},{\"code\":\"es\",\"title\":\"Spanish\"}]}"
+      parseLanguagesValue value
+        `shouldBe` Right [LingqLanguage "de" "German", LingqLanguage "es" "Spanish"]
 
     it "parses LingQ collection lesson responses" $ do
-      let value = decodeValue "{\"results\":[{\"id\":99,\"title\":\"Existing Lesson\",\"original_url\":\"https://example.com/original\"}]}"
+      let value =
+            decodeValue
+              "{\"results\":[{\"id\":99,\"title\":\"Existing Lesson\",\"original_url\":\"https://example.com/original\"}]}"
       parseCollectionLessonsValue "de" value
         `shouldBe` Right
           [ LingqRemoteLesson
@@ -1389,33 +1507,68 @@ main = hspec $ do
       let articles =
             extractArticleList
               "Wissen"
-              "<main><a href=\"/wissen/2026-05/beispiel\">Ein ziemlich langer Titel</a><a href=\"/wissen/2026-05/beispiel?utm=x\">Ein ziemlich langer Titel</a><a href=\"/abo\">Abo</a></main>"
+              ( "<main><a href=\"/wissen/2026-05/beispiel\">Ein ziemlich langer Titel</a>"
+                  <> "<a href=\"/wissen/2026-05/beispiel?utm=x\">Ein ziemlich langer Titel</a>"
+                  <> "<a href=\"/abo\">Abo</a></main>"
+              )
       map summaryUrl articles `shouldBe` ["https://www.zeit.de/wissen/2026-05/beispiel"]
       map summaryTitle articles `shouldBe` ["Ein ziemlich langer Titel"]
 
     it "extracts article content from article markup" $ do
       let html =
-            "<html><head><title>Fallback | ZEIT ONLINE</title><meta name=\"author\" content=\"Ada\"><meta property=\"article:published_time\" content=\"2026-05-02\"><meta property=\"article:section\" content=\"Wissen\"></head><body><article><h1>Der Haskell-Test</h1><h2>Abschnitt</h2><p>Das ist ein Absatz mit genug Worten fuer den Parser.</p><p>Noch ein Absatz mit sauberem Text und Inhalt.</p></article></body></html>"
+            "<html><head><title>Fallback | ZEIT ONLINE</title>"
+              <> "<meta name=\"author\" content=\"Ada\">"
+              <> "<meta property=\"article:published_time\" content=\"2026-05-02\">"
+              <> "<meta property=\"article:section\" content=\"Wissen\">"
+              <> "</head><body><article><h1>Der Haskell-Test</h1><h2>Abschnitt</h2>"
+              <> "<p>Das ist ein Absatz mit genug Worten fuer den Parser.</p>"
+              <> "<p>Noch ein Absatz mit sauberem Text und Inhalt.</p>"
+              <> "</article></body></html>"
       case extractArticleContent "https://www.zeit.de/wissen/2026-05/haskell-test" html of
         Left err -> expectationFailure (show err)
         Right article -> do
           articleTitle article `shouldBe` "Der Haskell-Test"
           articleAuthor article `shouldBe` "Ada"
           articleSection article `shouldBe` "Wissen"
-          articleParagraphs article `shouldBe` ["## Abschnitt", "Das ist ein Absatz mit genug Worten fuer den Parser.", "Noch ein Absatz mit sauberem Text und Inhalt."]
+          articleParagraphs article
+            `shouldBe` [ "## Abschnitt"
+                       , "Das ist ein Absatz mit genug Worten fuer den Parser."
+                       , "Noch ein Absatz mit sauberem Text und Inhalt."
+                       ]
 
     it "extracts article audio from source tags and JSON-LD" $ do
       let sourceHtml =
-            "<html><head><title>Audio | ZEIT ONLINE</title></head><body><article><h1>Audio</h1><p>Das ist ein Absatz mit genug Worten fuer den Parser.</p><p>Noch ein Absatz mit sauberem Text und Inhalt.</p><audio><source src=\"https://cdn.example/audio.m4a\"></audio></article></body></html>"
+            "<html><head><title>Audio | ZEIT ONLINE</title></head><body><article>"
+              <> "<h1>Audio</h1>"
+              <> "<p>Das ist ein Absatz mit genug Worten fuer den Parser.</p>"
+              <> "<p>Noch ein Absatz mit sauberem Text und Inhalt.</p>"
+              <> "<audio><source src=\"https://cdn.example/audio.m4a\"></audio>"
+              <> "</article></body></html>"
           jsonHtml =
-            "<html><head><title>Audio JSON | ZEIT ONLINE</title><script type=\"application/ld+json\">{\"@type\":\"NewsArticle\",\"audio\":{\"@type\":\"AudioObject\",\"contentUrl\":\"https://cdn.example/audio.mp3\"}}</script></head><body><article><h1>Audio JSON</h1><p>Das ist ein Absatz mit genug Worten fuer den Parser.</p><p>Noch ein Absatz mit sauberem Text und Inhalt.</p></article></body></html>"
+            "<html><head><title>Audio JSON | ZEIT ONLINE</title>"
+              <> "<script type=\"application/ld+json\">"
+              <> "{\"@type\":\"NewsArticle\",\"audio\":{\"@type\":\"AudioObject\","
+              <> "\"contentUrl\":\"https://cdn.example/audio.mp3\"}}</script>"
+              <> "</head><body><article><h1>Audio JSON</h1>"
+              <> "<p>Das ist ein Absatz mit genug Worten fuer den Parser.</p>"
+              <> "<p>Noch ein Absatz mit sauberem Text und Inhalt.</p>"
+              <> "</article></body></html>"
           relativeHtml =
-            "<html><head><title>Audio relative | ZEIT ONLINE</title></head><body><article><h1>Audio relative</h1><p>Das ist ein Absatz mit genug Worten fuer den Parser.</p><p>Noch ein Absatz mit sauberem Text und Inhalt.</p><audio src=\"/audio/demo.mp3\"></audio></article></body></html>"
+            "<html><head><title>Audio relative | ZEIT ONLINE</title></head><body><article>"
+              <> "<h1>Audio relative</h1>"
+              <> "<p>Das ist ein Absatz mit genug Worten fuer den Parser.</p>"
+              <> "<p>Noch ein Absatz mit sauberem Text und Inhalt.</p>"
+              <> "<audio src=\"/audio/demo.mp3\"></audio>"
+              <> "</article></body></html>"
       fmap articleAudioUrl (extractArticleContent "https://www.zeit.de/wissen/2026-05/audio" sourceHtml)
         `shouldBe` Right (Just "https://cdn.example/audio.m4a")
-      fmap articleAudioUrl (extractArticleContent "https://www.zeit.de/wissen/2026-05/audio-json" jsonHtml)
+      fmap
+        articleAudioUrl
+        (extractArticleContent "https://www.zeit.de/wissen/2026-05/audio-json" jsonHtml)
         `shouldBe` Right (Just "https://cdn.example/audio.mp3")
-      fmap articleAudioUrl (extractArticleContent "https://www.zeit.de/wissen/2026-05/audio-relative" relativeHtml)
+      fmap
+        articleAudioUrl
+        (extractArticleContent "https://www.zeit.de/wissen/2026-05/audio-relative" relativeHtml)
         `shouldBe` Right (Just "https://www.zeit.de/audio/demo.mp3")
 
     it "discovers additional article page links for paginated stories" $ do
@@ -1428,10 +1581,9 @@ main = hspec $ do
             \<a href=\"/wissen/2026-05/other/2\">Seite 2</a>\
             \</article>"
       extractAdditionalArticlePageUrls "https://www.zeit.de/wissen/2026-05/haskell-test" html
-        `shouldBe`
-          [ "https://www.zeit.de/wissen/2026-05/haskell-test/2"
-          , "https://www.zeit.de/wissen/2026-05/haskell-test/seite-3"
-          ]
+        `shouldBe` [ "https://www.zeit.de/wissen/2026-05/haskell-test/2"
+                   , "https://www.zeit.de/wissen/2026-05/haskell-test/seite-3"
+                   ]
 
 demoArticle :: Article
 demoArticle =
@@ -1497,7 +1649,7 @@ testPorts summary =
     { zeitPort =
         ZeitPort
           { fetchSections = Identity []
-          , fetchArticleList = \sectionId _ -> Identity [summary {summarySection = sectionId}]
+          , fetchArticleList = \sectionId _ -> Identity [summary{summarySection = sectionId}]
           , fetchArticleContent = \_ -> Identity demoArticle
           , loginToZeit = Identity (AuthStatus True Nothing)
           , loginToZeitWithCookie = \_ -> Identity (AuthStatus True (Just "cookie session"))

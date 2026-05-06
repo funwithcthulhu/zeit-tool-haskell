@@ -2,34 +2,47 @@
 
 module Main (main) where
 
-import Control.Exception (SomeException, displayException, try)
 import Control.Applicative ((<|>))
+import Control.Exception (SomeException, displayException, try)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import Data.Text (Text)
-import Data.Text qualified as T
+import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 import Data.Time (UTCTime, addUTCTime, getCurrentTime, utctDay)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Monomer hiding (Model)
-import Monomer qualified as M
+import qualified Monomer as M
 import System.Directory (copyFile, createDirectoryIfMissing, doesFileExist, getCurrentDirectory)
 import System.Environment (lookupEnv)
-import System.Exit (ExitCode(..))
-import System.FilePath ((</>), takeDirectory)
-import System.Info (os)
+import System.Exit (ExitCode (..))
+import System.FilePath (takeDirectory, (</>))
 import System.IO (hClose)
-import System.Process (CreateProcess(std_in), StdStream(CreatePipe), callProcess, proc, readCreateProcessWithExitCode, waitForProcess, withCreateProcess)
-import Data.Text.IO qualified as TIO
-import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
-import ZeitLingq.Core.Batch (BatchFetchResult(..), articleFetchFailures)
-import ZeitLingq.Core.Upload (BatchUploadConfig(..), BatchUploadResult(..), articleUploadFailures, targetCollectionFor)
-import ZeitLingq.Domain.Article (BatchDecision(..), applyWordFilter, lessonTitle, wordCount)
+import System.Info (os)
+import System.Process (
+  CreateProcess (std_in),
+  StdStream (CreatePipe),
+  callProcess,
+  proc,
+  readCreateProcessWithExitCode,
+  waitForProcess,
+  withCreateProcess,
+ )
 import ZeitLingq.App.Driver (dispatchEvent, dispatchEvents)
-import ZeitLingq.App.Model (Model(..), PendingConfirmation(..))
+import ZeitLingq.App.Model (Model (..), PendingConfirmation (..))
 import ZeitLingq.App.Startup (loadInitialModel)
-import ZeitLingq.App.Update (Event(..), update)
+import ZeitLingq.App.Update (Event (..), update)
+import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
 import ZeitLingq.App.ViewModel
+import ZeitLingq.Core.Batch (BatchFetchResult (..), articleFetchFailures)
+import ZeitLingq.Core.Upload (
+  BatchUploadConfig (..),
+  BatchUploadResult (..),
+  articleUploadFailures,
+  targetCollectionFor,
+ )
+import ZeitLingq.Domain.Article (BatchDecision (..), applyWordFilter, lessonTitle, wordCount)
 import ZeitLingq.Domain.Section (allSections)
 import ZeitLingq.Domain.Types
 import ZeitLingq.Gui.BrowserSession
@@ -174,16 +187,16 @@ buildUI _ model =
           `styleBasic` [padding 12]
       ]
       `styleBasic` [bgColor (appBgColor model)]
-  where
-    vm = appViewModel model
+ where
+  vm = appViewModel model
 
-handleEvent
-  :: GuiRuntime
-  -> WidgetEnv Model GuiEvent
-  -> WidgetNode Model GuiEvent
-  -> Model
-  -> GuiEvent
-  -> [AppEventResponse Model GuiEvent]
+handleEvent ::
+  GuiRuntime ->
+  WidgetEnv Model GuiEvent ->
+  WidgetNode Model GuiEvent ->
+  Model ->
+  GuiEvent ->
+  [AppEventResponse Model GuiEvent]
 handleEvent runtime _ _ model event =
   case event of
     GuiInit ->
@@ -191,7 +204,7 @@ handleEvent runtime _ _ model event =
     GuiModelLoaded nextModel ->
       modelLoadedResponses runtime model nextModel
     GuiFailed message ->
-      [M.Model model {notification = Just (Notification ErrorNotice (friendlyFailureMessage message))}]
+      [M.Model model{notification = Just (Notification ErrorNotice (friendlyFailureMessage message))}]
     GuiViewSelected view ->
       [Task (runAppEvent ports model (ViewSelected view))]
     GuiRefresh ->
@@ -199,7 +212,8 @@ handleEvent runtime _ _ model event =
     GuiZeitCookieChanged cookie ->
       [Task (runAppEvent ports model (ZeitCookieChanged cookie))]
     GuiOpenZeitLoginPage ->
-      [Task (runSideEffect model (openExternalUrl zeitLoginUrl) "Opened Zeit login page in your browser.")]
+      [ Task (runSideEffect model (openExternalUrl zeitLoginUrl) "Opened Zeit login page in your browser.")
+      ]
     GuiZeitBrowserLogin ->
       withPendingNotice model "Opening browser-assisted Zeit login..." (runZeitBrowserLogin ports model)
     GuiZeitCookieLogin ->
@@ -213,11 +227,20 @@ handleEvent runtime _ _ model event =
     GuiLingqPasswordChanged password ->
       [Task (runAppEvent ports model (LingqPasswordChanged password))]
     GuiLingqLanguageChanged languageCode ->
-      withPendingNotice model "Switching LingQ language..." (runAppEvent ports model (LingqLanguageChanged languageCode))
+      withPendingNotice
+        model
+        "Switching LingQ language..."
+        (runAppEvent ports model (LingqLanguageChanged languageCode))
     GuiLingqApiKeyLogin ->
       [Task (runAppEvent ports model (LingqApiKeyLoginRequested (lingqApiKeyText model)))]
     GuiLingqPasswordLogin ->
-      [Task (runAppEvent ports model (LingqPasswordLoginRequested (lingqUsernameText model) (lingqPasswordText model)))]
+      [ Task
+          ( runAppEvent
+              ports
+              model
+              (LingqPasswordLoginRequested (lingqUsernameText model) (lingqPasswordText model))
+          )
+      ]
     GuiLingqLogout ->
       [Task (runAppEvent ports model LingqLogoutRequested)]
     GuiBrowseSectionSelected sectionIdent ->
@@ -227,9 +250,15 @@ handleEvent runtime _ _ model event =
     GuiBrowseNextPage ->
       [Task (runAppEvent ports model (BrowsePageChanged (browsePage model + 1)))]
     GuiBrowseMinWordsChanged raw ->
-      [Task (runAppEvent ports model (BrowseFilterChanged ((browseFilter model) {minWords = parseWordLimit raw})))]
+      [ Task
+          ( runAppEvent ports model (BrowseFilterChanged ((browseFilter model){minWords = parseWordLimit raw}))
+          )
+      ]
     GuiBrowseMaxWordsChanged raw ->
-      [Task (runAppEvent ports model (BrowseFilterChanged ((browseFilter model) {maxWords = parseWordLimit raw})))]
+      [ Task
+          ( runAppEvent ports model (BrowseFilterChanged ((browseFilter model){maxWords = parseWordLimit raw}))
+          )
+      ]
     GuiBrowseShowHiddenChanged enabled ->
       [Task (runAppEvent ports model (BrowseShowHiddenChanged enabled))]
     GuiBrowseOnlyNewChanged enabled ->
@@ -243,11 +272,17 @@ handleEvent runtime _ _ model event =
     GuiBrowseClearSelection ->
       [Task (runAppEvent ports model (BrowseSelectionChanged Set.empty))]
     GuiPreviewArticle article ->
-      withPendingNotice model "Loading article preview..." (runAppEvent ports model (BrowseArticlePreviewRequested article))
+      withPendingNotice
+        model
+        "Loading article preview..."
+        (runAppEvent ports model (BrowseArticlePreviewRequested article))
     GuiOpenArticle article ->
       [Task (runAppEvent ports model (ArticleOpened article))]
     GuiFetchArticle article ->
-      withPendingNotice model "Fetching and saving article..." (runAppEvent ports model (BrowseArticleFetchRequested article))
+      withPendingNotice
+        model
+        "Fetching and saving article..."
+        (runAppEvent ports model (BrowseArticleFetchRequested article))
     GuiHideBrowseArticle article ->
       [Task (runAppEvent ports model (BrowseArticleHidden (summaryUrl article)))]
     GuiUnhideBrowseArticle article ->
@@ -267,7 +302,13 @@ handleEvent runtime _ _ model event =
     GuiLingqToggleSelection ident ->
       [Task (runAppEvent ports model (LingqSelectionToggled ident))]
     GuiLingqSelectNotUploaded articles ->
-      [Task (runAppEvent ports model (LingqSelectionChanged (Set.fromList (savedSummaryIds (filter uploadableSummary articles)))))]
+      [ Task
+          ( runAppEvent
+              ports
+              model
+              (LingqSelectionChanged (Set.fromList (savedSummaryIds (filter uploadableSummary articles))))
+          )
+      ]
     GuiLingqClearSelection ->
       [Task (runAppEvent ports model (LingqSelectionChanged Set.empty))]
     GuiUploadSelected articles ->
@@ -278,14 +319,24 @@ handleEvent runtime _ _ model event =
       queueOrStartUploadJob runtime model "Uploading visible articles" articles
     GuiSyncLingqStatus ->
       case lingqFallbackCollection model of
-        Nothing -> [Task (runAppEvent ports model (Notify ErrorNotice "Choose a fallback LingQ course before syncing upload status."))]
+        Nothing ->
+          [ Task
+              ( runAppEvent
+                  ports
+                  model
+                  (Notify ErrorNotice "Choose a fallback LingQ course before syncing upload status.")
+              )
+          ]
         Just collectionId ->
           withPendingNotice
             model
             "Syncing local upload status from LingQ..."
             (runAppEvent ports model (LingqStatusSyncRequested (lingqLanguage model) collectionId))
     GuiDownloadAudio ident ->
-      withPendingNotice model "Downloading article audio..." (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))
+      withPendingNotice
+        model
+        "Downloading article audio..."
+        (runAppEvent ports model (ArticleAudioDownloadRequested "audio" ident))
     GuiOpenAudio ident ->
       [Task (runAppEvent ports model (ArticleAudioOpenRequested ident))]
     GuiOpenAudioSource url ->
@@ -313,16 +364,18 @@ handleEvent runtime _ _ model event =
     GuiClearCompletedJobs ->
       queueControlResponses runtime model CompletedJobsCleared
     GuiRunNextQueuedJob ->
-      startNextQueuedJobIfReady runtime (model {jobQueuePaused = False})
+      startNextQueuedJobIfReady runtime (model{jobQueuePaused = False})
     GuiCancelCurrentJob ->
       if modelBusy model
         then [Task (writeIORef cancelFlag True >> pure GuiCancelArmed)]
-        else [M.Model model {notification = Just (Notification InfoNotice "No running batch job to cancel.")}]
+        else
+          [M.Model model{notification = Just (Notification InfoNotice "No running batch job to cancel.")}]
     GuiCancelArmed ->
       [ M.Model
           model
             { jobQueuePaused = True
-            , notification = Just (Notification InfoNotice "Cancel requested. The queue is paused until you resume it.")
+            , notification =
+                Just (Notification InfoNotice "Cancel requested. The queue is paused until you resume it.")
             }
       ]
     GuiCopyRecentLog ->
@@ -335,29 +388,53 @@ handleEvent runtime _ _ model event =
     GuiUiThemeChanged theme ->
       [Task (runAppEvent ports model (UiThemeChanged theme))]
     GuiSyncKnownWords ->
-      withPendingNotice model "Syncing known words from LingQ..." (runAppEvent ports model (KnownWordsSyncRequested (lingqLanguage model)))
+      withPendingNotice
+        model
+        "Syncing known words from LingQ..."
+        (runAppEvent ports model (KnownWordsSyncRequested (lingqLanguage model)))
     GuiKnownImportTextChanged text ->
       [Task (runAppEvent ports model (KnownWordsImportTextChanged text))]
     GuiImportKnownWords ->
-      withPendingNotice model "Importing known words and updating estimates..." (runAppEvent ports model (KnownWordsImportRequested (lingqLanguage model) (knownImportText model) False))
+      withPendingNotice
+        model
+        "Importing known words and updating estimates..."
+        ( runAppEvent
+            ports
+            model
+            (KnownWordsImportRequested (lingqLanguage model) (knownImportText model) False)
+        )
     GuiComputeKnownWords ->
-      withPendingNotice model "Refreshing known-word percentages..." (runAppEvent ports model (KnownWordsComputeRequested (lingqLanguage model)))
+      withPendingNotice
+        model
+        "Refreshing known-word percentages..."
+        (runAppEvent ports model (KnownWordsComputeRequested (lingqLanguage model)))
     GuiClearKnownWords ->
       confirmOrRun
         model
         ConfirmClearKnownWords
         "Click Clear known words again to remove the local known-word database."
-        (\confirmedModel -> runAppEvent ports confirmedModel (KnownWordsClearRequested (lingqLanguage confirmedModel)))
+        ( \confirmedModel -> runAppEvent ports confirmedModel (KnownWordsClearRequested (lingqLanguage confirmedModel))
+        )
     GuiRefreshLanguages ->
-      withPendingNotice model "Refreshing LingQ languages..." (runAppEvent ports model LingqLanguagesRefreshRequested)
+      withPendingNotice
+        model
+        "Refreshing LingQ languages..."
+        (runAppEvent ports model LingqLanguagesRefreshRequested)
     GuiRefreshCollections ->
-      withPendingNotice model "Refreshing LingQ collections..." (runAppEvent ports model (LingqCollectionsRefreshRequested (lingqLanguage model)))
+      withPendingNotice
+        model
+        "Refreshing LingQ collections..."
+        (runAppEvent ports model (LingqCollectionsRefreshRequested (lingqLanguage model)))
     GuiLingqFallbackCollectionChanged collectionId ->
       [Task (runAppEvent ports model (LingqFallbackCollectionChanged collectionId))]
     GuiLingqMinWordsChanged raw ->
-      [Task (runAppEvent ports model (LingqFilterChanged ((lingqFilter model) {minWords = parseWordLimit raw})))]
+      [ Task
+          (runAppEvent ports model (LingqFilterChanged ((lingqFilter model){minWords = parseWordLimit raw})))
+      ]
     GuiLingqMaxWordsChanged raw ->
-      [Task (runAppEvent ports model (LingqFilterChanged ((lingqFilter model) {maxWords = parseWordLimit raw})))]
+      [ Task
+          (runAppEvent ports model (LingqFilterChanged ((lingqFilter model){maxWords = parseWordLimit raw})))
+      ]
     GuiLingqOnlyNotUploadedChanged enabled ->
       [Task (runAppEvent ports model (LingqOnlyNotUploadedChanged enabled))]
     GuiLingqKnownImportVisible enabled ->
@@ -367,15 +444,35 @@ handleEvent runtime _ _ model event =
     GuiLingqDatePrefixChanged enabled ->
       [Task (runAppEvent ports model (DatePrefixToggled enabled))]
     GuiLingqSectionCollectionChanged sectionName collectionId ->
-      [Task (runAppEvent ports model (SectionCollectionsChanged (updateSectionCollection sectionName collectionId (sectionCollections model))))]
+      [ Task
+          ( runAppEvent
+              ports
+              model
+              ( SectionCollectionsChanged
+                  (updateSectionCollection sectionName collectionId (sectionCollections model))
+              )
+          )
+      ]
     GuiLibrarySearchChanged search ->
       [Task (runAppEvent ports model (LibrarySearchChanged search))]
     GuiLibrarySectionChanged sectionName ->
       [Task (runAppEvent ports model (LibrarySectionChanged sectionName))]
     GuiLibraryMinWordsChanged raw ->
-      [Task (runAppEvent ports model (LibraryFilterChanged ((libraryFilter model) {minWords = parseWordLimit raw})))]
+      [ Task
+          ( runAppEvent
+              ports
+              model
+              (LibraryFilterChanged ((libraryFilter model){minWords = parseWordLimit raw}))
+          )
+      ]
     GuiLibraryMaxWordsChanged raw ->
-      [Task (runAppEvent ports model (LibraryFilterChanged ((libraryFilter model) {maxWords = parseWordLimit raw})))]
+      [ Task
+          ( runAppEvent
+              ports
+              model
+              (LibraryFilterChanged ((libraryFilter model){maxWords = parseWordLimit raw}))
+          )
+      ]
     GuiLibraryIncludeIgnoredChanged enabled ->
       [Task (runAppEvent ports model (LibraryIncludeIgnoredChanged enabled))]
     GuiLibraryOnlyIgnoredChanged enabled ->
@@ -393,9 +490,21 @@ handleEvent runtime _ _ model event =
     GuiLibraryDeleteDaysChanged daysText ->
       [Task (runAppEvent ports model (LibraryDeleteDaysChanged daysText))]
     GuiLibraryPreviousPage ->
-      [Task (runAppEvent ports model (LibraryPageChanged (libraryOffset (libraryQuery model) - libraryLimit (libraryQuery model))))]
+      [ Task
+          ( runAppEvent
+              ports
+              model
+              (LibraryPageChanged (libraryOffset (libraryQuery model) - libraryLimit (libraryQuery model)))
+          )
+      ]
     GuiLibraryNextPage ->
-      [Task (runAppEvent ports model (LibraryPageChanged (libraryOffset (libraryQuery model) + libraryLimit (libraryQuery model))))]
+      [ Task
+          ( runAppEvent
+              ports
+              model
+              (LibraryPageChanged (libraryOffset (libraryQuery model) + libraryLimit (libraryQuery model)))
+          )
+      ]
     GuiDeleteIgnoredArticles ->
       confirmOrRun
         model
@@ -404,12 +513,20 @@ handleEvent runtime _ _ model event =
         (\confirmedModel -> runAppEvent ports confirmedModel LibraryDeleteIgnoredRequested)
     GuiDeleteOldArticles onlyUploaded onlyUnuploaded ->
       case parsePositiveInt (libraryDeleteDaysText model) of
-        Nothing -> [Task (runAppEvent ports model (Notify ErrorNotice "Enter a positive day count before deleting old articles."))]
+        Nothing ->
+          [ Task
+              ( runAppEvent
+                  ports
+                  model
+                  (Notify ErrorNotice "Enter a positive day count before deleting old articles.")
+              )
+          ]
         Just days ->
           confirmOrRun
             model
             (ConfirmDeleteOldArticles days onlyUploaded onlyUnuploaded)
-            ("Click this delete action again to remove matching articles older than " <> tshow days <> " day(s).")
+            ( "Click this delete action again to remove matching articles older than " <> tshow days <> " day(s)."
+            )
             (\confirmedModel -> runDeleteOlderAppEvent ports confirmedModel days onlyUploaded onlyUnuploaded)
     GuiDeleteArticle ident ->
       confirmOrRun
@@ -418,7 +535,8 @@ handleEvent runtime _ _ model event =
         "Click Delete again to permanently remove this article."
         (\confirmedModel -> runAppEvent ports confirmedModel (ArticleDeleteRequested ident))
     GuiOpenDataFolder ->
-      [Task (runSideEffect model (getCurrentDirectory >>= openExternalPath) "Opened project data folder.")]
+      [ Task (runSideEffect model (getCurrentDirectory >>= openExternalPath) "Opened project data folder.")
+      ]
     GuiOpenLogs ->
       [Task (runSideEffect model (ensureLogFile >> openExternalPath logPath) "Opened log file.")]
     GuiCreateSupportBundle ->
@@ -427,20 +545,21 @@ handleEvent runtime _ _ model event =
       [Task (runAppEvent ports model ArticleClosed)]
     GuiClearNotice ->
       [Task (runAppEvent ports model NotificationCleared)]
-  where
-    ports = guiPorts runtime
-    cancelFlag = guiCancelFlag runtime
+ where
+  ports = guiPorts runtime
+  cancelFlag = guiCancelFlag runtime
 
 withPendingNotice :: Model -> Text -> IO GuiEvent -> [AppEventResponse Model GuiEvent]
 withPendingNotice model message task =
-  [ M.Model model {notification = Just (Notification InfoNotice message)}
+  [ M.Model model{notification = Just (Notification InfoNotice message)}
   , Task task
   ]
 
-confirmOrRun :: Model -> PendingConfirmation -> Text -> (Model -> IO GuiEvent) -> [AppEventResponse Model GuiEvent]
+confirmOrRun ::
+  Model -> PendingConfirmation -> Text -> (Model -> IO GuiEvent) -> [AppEventResponse Model GuiEvent]
 confirmOrRun model confirmation message task
   | pendingConfirmation model == Just confirmation =
-      let confirmedModel = model {pendingConfirmation = Nothing}
+      let confirmedModel = model{pendingConfirmation = Nothing}
        in [ M.Model confirmedModel
           , Task (task confirmedModel)
           ]
@@ -473,25 +592,31 @@ mergeLoadedModel current loaded =
 mergeCompletedJobs :: [CompletedJob] -> [CompletedJob] -> [CompletedJob]
 mergeCompletedJobs loaded current =
   take 30 (loaded <> filter isNew current)
-  where
-    loadedIds = Set.fromList (map completedJobId loaded)
-    isNew job = not (Set.member (completedJobId job) loadedIds)
+ where
+  loadedIds = Set.fromList (map completedJobId loaded)
+  isNew job = not (Set.member (completedJobId job) loadedIds)
 
-queueOrStartFetchJob :: GuiRuntime -> Model -> Text -> [ArticleSummary] -> [AppEventResponse Model GuiEvent]
+queueOrStartFetchJob ::
+  GuiRuntime -> Model -> Text -> [ArticleSummary] -> [AppEventResponse Model GuiEvent]
 queueOrStartFetchJob runtime model labelText articles
   | null articles = [Task (runAppEvent ports model (Notify ErrorNotice "No articles to fetch."))]
   | shouldQueueJob model = queueControlResponses runtime model (FetchJobQueued labelText articles)
-  | otherwise = startQueuedJob runtime model (QueuedFetchJob (nextJobId model) labelText (browseFilter model) articles)
-  where
-    ports = guiPorts runtime
+  | otherwise =
+      startQueuedJob
+        runtime
+        model
+        (QueuedFetchJob (nextJobId model) labelText (browseFilter model) articles)
+ where
+  ports = guiPorts runtime
 
-queueOrStartUploadJob :: GuiRuntime -> Model -> Text -> [ArticleSummary] -> [AppEventResponse Model GuiEvent]
+queueOrStartUploadJob ::
+  GuiRuntime -> Model -> Text -> [ArticleSummary] -> [AppEventResponse Model GuiEvent]
 queueOrStartUploadJob runtime model labelText articles
   | null articles = [Task (runAppEvent ports model (Notify ErrorNotice "No articles to upload."))]
   | shouldQueueJob model = queueControlResponses runtime model (UploadJobQueued labelText articles)
   | otherwise = startQueuedJob runtime model (QueuedUploadJob (nextJobId model) labelText articles)
-  where
-    ports = guiPorts runtime
+ where
+  ports = guiPorts runtime
 
 shouldQueueJob :: Model -> Bool
 shouldQueueJob model =
@@ -512,7 +637,7 @@ startNextQueuedJobIfReady runtime model
 
 startQueuedJob :: GuiRuntime -> Model -> QueuedJob -> [AppEventResponse Model GuiEvent]
 startQueuedJob runtime model job =
-  let reservedModel = model {nextJobId = max (nextJobId model) (queuedJobId job + 1)}
+  let reservedModel = model{nextJobId = max (nextJobId model) (queuedJobId job + 1)}
       (dequeuedModel, _commands) = update (QueuedJobStarted job) reservedModel
       startModel =
         dequeuedModel
@@ -521,13 +646,13 @@ startQueuedJob runtime model job =
           }
       producer =
         case job of
-          QueuedFetchJob {} -> runFetchBatchProducer runtime startModel job
-          QueuedUploadJob {} -> runUploadBatchProducer runtime startModel job
+          QueuedFetchJob{} -> runFetchBatchProducer runtime startModel job
+          QueuedUploadJob{} -> runUploadBatchProducer runtime startModel job
    in [M.Model startModel, Producer producer]
 
 queuedJobItemCount :: QueuedJob -> Int
-queuedJobItemCount QueuedFetchJob {queuedFetchArticles = articles} = length articles
-queuedJobItemCount QueuedUploadJob {queuedUploadArticles = articles} = length articles
+queuedJobItemCount QueuedFetchJob{queuedFetchArticles = articles} = length articles
+queuedJobItemCount QueuedUploadJob{queuedUploadArticles = articles} = length articles
 
 titleBlock :: Model -> AppViewModel -> WidgetNode Model GuiEvent
 titleBlock model vm =
@@ -602,18 +727,17 @@ sidebarBlock model vm =
 sideNavButton :: Model -> NavItem -> WidgetNode Model GuiEvent
 sideNavButton model item =
   button (navLabel item) (GuiViewSelected (navView item))
-    `styleBasic`
-      [ paddingH 10
-      , paddingV 2
-      , height 30
-      , width 196
-      , radius 10
-      , textSize 12
-      , textColor (if navActive item then primaryTextColor model else mainTextColor model)
-      , bgColor (if navActive item then primaryColor model else panelBgColor model)
-      , border 1 (if navActive item then primaryColor model else borderColor model)
-      , paddingB 6
-      ]
+    `styleBasic` [ paddingH 10
+                 , paddingV 2
+                 , height 30
+                 , width 196
+                 , radius 10
+                 , textSize 12
+                 , textColor (if navActive item then primaryTextColor model else mainTextColor model)
+                 , bgColor (if navActive item then primaryColor model else panelBgColor model)
+                 , border 1 (if navActive item then primaryColor model else borderColor model)
+                 , paddingB 6
+                 ]
 
 sidebarStatusBlock :: Model -> AppViewModel -> WidgetNode Model GuiEvent
 sidebarStatusBlock model vm =
@@ -710,11 +834,11 @@ uploadRetryFailureLabel failure =
     <> titleText
     <> ": "
     <> articleUploadFailureReason failure
-  where
-    titleText =
-      case articleUploadFailureTitle failure of
-        Just title | not (T.null title) -> " (" <> title <> ")"
-        _ -> ""
+ where
+  titleText =
+    case articleUploadFailureTitle failure of
+      Just title | not (T.null title) -> " (" <> title <> ")"
+      _ -> ""
 
 statusBlock :: Model -> AppViewModel -> WidgetNode Model GuiEvent
 statusBlock model vm =
@@ -723,15 +847,14 @@ statusBlock model vm =
 statusLabel :: Model -> StatusBadge -> WidgetNode Model GuiEvent
 statusLabel model badge =
   label (statusName badge <> ": " <> statusText badge)
-    `styleBasic`
-      [ paddingH 9
-      , paddingV 4
-      , paddingR 10
-      , radius 12
-      , textSize 11
-      , textColor (if statusConnected badge then primaryColor model else warningColor model)
-      , bgColor (panelAltColor model)
-      ]
+    `styleBasic` [ paddingH 9
+                 , paddingV 4
+                 , paddingR 10
+                 , radius 12
+                 , textSize 11
+                 , textColor (if statusConnected badge then primaryColor model else warningColor model)
+                 , bgColor (panelAltColor model)
+                 ]
 
 notificationBlock :: Model -> WidgetNode Model GuiEvent
 notificationBlock model =
@@ -774,11 +897,11 @@ progressMeter model meterWidth progress =
     , spacer
         `styleBasic` [height 7, width fillWidth, radius 4, bgColor (primaryColor model)]
     ]
-  where
-    fillWidth =
-      if progressTotal progress <= 0
-        then 0
-        else max 6 (meterWidth * progressFraction progress)
+ where
+  fillWidth =
+    if progressTotal progress <= 0
+      then 0
+      else max 6 (meterWidth * progressFraction progress)
 
 progressFraction :: ProgressStatus -> Double
 progressFraction progress
@@ -793,86 +916,80 @@ progressCountText progress =
 primaryButton :: Model -> Text -> GuiEvent -> WidgetNode Model GuiEvent
 primaryButton model caption event =
   button caption event
-    `styleBasic`
-      [ paddingH 10
-      , paddingV 2
-      , height 28
-      , radius 10
-      , textSize 12
-      , textColor (primaryTextColor model)
-      , bgColor (primaryColor model)
-      , border 1 (primaryColor model)
-      ]
+    `styleBasic` [ paddingH 10
+                 , paddingV 2
+                 , height 28
+                 , radius 10
+                 , textSize 12
+                 , textColor (primaryTextColor model)
+                 , bgColor (primaryColor model)
+                 , border 1 (primaryColor model)
+                 ]
 
 secondaryButton :: Model -> Text -> GuiEvent -> WidgetNode Model GuiEvent
 secondaryButton model caption event =
   button caption event
-    `styleBasic`
-      [ paddingH 10
-      , paddingV 2
-      , height 28
-      , radius 10
-      , textSize 12
-      , textColor (mainTextColor model)
-      , bgColor (panelAltColor model)
-      , border 1 (borderColor model)
-      ]
+    `styleBasic` [ paddingH 10
+                 , paddingV 2
+                 , height 28
+                 , radius 10
+                 , textSize 12
+                 , textColor (mainTextColor model)
+                 , bgColor (panelAltColor model)
+                 , border 1 (borderColor model)
+                 ]
 
 dangerButton :: Model -> Text -> GuiEvent -> WidgetNode Model GuiEvent
 dangerButton model caption event =
   button caption event
-    `styleBasic`
-      [ paddingH 10
-      , paddingV 2
-      , height 28
-      , radius 10
-      , textSize 12
-      , textColor (mainTextColor model)
-      , bgColor (dangerBgColor model)
-      , border 1 (dangerColor model)
-      ]
+    `styleBasic` [ paddingH 10
+                 , paddingV 2
+                 , height 28
+                 , radius 10
+                 , textSize 12
+                 , textColor (mainTextColor model)
+                 , bgColor (dangerBgColor model)
+                 , border 1 (dangerColor model)
+                 ]
 
 rowPrimaryButton :: Model -> Text -> GuiEvent -> WidgetNode Model GuiEvent
 rowPrimaryButton model caption event =
   button caption event
-    `styleBasic`
-      [ paddingH 7
-      , paddingV 1
-      , height 22
-      , radius 8
-      , textSize 10
-      , textColor (primaryTextColor model)
-      , bgColor (primaryColor model)
-      , border 1 (primaryColor model)
-      ]
+    `styleBasic` [ paddingH 7
+                 , paddingV 1
+                 , height 22
+                 , radius 8
+                 , textSize 10
+                 , textColor (primaryTextColor model)
+                 , bgColor (primaryColor model)
+                 , border 1 (primaryColor model)
+                 ]
 
 rowSecondaryButton :: Model -> Text -> GuiEvent -> WidgetNode Model GuiEvent
 rowSecondaryButton model caption event =
   button caption event
-    `styleBasic`
-      [ paddingH 7
-      , paddingV 1
-      , height 22
-      , radius 8
-      , textSize 10
-      , textColor (mainTextColor model)
-      , bgColor (panelBgColor model)
-      , border 1 (borderColor model)
-      ]
+    `styleBasic` [ paddingH 7
+                 , paddingV 1
+                 , height 22
+                 , radius 8
+                 , textSize 10
+                 , textColor (mainTextColor model)
+                 , bgColor (panelBgColor model)
+                 , border 1 (borderColor model)
+                 ]
 
 rowDangerButton :: Model -> Text -> GuiEvent -> WidgetNode Model GuiEvent
 rowDangerButton model caption event =
   button caption event
-    `styleBasic`
-      [ paddingH 7
-      , paddingV 1
-      , height 22
-      , radius 8
-      , textSize 10
-      , textColor (mainTextColor model)
-      , bgColor (dangerBgColor model)
-      , border 1 (dangerColor model)
-      ]
+    `styleBasic` [ paddingH 7
+                 , paddingV 1
+                 , height 22
+                 , radius 8
+                 , textSize 10
+                 , textColor (mainTextColor model)
+                 , bgColor (dangerBgColor model)
+                 , border 1 (dangerColor model)
+                 ]
 
 inputStyle :: Model -> [StyleState]
 inputStyle model =
@@ -910,11 +1027,11 @@ sectionLabelForId ident =
 findSection :: Text -> Maybe Section
 findSection ident =
   go allSections
-  where
-    go [] = Nothing
-    go (section : rest)
-      | sectionId section == ident = Just section
-      | otherwise = go rest
+ where
+  go [] = Nothing
+  go (section : rest)
+    | sectionId section == ident = Just section
+    | otherwise = go rest
 
 contentBlock :: Model -> AppViewModel -> WidgetNode Model GuiEvent
 contentBlock model vm =
@@ -945,15 +1062,14 @@ screenSummary model vm =
 metaChip :: Model -> Text -> WidgetNode Model GuiEvent
 metaChip model caption =
   label caption
-    `styleBasic`
-      [ paddingH 10
-      , paddingV 4
-      , radius 12
-      , textSize 11
-      , textColor (mutedTextColor model)
-      , bgColor (panelAltColor model)
-      , border 1 (borderColor model)
-      ]
+    `styleBasic` [ paddingH 10
+                 , paddingV 4
+                 , radius 12
+                 , textSize 11
+                 , textColor (mutedTextColor model)
+                 , bgColor (panelAltColor model)
+                 , border 1 (borderColor model)
+                 ]
 
 zeitControls :: Model -> WidgetNode Model GuiEvent
 zeitControls model =
@@ -962,7 +1078,8 @@ zeitControls model =
       vstack
         [ label "Zeit cookie session"
             `styleBasic` [textSize 16, paddingT 8]
-        , label "Use Browser login & import first. It opens real Edge/Chrome, imports the zeit.de cookies, and reuses that browser user-agent for article requests."
+        , label
+            "Use Browser login & import first. It opens real Edge/Chrome, imports the zeit.de cookies, and reuses that browser user-agent for article requests."
             `styleBasic` [textSize 12, paddingB 6]
         , label_ ("Fetch identity: " <> compactUserAgent (zeitUserAgentText model)) [ellipsis]
             `styleBasic` [textSize 11, textColor (mutedTextColor model), paddingB 6]
@@ -985,8 +1102,8 @@ compactUserAgent :: Text -> Text
 compactUserAgent raw
   | T.null stripped = "default browser-like request headers"
   | otherwise = stripped
-  where
-    stripped = T.strip raw
+ where
+  stripped = T.strip raw
 
 diagnosticsControls :: Model -> WidgetNode Model GuiEvent
 diagnosticsControls model =
@@ -1040,7 +1157,10 @@ diagnosticsJobPanel model =
     , hstack
         [ label ("Queue: " <> (if jobQueuePaused model then "paused" else "running"))
             `styleBasic` [textColor (mutedTextColor model), paddingR 12]
-        , secondaryButton model (if jobQueuePaused model then "Resume queue" else "Pause queue") (GuiQueuePausedChanged (not (jobQueuePaused model)))
+        , secondaryButton
+            model
+            (if jobQueuePaused model then "Resume queue" else "Pause queue")
+            (GuiQueuePausedChanged (not (jobQueuePaused model)))
         , secondaryButton model "Cancel current" GuiCancelCurrentJob
         , secondaryButton model "Run next" GuiRunNextQueuedJob
         , dangerButton model "Clear queue" GuiClearQueuedJobs
@@ -1129,7 +1249,9 @@ completedJobLine model job =
         , mutedLabel model (jobKindLabel (completedJobKind job))
         , filler
         , label (if completedJobSucceeded job then "success" else "needs attention")
-            `styleBasic` [textSize 11, textColor (if completedJobSucceeded job then primaryColor model else warningColor model)]
+            `styleBasic` [ textSize 11
+                         , textColor (if completedJobSucceeded job then primaryColor model else warningColor model)
+                         ]
         ]
     , label_ (completedJobSummary job) [ellipsis]
         `styleBasic` [textSize 11, textColor (mutedTextColor model), paddingT 2]
@@ -1137,8 +1259,8 @@ completedJobLine model job =
     `styleBasic` [paddingT 6]
 
 queuedJobKind :: QueuedJob -> JobKind
-queuedJobKind QueuedFetchJob {} = FetchJob
-queuedJobKind QueuedUploadJob {} = UploadJob
+queuedJobKind QueuedFetchJob{} = FetchJob
+queuedJobKind QueuedUploadJob{} = UploadJob
 
 jobKindLabel :: JobKind -> Text
 jobKindLabel FetchJob = "Fetch"
@@ -1185,16 +1307,21 @@ browseControls model =
             , secondaryButton model "Deselect" GuiBrowseClearSelection
             , label (tshow (Set.size (browseSelectedUrls model)) <> " selected")
                 `styleBasic` [paddingL 8, paddingR 12, textColor (mutedTextColor model)]
-            , primaryButton model ("Fetch selected (" <> tshow (Set.size (browseSelectedUrls model)) <> ")") (GuiFetchSelected visible)
+            , primaryButton
+                model
+                ("Fetch selected (" <> tshow (Set.size (browseSelectedUrls model)) <> ")")
+                (GuiFetchSelected visible)
             , secondaryButton model ("Fetch shown (" <> tshow (length visible) <> ")") (GuiFetchVisible visible)
-            , mutedLabel model (tshow (length visible) <> " shown / " <> tshow (length (browseArticles model)) <> " loaded")
+            , mutedLabel
+                model
+                (tshow (length visible) <> " shown / " <> tshow (length (browseArticles model)) <> " loaded")
             ]
             `styleBasic` [paddingB 8]
         ]
         `styleBasic` [paddingB 8]
     _ -> emptyBlock
-  where
-    visible = visibleBrowseArticles model
+ where
+  visible = visibleBrowseArticles model
 
 browseSessionNotice :: Model -> WidgetNode Model GuiEvent
 browseSessionNotice model
@@ -1229,7 +1356,10 @@ libraryControls model =
                 `styleBasic` (inputStyle model <> [width 160])
             , label "Search"
                 `styleBasic` [paddingL 12, paddingR 8, textColor (mutedTextColor model)]
-            , textFieldV_ (maybe "" id (librarySearch query)) GuiLibrarySearchChanged [placeholder "Title or article text"]
+            , textFieldV_
+                (maybe "" id (librarySearch query))
+                GuiLibrarySearchChanged
+                [placeholder "Title or article text"]
                 `styleBasic` (inputStyle model <> [width 260])
             , label "Min"
                 `styleBasic` [paddingL 12, paddingR 6, textColor (mutedTextColor model)]
@@ -1278,8 +1408,8 @@ libraryControls model =
         ]
         `styleBasic` [paddingV 8]
     _ -> emptyBlock
-  where
-    query = libraryQuery model
+ where
+  query = libraryQuery model
 
 libraryStatsBlock :: Model -> WidgetNode Model GuiEvent
 libraryStatsBlock model =
@@ -1320,13 +1450,14 @@ librarySectionControls model =
             `styleBasic` (inputStyle model <> [width 300])
         ]
         `styleBasic` [paddingT 8, paddingB 4]
-  where
-    activeSection = librarySection (libraryQuery model)
-    sections = maybe [] (Map.toList . sectionCounts) (libraryStats model)
-    activeSectionValue = maybe "" id activeSection
-    sectionText "" = "All sections"
-    sectionText sectionName =
-      sectionName <> maybe "" (\total -> " (" <> tshow total <> ")") (Map.lookup sectionName (Map.fromList sections))
+ where
+  activeSection = librarySection (libraryQuery model)
+  sections = maybe [] (Map.toList . sectionCounts) (libraryStats model)
+  activeSectionValue = maybe "" id activeSection
+  sectionText "" = "All sections"
+  sectionText sectionName =
+    sectionName
+      <> maybe "" (\total -> " (" <> tshow total <> ")") (Map.lookup sectionName (Map.fromList sections))
 
 allLibrarySorts :: [LibrarySort]
 allLibrarySorts =
@@ -1399,10 +1530,10 @@ libraryPageLabel model
         <> tshow lastItem
         <> " of "
         <> tshow (libraryTotal model)
-  where
-    query = libraryQuery model
-    firstItem = libraryOffset query + 1
-    lastItem = min (libraryTotal model) (libraryOffset query + libraryLimit query)
+ where
+  query = libraryQuery model
+  firstItem = libraryOffset query + 1
+  lastItem = min (libraryTotal model) (libraryOffset query + libraryLimit query)
 
 lingqControls :: Model -> WidgetNode Model GuiEvent
 lingqControls model =
@@ -1413,12 +1544,21 @@ lingqControls model =
         , lingqFilterControls model
         , lingqTargetControls model
         , hstack
-            [ secondaryButton model ("Select not uploaded (" <> tshow (length uploadable) <> ")") (GuiLingqSelectNotUploaded (lingqArticles model))
+            [ secondaryButton
+                model
+                ("Select not uploaded (" <> tshow (length uploadable) <> ")")
+                (GuiLingqSelectNotUploaded (lingqArticles model))
             , secondaryButton model "Deselect" GuiLingqClearSelection
             , label (tshow (Set.size (lingqSelectedIds model)) <> " selected")
                 `styleBasic` [paddingH 8, textColor (mutedTextColor model)]
-            , primaryButton model ("Upload selected (" <> tshow (Set.size (lingqSelectedIds model)) <> ")") (GuiUploadSelected (lingqArticles model))
-            , secondaryButton model ("Upload visible (" <> T.pack (show (length uploadable)) <> ")") (GuiUploadVisible (lingqArticles model))
+            , primaryButton
+                model
+                ("Upload selected (" <> tshow (Set.size (lingqSelectedIds model)) <> ")")
+                (GuiUploadSelected (lingqArticles model))
+            , secondaryButton
+                model
+                ("Upload visible (" <> T.pack (show (length uploadable)) <> ")")
+                (GuiUploadVisible (lingqArticles model))
             , secondaryButton model "Sync status" GuiSyncLingqStatus
             ]
             `styleBasic` [paddingB 6]
@@ -1431,11 +1571,13 @@ lingqControls model =
         , label ("Known stems (" <> lingqLanguage model <> "): " <> tshow (knownStemTotal model))
             `styleBasic` [paddingT 8, textColor (mutedTextColor model)]
         , hstack
-            [ secondaryButton model
+            [ secondaryButton
+                model
                 (if lingqShowKnownImport model then "Hide known-word import" else "Import known words")
                 (GuiLingqKnownImportVisible (not (lingqShowKnownImport model)))
             , dangerButton model "Clear known words" GuiClearKnownWords
-            , secondaryButton model
+            , secondaryButton
+                model
                 (if lingqShowSectionMappings model then "Hide section mapping" else "Map sections")
                 (GuiLingqMappingsVisible (not (lingqShowSectionMappings model)))
             ]
@@ -1445,13 +1587,13 @@ lingqControls model =
         ]
         `styleBasic` [paddingV 8]
     _ -> emptyBlock
-  where
-    uploadable =
-      [ article
-      | article <- lingqArticles model
-      , not (summaryUploaded article)
-      , not (summaryIgnored article)
-      ]
+ where
+  uploadable =
+    [ article
+    | article <- lingqArticles model
+    , not (summaryUploaded article)
+    , not (summaryIgnored article)
+    ]
 
 lingqFilterControls :: Model -> WidgetNode Model GuiEvent
 lingqFilterControls model =
@@ -1485,25 +1627,32 @@ lingqTargetControls model =
     , label "Course"
         `styleBasic` [paddingL 16, paddingR 8, textColor (mutedTextColor model)]
     , collectionPicker model
-    , mutedLabel model (if null (lingqCollections model) then "Refresh collections to use names." else "Blank keeps lessons standalone.")
+    , mutedLabel
+        model
+        ( if null (lingqCollections model)
+            then "Refresh collections to use names."
+            else "Blank keeps lessons standalone."
+        )
     ]
     `styleBasic` [paddingB 8]
 
 collectionPicker :: Model -> WidgetNode Model GuiEvent
 collectionPicker model =
   if null (lingqCollections model)
-    then textFieldV_
-          (maybe "" id (lingqFallbackCollection model))
-          GuiLingqFallbackCollectionChanged
-          [placeholder "collection id or blank"]
-          `styleBasic` (inputStyle model <> [width 230])
-    else textDropdownV_
-          (maybe "" id (lingqFallbackCollection model))
-          GuiLingqFallbackCollectionChanged
-          ("" : map collectionId (lingqCollections model))
-          (collectionLabelFor model)
-          [maxHeight 320]
-          `styleBasic` (inputStyle model <> [width 320])
+    then
+      textFieldV_
+        (maybe "" id (lingqFallbackCollection model))
+        GuiLingqFallbackCollectionChanged
+        [placeholder "collection id or blank"]
+        `styleBasic` (inputStyle model <> [width 230])
+    else
+      textDropdownV_
+        (maybe "" id (lingqFallbackCollection model))
+        GuiLingqFallbackCollectionChanged
+        ("" : map collectionId (lingqCollections model))
+        (collectionLabelFor model)
+        [maxHeight 320]
+        `styleBasic` (inputStyle model <> [width 320])
 
 languageOptions :: Model -> [Text]
 languageOptions model =
@@ -1522,10 +1671,10 @@ languageLabelFor model code =
 uniqueTexts :: [Text] -> [Text]
 uniqueTexts =
   reverse . snd . foldl addUnique (Set.empty, [])
-  where
-    addUnique (seen, values) value
-      | T.null value || Set.member value seen = (seen, values)
-      | otherwise = (Set.insert value seen, value : values)
+ where
+  addUnique (seen, values) value
+    | T.null value || Set.member value seen = (seen, values)
+    | otherwise = (Set.insert value seen, value : values)
 
 collectionLabelFor :: Model -> Text -> Text
 collectionLabelFor _ "" = "Standalone lesson"
@@ -1554,22 +1703,27 @@ sectionMappingsPanel :: Model -> WidgetNode Model GuiEvent
 sectionMappingsPanel model
   | not (lingqShowSectionMappings model) = emptyBlock
   | otherwise =
-      vscroll (vstack ((label "Per-section LingQ collections" `styleBasic` [textColor (mainTextColor model), paddingB 6]) : map collectionRow allSections))
+      vscroll
+        ( vstack
+            ( (label "Per-section LingQ collections" `styleBasic` [textColor (mainTextColor model), paddingB 6])
+                : map collectionRow allSections
+            )
+        )
         `styleBasic` [height 260, paddingT 8]
-  where
-    collectionRow section =
-      hstack
-        [ label (sectionLabel section)
-            `styleBasic` [width 150, textColor (mutedTextColor model)]
-        , textDropdownV_
-            (Map.findWithDefault "" (sectionLabel section) (sectionCollections model))
-            (GuiLingqSectionCollectionChanged (sectionLabel section))
-            ("" : map collectionId (lingqCollections model))
-            (collectionLabelFor model)
-            [maxHeight 260]
-            `styleBasic` (inputStyle model <> [width 320])
-        ]
-        `styleBasic` [paddingB 4]
+ where
+  collectionRow section =
+    hstack
+      [ label (sectionLabel section)
+          `styleBasic` [width 150, textColor (mutedTextColor model)]
+      , textDropdownV_
+          (Map.findWithDefault "" (sectionLabel section) (sectionCollections model))
+          (GuiLingqSectionCollectionChanged (sectionLabel section))
+          ("" : map collectionId (lingqCollections model))
+          (collectionLabelFor model)
+          [maxHeight 260]
+          `styleBasic` (inputStyle model <> [width 320])
+      ]
+      `styleBasic` [paddingB 4]
 
 lingqLoginControls :: Model -> WidgetNode Model GuiEvent
 lingqLoginControls model
@@ -1651,19 +1805,19 @@ articleDetailLine :: Model -> ArticleRowView -> Maybe Article -> WidgetNode Mode
 articleDetailLine model row maybeContent =
   label (T.intercalate "  /  " (filter (not . T.null) parts))
     `styleBasic` [textSize 12, textColor (mutedTextColor model)]
-  where
-    parts =
-      case maybeContent of
-        Nothing ->
-          [rowMeta row, rowKnownPct row, rowUploadStatus row]
-        Just content ->
-          [ articleSection content
-          , maybe "" id (articleDate content)
-          , if T.null (articleAuthor content) then "" else "By " <> articleAuthor content
-          , tshow (wordCount content) <> " words"
-          , rowKnownPct row
-          , rowUploadStatus row
-          ]
+ where
+  parts =
+    case maybeContent of
+      Nothing ->
+        [rowMeta row, rowKnownPct row, rowUploadStatus row]
+      Just content ->
+        [ articleSection content
+        , maybe "" id (articleDate content)
+        , if T.null (articleAuthor content) then "" else "By " <> articleAuthor content
+        , tshow (wordCount content) <> " words"
+        , rowKnownPct row
+        , rowUploadStatus row
+        ]
 
 articleAudioLine :: Model -> Maybe Article -> WidgetNode Model GuiEvent
 articleAudioLine model maybeContent =
@@ -1672,12 +1826,12 @@ articleAudioLine model maybeContent =
     Just content ->
       label ("Audio: " <> audioStatus)
         `styleBasic` [textSize 12, textColor (mutedTextColor model)]
-      where
-        audioStatus =
-          case (articleAudioUrl content, articleAudioPath content) of
-            (_, Just _) -> "downloaded"
-            (Just _, Nothing) -> "available"
-            (Nothing, Nothing) -> "not found for this article"
+     where
+      audioStatus =
+        case (articleAudioUrl content, articleAudioPath content) of
+          (_, Just _) -> "downloaded"
+          (Just _, Nothing) -> "available"
+          (Nothing, Nothing) -> "not found for this article"
 
 articleButtons :: Model -> Maybe ArticleSummary -> Maybe Article -> [WidgetNode Model GuiEvent]
 articleButtons model Nothing _ = [secondaryButton model "Back to library" GuiCloseArticle]
@@ -1685,7 +1839,10 @@ articleButtons model (Just article) maybeContent =
   [ secondaryButton model "Back to library" GuiCloseArticle
   , secondaryButton model "Original" (GuiOpenExternal (summaryUrl article))
   ]
-    <> maybe [] (\content -> [secondaryButton model "Copy text" (GuiCopyText (articleCopyText content))]) maybeContent
+    <> maybe
+      []
+      (\content -> [secondaryButton model "Copy text" (GuiCopyText (articleCopyText content))])
+      maybeContent
     <> maybe [] (\ident -> uploadAction model ident article) (summaryId article)
     <> audioButtons model article maybeContent
     <> maybe [] (\ident -> [dangerButton model "Delete" (GuiDeleteArticle ident)]) (summaryId article)
@@ -1698,7 +1855,10 @@ audioButtons model summary maybeContent =
       let maybeAudioUrl = maybeContent >>= articleAudioUrl
           maybeAudioPath = maybeContent >>= articleAudioPath
        in maybe [] (const [secondaryButton model "Download audio" (GuiDownloadAudio ident)]) maybeAudioUrl
-            <> maybe [] (\audioUrl -> [secondaryButton model "Open audio source" (GuiOpenAudioSource audioUrl)]) maybeAudioUrl
+            <> maybe
+              []
+              (\audioUrl -> [secondaryButton model "Open audio source" (GuiOpenAudioSource audioUrl)])
+              maybeAudioUrl
             <> maybe [] (const [secondaryButton model "Open downloaded audio" (GuiOpenAudio ident)]) maybeAudioPath
 
 articleParagraphsBlock :: Model -> [Text] -> WidgetNode Model GuiEvent
@@ -1730,23 +1890,26 @@ articleRowsBlock model [] =
 articleRowsBlock model rows =
   vscroll (vstack rowWidgets)
     `styleBasic` [paddingT 8]
-  where
-    rowWidgets =
-      case currentView model of
-        LibraryView | libraryGroupBySection model -> concatMap groupedRows (groupArticlesBySection rows)
-        _ -> map (articleRowBlock model) rows
-    groupedRows (sectionName, articles) =
-      let collapsed = Set.member sectionName (libraryCollapsedSections model)
-          heading =
-            hstack
-              [ rowSecondaryButton model (if collapsed then "Show" else "Hide") (GuiLibraryToggleSection sectionName)
-              , label (sectionName <> " (" <> tshow (length articles) <> ")")
-                  `styleBasic` [textSize 15, textColor (primaryColor model), paddingL 8]
-              ]
-              `styleBasic` [paddingT 8, paddingB 4]
-       in if collapsed
-            then [heading]
-            else heading : map (articleRowBlock model) articles
+ where
+  rowWidgets =
+    case currentView model of
+      LibraryView | libraryGroupBySection model -> concatMap groupedRows (groupArticlesBySection rows)
+      _ -> map (articleRowBlock model) rows
+  groupedRows (sectionName, articles) =
+    let collapsed = Set.member sectionName (libraryCollapsedSections model)
+        heading =
+          hstack
+            [ rowSecondaryButton
+                model
+                (if collapsed then "Show" else "Hide")
+                (GuiLibraryToggleSection sectionName)
+            , label (sectionName <> " (" <> tshow (length articles) <> ")")
+                `styleBasic` [textSize 15, textColor (primaryColor model), paddingL 8]
+            ]
+            `styleBasic` [paddingT 8, paddingB 4]
+     in if collapsed
+          then [heading]
+          else heading : map (articleRowBlock model) articles
 
 emptyRowsHint :: View -> Text
 emptyRowsHint view =
@@ -1761,12 +1924,12 @@ emptyRowsHint view =
 groupArticlesBySection :: [ArticleSummary] -> [(Text, [ArticleSummary])]
 groupArticlesBySection =
   Map.toList . foldr addArticle Map.empty
-  where
-    addArticle article =
-      Map.insertWith (<>) (sectionKey article) [article]
-    sectionKey article
-      | T.null (summarySection article) = "(uncategorized)"
-      | otherwise = summarySection article
+ where
+  addArticle article =
+    Map.insertWith (<>) (sectionKey article) [article]
+  sectionKey article
+    | T.null (summarySection article) = "(uncategorized)"
+    | otherwise = summarySection article
 
 articleRowBlock :: Model -> ArticleSummary -> WidgetNode Model GuiEvent
 articleRowBlock model article =
@@ -1782,15 +1945,14 @@ articleRowBlock model article =
     , hstack (rowActions model (currentView model) article)
         `styleBasic` [paddingL 10]
     ]
-    `styleBasic`
-      [ height (rowHeight model)
-      , padding (rowPadding model)
-      , radius 12
-      , bgColor (articleRowBgColor model article)
-      , border 1 (articleRowBorderColor model article)
-      ]
-  where
-    row = articleRowView article
+    `styleBasic` [ height (rowHeight model)
+                 , padding (rowPadding model)
+                 , radius 12
+                 , bgColor (articleRowBgColor model article)
+                 , border 1 (articleRowBorderColor model article)
+                 ]
+ where
+  row = articleRowView article
 
 articleRowBgColor :: Model -> ArticleSummary -> Color
 articleRowBgColor model article
@@ -1856,24 +2018,30 @@ rowActions model BrowseView article =
   [ rowSecondaryButton model "Preview" (GuiPreviewArticle article)
   , rowPrimaryButton model "Fetch" (GuiFetchArticle article)
   , rowSecondaryButton model "Original" (GuiOpenExternal (summaryUrl article))
-  , rowSecondaryButton model
+  , rowSecondaryButton
+      model
       (if summaryIgnored article then "Unhide" else "Hide")
       (if summaryIgnored article then GuiUnhideBrowseArticle article else GuiHideBrowseArticle article)
   ]
-    <> maybe [] (const [rowSecondaryButton model "Open saved" (GuiOpenArticle article)]) (summaryId article)
+    <> maybe
+      []
+      (const [rowSecondaryButton model "Open saved" (GuiOpenArticle article)])
+      (summaryId article)
 rowActions model _ article =
   maybe
     []
-    (\ident ->
-      [ rowSecondaryButton model "Open" (GuiOpenArticle article)
-      , rowSecondaryButton model "Original" (GuiOpenExternal (summaryUrl article))
-      ]
-        <> uploadAction model ident article
-        <> [ rowSecondaryButton model
-               (if summaryIgnored article then "Unignore" else "Ignore")
-               (GuiToggleIgnored article)
-           , rowDangerButton model "Delete" (GuiDeleteArticle ident)
-           ])
+    ( \ident ->
+        [ rowSecondaryButton model "Open" (GuiOpenArticle article)
+        , rowSecondaryButton model "Original" (GuiOpenExternal (summaryUrl article))
+        ]
+          <> uploadAction model ident article
+          <> [ rowSecondaryButton
+                model
+                (if summaryIgnored article then "Unignore" else "Ignore")
+                (GuiToggleIgnored article)
+             , rowDangerButton model "Delete" (GuiDeleteArticle ident)
+             ]
+    )
     (summaryId article)
 
 uploadAction :: Model -> ArticleId -> ArticleSummary -> [WidgetNode Model GuiEvent]
@@ -1895,19 +2063,19 @@ rowsForCurrentView model =
 visibleBrowseArticles :: Model -> [ArticleSummary]
 visibleBrowseArticles model =
   filter matchesSearch (filter matchesOnlyNew (browseArticles model))
-  where
-    rawSearch = T.strip (T.toLower (browseSearch model))
-    matchesOnlyNew article =
-      not (browseOnlyNew model) || summaryId article == Nothing
-    matchesSearch article
-      | T.null rawSearch = True
-      | otherwise =
-          any
-            (T.isInfixOf rawSearch . T.toLower)
-            [ summaryTitle article
-            , summarySection article
-            , summaryUrl article
-            ]
+ where
+  rawSearch = T.strip (T.toLower (browseSearch model))
+  matchesOnlyNew article =
+    not (browseOnlyNew model) || summaryId article == Nothing
+  matchesSearch article
+    | T.null rawSearch = True
+    | otherwise =
+        any
+          (T.isInfixOf rawSearch . T.toLower)
+          [ summaryTitle article
+          , summarySection article
+          , summaryUrl article
+          ]
 
 noticeText :: Notification -> Text
 noticeText notice =
@@ -1955,46 +2123,53 @@ runFetchBatchProducer runtime model job send =
         ports
         model
         [ BatchFetchFinished failures
-        , CompletedJobRecorded (CompletedJob (queuedJobId job) FetchJob (queuedJobLabel job) finalSummary (not cancelled && null failures))
+        , CompletedJobRecorded
+            ( CompletedJob
+                (queuedJobId job)
+                FetchJob
+                (queuedJobLabel job)
+                finalSummary
+                (not cancelled && null failures)
+            )
         , Notify (if cancelled then InfoNotice else guiBatchFetchLevel results) finalSummary
         , RefreshCurrentView
         ]
     send (GuiModelLoaded finalModel)
-  where
-    ports = guiPorts runtime
-    cancelFlag = guiCancelFlag runtime
-    articles = queuedFetchArticles job
-    total = length articles
-    sendProgress current detail =
-      send (GuiProgress (Just (ProgressStatus (queuedJobLabel job) current total detail)))
-    fetchMany acc [] = pure (reverse acc, False)
-    fetchMany acc (item : rest) = do
-      cancelled <- readIORef cancelFlag
-      if cancelled
-        then pure (reverse acc, True)
-        else do
-          result <- fetchOne item
-          fetchMany (result : acc) rest
-    fetchOne (index, article) = do
-      sendProgress (index - 1) (summaryTitle article)
-      result <- fetchArticleForBatch article
-      sendProgress index (batchFetchProgressDetail result)
-      pure result
-    fetchArticleForBatch article = do
-      let url = summaryUrl article
-      fetched <- tryText (fetchArticleContent (zeitPort ports) url)
-      case fetched of
-        Left err -> pure (BatchFailed url err)
-        Right fetchedArticle ->
-          case applyWordFilter filters fetchedArticle of
-            KeepArticle -> do
-              saved <- tryText (saveArticle (libraryPort ports) fetchedArticle)
-              pure $
-                case saved of
-                  Left err -> BatchFailed url err
-                  Right savedId -> BatchSaved url savedId
-            decision -> pure (BatchSkipped url decision)
-    filters = queuedFetchFilter job
+ where
+  ports = guiPorts runtime
+  cancelFlag = guiCancelFlag runtime
+  articles = queuedFetchArticles job
+  total = length articles
+  sendProgress current detail =
+    send (GuiProgress (Just (ProgressStatus (queuedJobLabel job) current total detail)))
+  fetchMany acc [] = pure (reverse acc, False)
+  fetchMany acc (item : rest) = do
+    cancelled <- readIORef cancelFlag
+    if cancelled
+      then pure (reverse acc, True)
+      else do
+        result <- fetchOne item
+        fetchMany (result : acc) rest
+  fetchOne (index, article) = do
+    sendProgress (index - 1) (summaryTitle article)
+    result <- fetchArticleForBatch article
+    sendProgress index (batchFetchProgressDetail result)
+    pure result
+  fetchArticleForBatch article = do
+    let url = summaryUrl article
+    fetched <- tryText (fetchArticleContent (zeitPort ports) url)
+    case fetched of
+      Left err -> pure (BatchFailed url err)
+      Right fetchedArticle ->
+        case applyWordFilter filters fetchedArticle of
+          KeepArticle -> do
+            saved <- tryText (saveArticle (libraryPort ports) fetchedArticle)
+            pure $
+              case saved of
+                Left err -> BatchFailed url err
+                Right savedId -> BatchSaved url savedId
+          decision -> pure (BatchSkipped url decision)
+  filters = queuedFetchFilter job
 
 runUploadBatchProducer :: GuiRuntime -> Model -> QueuedJob -> (GuiEvent -> IO ()) -> IO ()
 runUploadBatchProducer runtime model job send =
@@ -2017,17 +2192,26 @@ runUploadBatchProducer runtime model job send =
           dispatchEvents
             ports
             model
-            [ CompletedJobRecorded (CompletedJob (queuedJobId job) UploadJob (queuedJobLabel job) "No uploadable articles selected." False)
+            [ CompletedJobRecorded
+                ( CompletedJob
+                    (queuedJobId job)
+                    UploadJob
+                    (queuedJobLabel job)
+                    "No uploadable articles selected."
+                    False
+                )
             , Notify ErrorNotice "No uploadable articles selected."
             ]
         send (GuiModelLoaded finalModel)
       else do
-        sendProgress (ProgressStatus (queuedJobLabel job) 0 (length uploadIds) "Preparing selected articles...")
+        sendProgress
+          (ProgressStatus (queuedJobLabel job) 0 (length uploadIds) "Preparing selected articles...")
         loaded <- traverse loadOne uploadIds
         let loadFailures = [failure | Left failure <- loaded]
             uploadArticles = [article | Right article <- loaded]
         sendProgress (ProgressStatus (queuedJobLabel job) 0 (length uploadArticles) "Uploading to LingQ...")
-        (uploadResults, cancelled) <- uploadMany config (length uploadArticles) [] (zip [1 ..] uploadArticles)
+        (uploadResults, cancelled) <-
+          uploadMany config (length uploadArticles) [] (zip [1 ..] uploadArticles)
         let failures = loadFailures <> articleUploadFailures uploadResults
             summary = withCancelSuffix cancelled (guiBatchUploadSummary loadFailures uploadResults)
         finalModel <-
@@ -2035,65 +2219,73 @@ runUploadBatchProducer runtime model job send =
             ports
             model
             ( BatchUploadFinished failures
-                : CompletedJobRecorded (CompletedJob (queuedJobId job) UploadJob (queuedJobLabel job) summary (not cancelled && null failures))
+                : CompletedJobRecorded
+                  ( CompletedJob
+                      (queuedJobId job)
+                      UploadJob
+                      (queuedJobLabel job)
+                      summary
+                      (not cancelled && null failures)
+                  )
                 : guiBatchUploadResultEvents cancelled loadFailures uploadResults
                   <> [RefreshCurrentView]
             )
         send (GuiModelLoaded finalModel)
-  where
-    ports = guiPorts runtime
-    cancelFlag = guiCancelFlag runtime
-    articles = queuedUploadArticles job
-    sendProgress progress =
-      send (GuiProgress (Just progress))
-    uploadMany _config _total acc [] = pure (reverse acc, False)
-    uploadMany config total acc (item : rest) = do
-      cancelled <- readIORef cancelFlag
-      if cancelled
-        then pure (reverse acc, True)
-        else do
-          result <- uploadOne config total item
-          uploadMany config total (result : acc) rest
-    loadOne ident = do
-      loaded <- tryText (loadArticle (libraryPort ports) ident)
-      pure $
-        case loaded of
-          Left err -> Left (ArticleUploadFailure ident Nothing err)
-          Right Nothing -> Left (ArticleUploadFailure ident Nothing "Article not found in local library.")
-          Right (Just article) -> Right article
-    uploadOne config total (index, article) = do
-      let titledArticle =
-            article
-              { articleTitle =
-                  lessonTitle
-                    (uploadDay config)
-                    (uploadDatePrefixEnabled config)
-                    (articleTitle article)
-              }
-          targetCollection = targetCollectionFor config article
-          title = articleTitle titledArticle
-      sendProgress (ProgressStatus (queuedJobLabel job) (index - 1) total title)
-      result <-
-        tryText $
-          case articleUploadedLesson article of
-            Just existingLesson ->
-              updateLessonOnLingq (lingqPort ports) (uploadLanguageCode config) existingLesson titledArticle
-            Nothing ->
-              uploadLessonToLingq (lingqPort ports) (uploadLanguageCode config) targetCollection titledArticle
-      uploadResult <-
-        case result of
-          Left err -> pure (UploadFailed (articleId article) title err)
-          Right lesson ->
-            case articleId article of
-              Nothing -> pure (UploadSucceededUntracked title lesson)
-              Just ident -> do
-                markResult <- tryText (markArticleUploaded (libraryPort ports) ident lesson)
-                pure $
-                  case markResult of
-                    Left err -> UploadFailed (Just ident) title ("Uploaded to LingQ, but local status update failed: " <> err)
-                    Right () -> UploadSucceeded ident title lesson
-      sendProgress (ProgressStatus (queuedJobLabel job) index total (batchUploadProgressDetail uploadResult))
-      pure uploadResult
+ where
+  ports = guiPorts runtime
+  cancelFlag = guiCancelFlag runtime
+  articles = queuedUploadArticles job
+  sendProgress progress =
+    send (GuiProgress (Just progress))
+  uploadMany _config _total acc [] = pure (reverse acc, False)
+  uploadMany config total acc (item : rest) = do
+    cancelled <- readIORef cancelFlag
+    if cancelled
+      then pure (reverse acc, True)
+      else do
+        result <- uploadOne config total item
+        uploadMany config total (result : acc) rest
+  loadOne ident = do
+    loaded <- tryText (loadArticle (libraryPort ports) ident)
+    pure $
+      case loaded of
+        Left err -> Left (ArticleUploadFailure ident Nothing err)
+        Right Nothing -> Left (ArticleUploadFailure ident Nothing "Article not found in local library.")
+        Right (Just article) -> Right article
+  uploadOne config total (index, article) = do
+    let titledArticle =
+          article
+            { articleTitle =
+                lessonTitle
+                  (uploadDay config)
+                  (uploadDatePrefixEnabled config)
+                  (articleTitle article)
+            }
+        targetCollection = targetCollectionFor config article
+        title = articleTitle titledArticle
+    sendProgress (ProgressStatus (queuedJobLabel job) (index - 1) total title)
+    result <-
+      tryText $
+        case articleUploadedLesson article of
+          Just existingLesson ->
+            updateLessonOnLingq (lingqPort ports) (uploadLanguageCode config) existingLesson titledArticle
+          Nothing ->
+            uploadLessonToLingq (lingqPort ports) (uploadLanguageCode config) targetCollection titledArticle
+    uploadResult <-
+      case result of
+        Left err -> pure (UploadFailed (articleId article) title err)
+        Right lesson ->
+          case articleId article of
+            Nothing -> pure (UploadSucceededUntracked title lesson)
+            Just ident -> do
+              markResult <- tryText (markArticleUploaded (libraryPort ports) ident lesson)
+              pure $
+                case markResult of
+                  Left err -> UploadFailed (Just ident) title ("Uploaded to LingQ, but local status update failed: " <> err)
+                  Right () -> UploadSucceeded ident title lesson
+    sendProgress
+      (ProgressStatus (queuedJobLabel job) index total (batchUploadProgressDetail uploadResult))
+    pure uploadResult
 
 runUploadAppEvent :: AppPorts IO -> Model -> ArticleId -> IO GuiEvent
 runUploadAppEvent ports model ident =
@@ -2115,7 +2307,8 @@ runZeitBrowserLogin ports model =
 importZeitSessionViaBrowser :: IO BrowserZeitSession
 importZeitSessionViaBrowser
   | os /= "mingw32" =
-      fail "Browser-assisted Zeit login is currently implemented for Windows Edge/Chrome only. Paste a Cookie header instead."
+      fail
+        "Browser-assisted Zeit login is currently implemented for Windows Edge/Chrome only. Paste a Cookie header instead."
   | otherwise = do
       currentDir <- getCurrentDirectory
       let script = currentDir </> "scripts" </> "zeit-browser-login.ps1"
@@ -2198,14 +2391,14 @@ runSideEffect :: Model -> IO () -> Text -> IO GuiEvent
 runSideEffect model action message =
   safeGuiTask $ do
     action
-    pure model {notification = Just (Notification SuccessNotice message)}
+    pure model{notification = Just (Notification SuccessNotice message)}
 
 runCopyRecentLog :: Model -> IO GuiEvent
 runCopyRecentLog model =
   safeGuiTask $ do
     excerpt <- readRecentLogExcerpt 40
     copyTextToClipboard excerpt
-    pure model {notification = Just (Notification SuccessNotice "Copied recent log lines.")}
+    pure model{notification = Just (Notification SuccessNotice "Copied recent log lines.")}
 
 readRecentLogExcerpt :: Int -> IO Text
 readRecentLogExcerpt lineCount = do
@@ -2225,7 +2418,10 @@ runCreateSupportBundle model =
   safeGuiTask $ do
     bundlePath <- createSupportBundle model
     openExternalPath bundlePath
-    pure model {notification = Just (Notification SuccessNotice ("Created support bundle: " <> T.pack bundlePath))}
+    pure
+      model
+        { notification = Just (Notification SuccessNotice ("Created support bundle: " <> T.pack bundlePath))
+        }
 
 createSupportBundle :: Model -> IO FilePath
 createSupportBundle model = do
@@ -2290,7 +2486,7 @@ copyTextToClipboard =
 
 pipeToProcess :: FilePath -> [String] -> Text -> IO ()
 pipeToProcess command args text =
-  withCreateProcess (proc command args) {std_in = CreatePipe} $ \maybeInput _ _ processHandle -> do
+  withCreateProcess (proc command args){std_in = CreatePipe} $ \maybeInput _ _ processHandle -> do
     case maybeInput of
       Nothing -> pure ()
       Just input -> do
@@ -2302,12 +2498,12 @@ pipeToProcess command args text =
 articleCopyText :: Article -> Text
 articleCopyText article =
   T.intercalate "\n\n" (filter (not . T.null) blocks)
-  where
-    blocks =
-      [ articleTitle article
-      , articleSubtitle article
-      ]
-        <> articleParagraphs article
+ where
+  blocks =
+    [ articleTitle article
+    , articleSubtitle article
+    ]
+      <> articleParagraphs article
 
 guiBatchFetchSummary :: [BatchFetchResult] -> Text
 guiBatchFetchSummary results =
@@ -2318,10 +2514,10 @@ guiBatchFetchSummary results =
     <> ", failed "
     <> tshow failed
     <> "."
-  where
-    saved = length [() | BatchSaved {} <- results]
-    skipped = length [() | BatchSkipped {} <- results]
-    failed = length [() | BatchFailed {} <- results]
+ where
+  saved = length [() | BatchSaved{} <- results]
+  skipped = length [() | BatchSkipped{} <- results]
+  failed = length [() | BatchFailed{} <- results]
 
 batchFetchProgressDetail :: BatchFetchResult -> Text
 batchFetchProgressDetail result =
@@ -2334,21 +2530,22 @@ guiBatchFetchLevel :: [BatchFetchResult] -> NotificationLevel
 guiBatchFetchLevel results
   | any isFailed results = ErrorNotice
   | otherwise = SuccessNotice
-  where
-    isFailed BatchFailed {} = True
-    isFailed _ = False
+ where
+  isFailed BatchFailed{} = True
+  isFailed _ = False
 
 guiBatchUploadResultEvents :: Bool -> [ArticleUploadFailure] -> [BatchUploadResult] -> [Event]
 guiBatchUploadResultEvents cancelled loadFailures results =
-  [ Notify level
+  [ Notify
+      level
       (withCancelSuffix cancelled (guiBatchUploadSummary loadFailures results))
   ]
-  where
-    failed = length loadFailures + length [() | UploadFailed {} <- results]
-    level
-      | cancelled = InfoNotice
-      | failed > 0 = ErrorNotice
-      | otherwise = SuccessNotice
+ where
+  failed = length loadFailures + length [() | UploadFailed{} <- results]
+  level
+    | cancelled = InfoNotice
+    | failed > 0 = ErrorNotice
+    | otherwise = SuccessNotice
 
 guiBatchUploadSummary :: [ArticleUploadFailure] -> [BatchUploadResult] -> Text
 guiBatchUploadSummary loadFailures results =
@@ -2357,9 +2554,10 @@ guiBatchUploadSummary loadFailures results =
     <> ", failed "
     <> tshow failed
     <> "."
-  where
-    uploaded = length [() | UploadSucceeded {} <- results] + length [() | UploadSucceededUntracked {} <- results]
-    failed = length loadFailures + length [() | UploadFailed {} <- results]
+ where
+  uploaded =
+    length [() | UploadSucceeded{} <- results] + length [() | UploadSucceededUntracked{} <- results]
+  failed = length loadFailures + length [() | UploadFailed{} <- results]
 
 withCancelSuffix :: Bool -> Text -> Text
 withCancelSuffix cancelled message
@@ -2396,7 +2594,8 @@ guiZeitPort path =
         either failWithShow pure =<< fetchArticleContentZeit session url
     , loginToZeit = zeitStatusFromSettings path
     , loginToZeitWithCookie = \cookie -> do
-        saveSettings path . (\settings -> settings {settingsZeitCookie = T.strip cookie}) =<< loadSettings path
+        saveSettings path . (\settings -> settings{settingsZeitCookie = T.strip cookie})
+          =<< loadSettings path
         zeitStatusFromSettings path
     , loginToZeitWithBrowserSession = \cookie userAgent -> do
         saveSettings path
@@ -2409,7 +2608,7 @@ guiZeitPort path =
           =<< loadSettings path
         zeitStatusFromSettings path
     , logoutFromZeit =
-        saveSettings path . (\settings -> settings {settingsZeitCookie = ""}) =<< loadSettings path
+        saveSettings path . (\settings -> settings{settingsZeitCookie = ""}) =<< loadSettings path
     }
 
 guiLingqPort :: FilePath -> LingqPort IO
@@ -2421,13 +2620,13 @@ guiLingqPort path =
           else do
             token <- either failWithShow pure =<< loginWithPasswordLingq username password
             saveLingqToken path token
-            pure AuthStatus {authLoggedIn = True, authLabel = Just (nonEmptyOr "password login" username)}
+            pure AuthStatus{authLoggedIn = True, authLabel = Just (nonEmptyOr "password login" username)}
     , loginToLingqWithApiKey = \apiKey -> do
         token <- either failWithShow pure =<< loginWithApiKeyLingq (T.strip apiKey)
         saveLingqToken path token
-        pure AuthStatus {authLoggedIn = True, authLabel = Just "API key"}
+        pure AuthStatus{authLoggedIn = True, authLabel = Just "API key"}
     , logoutFromLingq =
-        saveSettings path . (\settings -> settings {settingsLingqApiKey = ""}) =<< loadSettings path
+        saveSettings path . (\settings -> settings{settingsLingqApiKey = ""}) =<< loadSettings path
     , uploadLessonToLingq = \languageCode collectionId article -> do
         token <- loadLingqToken path
         either failWithShow pure =<< uploadLessonLingq token languageCode collectionId article
@@ -2487,32 +2686,32 @@ lingqStatusFromSettings path = do
 
 saveLingqToken :: FilePath -> LingqToken -> IO ()
 saveLingqToken path (LingqToken token) =
-  saveSettings path . (\settings -> settings {settingsLingqApiKey = token}) =<< loadSettings path
+  saveSettings path . (\settings -> settings{settingsLingqApiKey = token}) =<< loadSettings path
 
 loadConfiguredText :: FilePath -> (Settings -> Text) -> String -> IO Text
 loadConfiguredText path select envName = do
   settings <- loadSettings path
   envValue <- fmap T.pack <$> lookupEnv envName
   pure (maybe "" id (nonEmptyMaybe (select settings) <|> envValueMaybe envValue))
-  where
-    envValueMaybe maybeValue =
-      case T.strip <$> maybeValue of
-        Just value | not (T.null value) -> Just value
-        _ -> Nothing
+ where
+  envValueMaybe maybeValue =
+    case T.strip <$> maybeValue of
+      Just value | not (T.null value) -> Just value
+      _ -> Nothing
 
 nonEmptyMaybe :: Text -> Maybe Text
 nonEmptyMaybe value
   | T.null stripped = Nothing
   | otherwise = Just stripped
-  where
-    stripped = T.strip value
+ where
+  stripped = T.strip value
 
 nonEmptyOr :: Text -> Text -> Text
 nonEmptyOr fallback value
   | T.null stripped = fallback
   | otherwise = stripped
-  where
-    stripped = T.strip value
+ where
+  stripped = T.strip value
 
 guiAudioPort :: AudioPort IO
 guiAudioPort =
@@ -2567,7 +2766,7 @@ guiLibraryPort =
         withLibrary dbPath getStatsSqlite
     }
 
-failWithShow :: Show err => err -> IO a
+failWithShow :: (Show err) => err -> IO a
 failWithShow = fail . show
 
 parseWordLimit :: Text -> Maybe Int
@@ -2585,15 +2784,15 @@ parsePositiveInt raw =
     [(parsed, "")] | parsed > (0 :: Int) -> Just parsed
     _ -> Nothing
 
-tshow :: Show a => a -> Text
+tshow :: (Show a) => a -> Text
 tshow = T.pack . show
 
 updateSectionCollection :: Text -> Text -> Map.Map Text Text -> Map.Map Text Text
 updateSectionCollection sectionName raw mappings
   | T.null collectionId = Map.delete sectionName mappings
   | otherwise = Map.insert sectionName collectionId mappings
-  where
-    collectionId = T.strip raw
+ where
+  collectionId = T.strip raw
 
 selectedBrowseArticles :: Model -> [ArticleSummary] -> [ArticleSummary]
 selectedBrowseArticles model =
@@ -2602,9 +2801,9 @@ selectedBrowseArticles model =
 selectedLingqArticles :: Model -> [ArticleSummary] -> [ArticleSummary]
 selectedLingqArticles model =
   filter isSelected
-  where
-    isSelected article =
-      maybe False (\ident -> Set.member ident (lingqSelectedIds model)) (summaryId article)
+ where
+  isSelected article =
+    maybe False (\ident -> Set.member ident (lingqSelectedIds model)) (summaryId article)
 
 uploadableSummary :: ArticleSummary -> Bool
 uploadableSummary article =
@@ -2649,12 +2848,12 @@ main = do
   cancelFlag <- newIORef False
   initial <- loadInitialModel (settingsPort ports)
   startApp initial (handleEvent (GuiRuntime ports cancelFlag)) buildUI (config initial)
-  where
-    config initial =
-      [ appWindowTitle "Zeit Tool Haskell"
-      , appWindowState MainWindowMaximized
-      , appWindowResizable True
-      , appTheme (monomerThemeFor (uiTheme initial))
-      , appFontDef "Regular" "C:\\Windows\\Fonts\\segoeui.ttf"
-      , appInitEvent GuiInit
-      ]
+ where
+  config initial =
+    [ appWindowTitle "Zeit Tool Haskell"
+    , appWindowState MainWindowMaximized
+    , appWindowResizable True
+    , appTheme (monomerThemeFor (uiTheme initial))
+    , appFontDef "Regular" "C:\\Windows\\Fonts\\segoeui.ttf"
+    , appInitEvent GuiInit
+    ]

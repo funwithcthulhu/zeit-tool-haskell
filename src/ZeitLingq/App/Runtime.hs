@@ -1,26 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.App.Runtime
-  ( runCommand
-  ) where
+module ZeitLingq.App.Runtime (
+  runCommand,
+) where
 
+import Data.Foldable (traverse_)
+import Data.Map.Strict qualified as Map
+import Data.Maybe (catMaybes)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Maybe (catMaybes)
-import Data.Map.Strict qualified as Map
-import Data.Foldable (traverse_)
-import ZeitLingq.App.Update (Command(..), Event(..))
+import ZeitLingq.App.Update (Command (..), Event (..))
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
-import ZeitLingq.Core.Batch (BatchFetchResult(..), articleFetchFailures, batchFetchArticles)
+import ZeitLingq.Core.Batch (BatchFetchResult (..), articleFetchFailures, batchFetchArticles)
 import ZeitLingq.Core.Browse (hideIgnoredSummaries, markIgnoredSummaries)
 import ZeitLingq.Core.KnownWords (importKnownWordStems)
-import ZeitLingq.Core.Upload (BatchUploadResult(..), articleUploadFailures, batchUploadArticles)
+import ZeitLingq.Core.Upload (BatchUploadResult (..), articleUploadFailures, batchUploadArticles)
 import ZeitLingq.Domain.Article (wordCount)
 import ZeitLingq.Domain.Types
 import ZeitLingq.Ports
 
-runCommand :: Monad m => AppPorts m -> Command -> m [Event]
+runCommand :: (Monad m) => AppPorts m -> Command -> m [Event]
 runCommand ports command =
   case command of
     PersistCurrentView view ->
@@ -38,20 +38,27 @@ runCommand ports command =
         ]
     LogoutZeit -> do
       logoutFromZeit zeit
-      pure [ZeitStatusChanged (AuthStatus False (Just "disconnected")), ZeitCookieChanged "", Notify SuccessNotice "Disconnected Zeit session."]
+      pure
+        [ ZeitStatusChanged (AuthStatus False (Just "disconnected"))
+        , ZeitCookieChanged ""
+        , Notify SuccessNotice "Disconnected Zeit session."
+        ]
     LoginLingqWithApiKey apiKey -> do
       status <- loginToLingqWithApiKey lingq apiKey
-      pure [LingqStatusChanged status, Notify SuccessNotice "Connected LingQ API key.", RefreshCurrentView]
+      pure
+        [LingqStatusChanged status, Notify SuccessNotice "Connected LingQ API key.", RefreshCurrentView]
     LoginLingqWithPassword username password -> do
       status <- loginToLingq lingq username password
-      pure [LingqStatusChanged status, Notify SuccessNotice "Connected LingQ account.", RefreshCurrentView]
+      pure
+        [LingqStatusChanged status, Notify SuccessNotice "Connected LingQ account.", RefreshCurrentView]
     LogoutLingq -> do
       logoutFromLingq lingq
-      pure [ LingqStatusChanged (AuthStatus False (Just "disconnected"))
-           , LingqApiKeyChanged ""
-           , LingqPasswordChanged ""
-           , Notify SuccessNotice "Disconnected LingQ."
-           ]
+      pure
+        [ LingqStatusChanged (AuthStatus False (Just "disconnected"))
+        , LingqApiKeyChanged ""
+        , LingqPasswordChanged ""
+        , Notify SuccessNotice "Disconnected LingQ."
+        ]
     PersistBrowseSection sectionId ->
       [] <$ saveBrowseSection settings sectionId
     PersistBrowseFilter filters ->
@@ -148,10 +155,12 @@ runCommand ports command =
         Just article -> do
           results <-
             batchUploadArticles
-              (\uploadLanguageCode collectionId titledArticle ->
-                Right <$> uploadLessonToLingq lingq uploadLanguageCode collectionId titledArticle)
-              (\uploadLanguageCode existingLesson titledArticle ->
-                Right <$> updateLessonOnLingq lingq uploadLanguageCode existingLesson titledArticle)
+              ( \uploadLanguageCode collectionId titledArticle ->
+                  Right <$> uploadLessonToLingq lingq uploadLanguageCode collectionId titledArticle
+              )
+              ( \uploadLanguageCode existingLesson titledArticle ->
+                  Right <$> updateLessonOnLingq lingq uploadLanguageCode existingLesson titledArticle
+              )
               (markArticleUploaded library)
               (uploadConfigFromPreferences day languageCode fallbackCollection datePrefix sectionCollections)
               [article]
@@ -163,14 +172,19 @@ runCommand ports command =
         else do
           results <-
             batchUploadArticles
-              (\uploadLanguageCode collectionId titledArticle ->
-                Right <$> uploadLessonToLingq lingq uploadLanguageCode collectionId titledArticle)
-              (\uploadLanguageCode existingLesson titledArticle ->
-                Right <$> updateLessonOnLingq lingq uploadLanguageCode existingLesson titledArticle)
+              ( \uploadLanguageCode collectionId titledArticle ->
+                  Right <$> uploadLessonToLingq lingq uploadLanguageCode collectionId titledArticle
+              )
+              ( \uploadLanguageCode existingLesson titledArticle ->
+                  Right <$> updateLessonOnLingq lingq uploadLanguageCode existingLesson titledArticle
+              )
               (markArticleUploaded library)
               (uploadConfigFromPreferences day languageCode fallbackCollection datePrefix sectionCollections)
               articles
-          pure (BatchUploadFinished (articleUploadFailures results) : batchUploadResultEvents results <> [RefreshCurrentView])
+          pure
+            ( BatchUploadFinished (articleUploadFailures results)
+                : batchUploadResultEvents results <> [RefreshCurrentView]
+            )
     SyncLingqStatus languageCode collectionId -> do
       remoteLessons <- fetchCollectionLessons lingq languageCode collectionId
       page <-
@@ -288,12 +302,12 @@ runCommand ports command =
         [ Notify SuccessNotice ("Deleted " <> tshow deleted <> " old article(s).")
         , RefreshCurrentView
         ]
-  where
-    zeit = zeitPort ports
-    lingq = lingqPort ports
-    audio = audioPort ports
-    library = libraryPort ports
-    settings = settingsPort ports
+ where
+  zeit = zeitPort ports
+  lingq = lingqPort ports
+  audio = audioPort ports
+  library = libraryPort ports
+  settings = settingsPort ports
 
 uploadResultEvents :: BatchUploadResult -> [Event]
 uploadResultEvents result =
@@ -307,7 +321,8 @@ uploadResultEvents result =
 
 batchUploadResultEvents :: [BatchUploadResult] -> [Event]
 batchUploadResultEvents results =
-  [ Notify level
+  [ Notify
+      level
       ( "Batch upload: uploaded "
           <> tshow uploaded
           <> ", failed "
@@ -315,12 +330,13 @@ batchUploadResultEvents results =
           <> "."
       )
   ]
-  where
-    uploaded = length [() | UploadSucceeded {} <- results] + length [() | UploadSucceededUntracked {} <- results]
-    failed = length [() | UploadFailed {} <- results]
-    level
-      | failed > 0 = ErrorNotice
-      | otherwise = SuccessNotice
+ where
+  uploaded =
+    length [() | UploadSucceeded{} <- results] + length [() | UploadSucceededUntracked{} <- results]
+  failed = length [() | UploadFailed{} <- results]
+  level
+    | failed > 0 = ErrorNotice
+    | otherwise = SuccessNotice
 
 data LingqStatusSyncResult = LingqStatusSyncResult
   { syncScanned :: Int
@@ -335,49 +351,49 @@ matchLingqLessons articles lessons =
     , syncMatches = Map.elems matchedByArticle
     , syncAmbiguous = ambiguous
     }
-  where
-    articleRows =
-      [ article
-      | article <- articles
-      , Just _ <- [summaryId article]
+ where
+  articleRows =
+    [ article
+    | article <- articles
+    , Just _ <- [summaryId article]
+    ]
+  byUrl =
+    Map.fromListWith
+      (<>)
+      [ (normalizeUrl (summaryUrl article), [article])
+      | article <- articleRows
+      , not (T.null (normalizeUrl (summaryUrl article)))
       ]
-    byUrl =
-      Map.fromListWith
-        (<>)
-        [ (normalizeUrl (summaryUrl article), [article])
-        | article <- articleRows
-        , not (T.null (normalizeUrl (summaryUrl article)))
-        ]
-    byTitle =
-      Map.fromListWith
-        (<>)
-        [ (normalizeTitle (summaryTitle article), [article])
-        | article <- articleRows
-        , not (T.null (normalizeTitle (summaryTitle article)))
-        ]
-    (matchedByArticle, ambiguous) =
-      foldl collectMatch (Map.empty, 0) lessons
-    collectMatch (matched, ambiguousCount) lesson =
-      case lessonCandidates lesson of
-        [article] ->
-          case summaryId article of
-            Just ident ->
-              ( Map.insert
-                  ident
-                  ( ident
-                  , LingqLesson (remoteLessonId lesson) (remoteLessonUrl lesson)
-                  )
-                  matched
-              , ambiguousCount
-              )
-            Nothing -> (matched, ambiguousCount)
-        [] -> (matched, ambiguousCount)
-        _ -> (matched, ambiguousCount + 1)
-    lessonCandidates lesson =
-      case remoteLessonOriginalUrl lesson >>= (`Map.lookup` byUrl) . normalizeUrl of
-        Just candidates -> candidates
-        Nothing ->
-          Map.findWithDefault [] (normalizeTitle (remoteLessonTitle lesson)) byTitle
+  byTitle =
+    Map.fromListWith
+      (<>)
+      [ (normalizeTitle (summaryTitle article), [article])
+      | article <- articleRows
+      , not (T.null (normalizeTitle (summaryTitle article)))
+      ]
+  (matchedByArticle, ambiguous) =
+    foldl collectMatch (Map.empty, 0) lessons
+  collectMatch (matched, ambiguousCount) lesson =
+    case lessonCandidates lesson of
+      [article] ->
+        case summaryId article of
+          Just ident ->
+            ( Map.insert
+                ident
+                ( ident
+                , LingqLesson (remoteLessonId lesson) (remoteLessonUrl lesson)
+                )
+                matched
+            , ambiguousCount
+            )
+          Nothing -> (matched, ambiguousCount)
+      [] -> (matched, ambiguousCount)
+      _ -> (matched, ambiguousCount + 1)
+  lessonCandidates lesson =
+    case remoteLessonOriginalUrl lesson >>= (`Map.lookup` byUrl) . normalizeUrl of
+      Just candidates -> candidates
+      Nothing ->
+        Map.findWithDefault [] (normalizeTitle (remoteLessonTitle lesson)) byTitle
 
 normalizeUrl :: Text -> Text
 normalizeUrl =
@@ -392,17 +408,17 @@ stripDatePrefix title
   | hasDatePrefix stripped =
       T.strip (T.dropWhile isDateSeparator (T.drop 10 stripped))
   | otherwise = stripped
-  where
-    stripped = T.strip title
-    hasDatePrefix value =
-      T.length value >= 10
-        && T.all isDigitText (T.take 4 value)
-        && T.index value 4 == '-'
-        && T.all isDigitText (T.take 2 (T.drop 5 value))
-        && T.index value 7 == '-'
-        && T.all isDigitText (T.take 2 (T.drop 8 value))
-    isDigitText char = char >= '0' && char <= '9'
-    isDateSeparator char = char == ' ' || char == '-'
+ where
+  stripped = T.strip title
+  hasDatePrefix value =
+    T.length value >= 10
+      && T.all isDigitText (T.take 4 value)
+      && T.index value 4 == '-'
+      && T.all isDigitText (T.take 2 (T.drop 5 value))
+      && T.index value 7 == '-'
+      && T.all isDigitText (T.take 2 (T.drop 8 value))
+  isDigitText char = char >= '0' && char <= '9'
+  isDateSeparator char = char == ' ' || char == '-'
 
 syncLingqStatusMessage :: LingqStatusSyncResult -> Text
 syncLingqStatusMessage result =
@@ -423,12 +439,12 @@ batchFetchSummary results =
     <> ", failed "
     <> tshow failed
     <> "."
-  where
-    saved = length [() | BatchSaved {} <- results]
-    skipped = length [() | BatchSkipped {} <- results]
-    failed = length [() | BatchFailed {} <- results]
+ where
+  saved = length [() | BatchSaved{} <- results]
+  skipped = length [() | BatchSkipped{} <- results]
+  failed = length [() | BatchFailed{} <- results]
 
-tshow :: Show a => a -> Text
+tshow :: (Show a) => a -> Text
 tshow = T.pack . show
 
 mergeSavedSummary :: Map.Map Text ArticleSummary -> ArticleSummary -> ArticleSummary
@@ -443,10 +459,10 @@ mergeSavedSummary savedByUrl summary =
         , summaryUploaded = summaryUploaded saved
         , summaryKnownPct = summaryKnownPct saved
         }
-  where
-    preferPositive value fallback
-      | value > 0 = value
-      | otherwise = fallback
+ where
+  preferPositive value fallback
+    | value > 0 = value
+    | otherwise = fallback
 
 knownWordsSyncMessage :: Int -> Either Text Int -> Text
 knownWordsSyncMessage added computeResult =

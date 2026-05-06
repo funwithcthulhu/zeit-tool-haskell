@@ -1,6 +1,7 @@
 # Command Reference
 
-Zeit Tool Haskell is a personal desktop utility. The CLI is for quick checks, scripts, and maintenance.
+Zeit Tool Haskell is a personal desktop utility. The CLI is for quick checks, scripts, and
+maintenance.
 
 From the project folder on Windows:
 
@@ -107,9 +108,11 @@ zt cfg topic wissen -s settings.dev.json
 
 ## Auth Environment
 
-Set `ZEIT_COOKIE` before `zt r` or `zt f` if an article needs an authenticated Zeit session. If the cookie came from a real browser, also set `ZEIT_USER_AGENT` to that browser's user-agent.
+Set `ZEIT_COOKIE` before `zt r` or `zt f` if an article needs an authenticated Zeit session. If the
+cookie came from a real browser, also set `ZEIT_USER_AGENT` to that browser's user-agent.
 
-Set `LINGQ_API_KEY` before `zt u` or `zt k sync`. Optionally set `LINGQ_COLLECTION_ID` as an upload fallback.
+Set `LINGQ_API_KEY` before `zt u` or `zt k sync`. Optionally set `LINGQ_COLLECTION_ID` as an upload
+fallback.
 
 ## Compatibility
 

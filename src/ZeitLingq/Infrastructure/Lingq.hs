@@ -1,22 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.Infrastructure.Lingq
-  ( LingqError(..)
-  , LingqToken(..)
-  , fetchCollectionsLingq
-  , fetchCollectionLessonsLingq
-  , fetchLanguagesLingq
-  , fetchKnownWordsLingq
-  , loginWithApiKeyLingq
-  , loginWithPasswordLingq
-  , normalizeLessonText
-  , parseCollectionsValue
-  , parseCollectionLessonsValue
-  , parseLanguagesValue
-  , parseKnownWordTerms
-  , updateLessonLingq
-  , uploadLessonLingq
-  ) where
+module ZeitLingq.Infrastructure.Lingq (
+  LingqError (..),
+  LingqToken (..),
+  fetchCollectionsLingq,
+  fetchCollectionLessonsLingq,
+  fetchLanguagesLingq,
+  fetchKnownWordsLingq,
+  loginWithApiKeyLingq,
+  loginWithPasswordLingq,
+  normalizeLessonText,
+  parseCollectionsValue,
+  parseCollectionLessonsValue,
+  parseLanguagesValue,
+  parseKnownWordTerms,
+  updateLessonLingq,
+  uploadLessonLingq,
+) where
 
 import Control.Applicative ((<|>))
 import Data.Aeson
@@ -70,43 +70,57 @@ loginWithApiKeyLingq apiKey = do
 
 fetchCollectionsLingq :: LingqToken -> Text -> IO (Either LingqError [LingqCollection])
 fetchCollectionsLingq token languageCode = do
-  request <- authorized token =<< parseRequest (lingqBase <> "/" <> T.unpack languageCode <> "/collections/my/")
+  request <-
+    authorized token =<< parseRequest (lingqBase <> "/" <> T.unpack languageCode <> "/collections/my/")
   fmap (>>= parseCollectionsValue) (httpJsonValue request)
 
-fetchCollectionLessonsLingq :: LingqToken -> Text -> Text -> IO (Either LingqError [LingqRemoteLesson])
+fetchCollectionLessonsLingq ::
+  LingqToken -> Text -> Text -> IO (Either LingqError [LingqRemoteLesson])
 fetchCollectionLessonsLingq token languageCode collectionId =
   tryStrategies lessonUrls
-  where
-    lang = T.unpack languageCode
-    collection = T.unpack collectionId
-    lessonUrls =
-      [ lingqBase <> "/" <> lang <> "/collections/" <> collection <> "/lessons/?page_size=100"
-      , lingqBase <> "/" <> lang <> "/lessons/?collection=" <> collection <> "&page_size=100"
-      ]
-    tryStrategies [] = pure (Left (LingqJsonError "Could not fetch LingQ collection lessons from any endpoint."))
-    tryStrategies (url:rest) = do
-      result <- fetchLessonPages token languageCode url
-      case result of
-        Right lessons -> pure (Right lessons)
-        Left _ -> tryStrategies rest
+ where
+  lang = T.unpack languageCode
+  collection = T.unpack collectionId
+  lessonUrls =
+    [ lingqBase <> "/" <> lang <> "/collections/" <> collection <> "/lessons/?page_size=100"
+    , lingqBase <> "/" <> lang <> "/lessons/?collection=" <> collection <> "&page_size=100"
+    ]
+  tryStrategies [] = pure (Left (LingqJsonError "Could not fetch LingQ collection lessons from any endpoint."))
+  tryStrategies (url : rest) = do
+    result <- fetchLessonPages token languageCode url
+    case result of
+      Right lessons -> pure (Right lessons)
+      Left _ -> tryStrategies rest
 
 fetchLanguagesLingq :: LingqToken -> IO (Either LingqError [LingqLanguage])
 fetchLanguagesLingq token = do
   request <- authorized token =<< parseRequest (lingqBase <> "/languages/")
   fmap (>>= parseLanguagesValue) (httpJsonValue request)
 
-uploadLessonLingq :: LingqToken -> Text -> Maybe Text -> Article -> IO (Either LingqError LingqLesson)
+uploadLessonLingq ::
+  LingqToken -> Text -> Maybe Text -> Article -> IO (Either LingqError LingqLesson)
 uploadLessonLingq token languageCode maybeCollection article = do
-  request <- authorized token =<< parseRequest (lingqBase <> "/" <> T.unpack languageCode <> "/lessons/")
+  request <-
+    authorized token =<< parseRequest (lingqBase <> "/" <> T.unpack languageCode <> "/lessons/")
   let uploadRequest =
         setRequestMethod "POST"
           . setRequestBodyJSON (lessonPayload maybeCollection article)
           $ request
   fmap (>>= lessonFromResponse languageCode) (httpJsonValue uploadRequest)
 
-updateLessonLingq :: LingqToken -> Text -> LingqLesson -> Article -> IO (Either LingqError LingqLesson)
+updateLessonLingq ::
+  LingqToken -> Text -> LingqLesson -> Article -> IO (Either LingqError LingqLesson)
 updateLessonLingq token languageCode existingLesson article = do
-  request <- authorized token =<< parseRequest (lingqBase <> "/" <> T.unpack languageCode <> "/lessons/" <> T.unpack (lessonId existingLesson) <> "/")
+  request <-
+    authorized token
+      =<< parseRequest
+        ( lingqBase
+            <> "/"
+            <> T.unpack languageCode
+            <> "/lessons/"
+            <> T.unpack (lessonId existingLesson)
+            <> "/"
+        )
   let updateRequest =
         setRequestMethod "PATCH"
           . setRequestBodyJSON (lessonPayload Nothing article)
@@ -116,55 +130,55 @@ updateLessonLingq token languageCode existingLesson article = do
 fetchKnownWordsLingq :: LingqToken -> Text -> IO (Either LingqError [Text])
 fetchKnownWordsLingq token languageCode =
   tryStrategies knownWordUrls
-  where
-    lang = T.unpack languageCode
-    knownWordUrls =
-      [ lingqBase <> "/" <> lang <> "/known-words/?page_size=1000"
-      , lingqBase <> "/" <> lang <> "/cards/?status=3&page_size=1000"
-      , lingqBase <> "/" <> lang <> "/cards/?status=4&page_size=1000"
-      , "https://www.lingq.com/api/v2/" <> lang <> "/words/?page_size=1000"
-      , "https://www.lingq.com/api/" <> lang <> "/known-words/?page_size=1000"
-      ]
+ where
+  lang = T.unpack languageCode
+  knownWordUrls =
+    [ lingqBase <> "/" <> lang <> "/known-words/?page_size=1000"
+    , lingqBase <> "/" <> lang <> "/cards/?status=3&page_size=1000"
+    , lingqBase <> "/" <> lang <> "/cards/?status=4&page_size=1000"
+    , "https://www.lingq.com/api/v2/" <> lang <> "/words/?page_size=1000"
+    , "https://www.lingq.com/api/" <> lang <> "/known-words/?page_size=1000"
+    ]
 
-    tryStrategies [] = pure (Left (LingqJsonError "Could not fetch known words from any LingQ endpoint."))
-    tryStrategies (url:rest) = do
-      result <- fetchKnownPages token url
-      case result of
-        Right terms | not (null terms) -> pure (Right terms)
-        _ -> tryStrategies rest
+  tryStrategies [] = pure (Left (LingqJsonError "Could not fetch known words from any LingQ endpoint."))
+  tryStrategies (url : rest) = do
+    result <- fetchKnownPages token url
+    case result of
+      Right terms | not (null terms) -> pure (Right terms)
+      _ -> tryStrategies rest
 
 fetchKnownPages :: LingqToken -> String -> IO (Either LingqError [Text])
 fetchKnownPages token startUrl = go [] (Just startUrl) (0 :: Int)
-  where
-    go terms Nothing _ = pure (Right (reverse terms))
-    go terms (Just url) page
-      | page >= 100 = pure (Right (reverse terms))
-      | otherwise = do
-          request <- authorized token =<< parseRequest url
-          result <- httpJsonValue request
-          case result of
-            Left err -> pure (Left err)
-            Right value ->
-              let pageTerms = parseKnownWordTerms value
-                  nextUrl = fmap T.unpack (parseNextUrl value)
-               in go (reverse pageTerms <> terms) nextUrl (page + 1)
+ where
+  go terms Nothing _ = pure (Right (reverse terms))
+  go terms (Just url) page
+    | page >= 100 = pure (Right (reverse terms))
+    | otherwise = do
+        request <- authorized token =<< parseRequest url
+        result <- httpJsonValue request
+        case result of
+          Left err -> pure (Left err)
+          Right value ->
+            let pageTerms = parseKnownWordTerms value
+                nextUrl = fmap T.unpack (parseNextUrl value)
+             in go (reverse pageTerms <> terms) nextUrl (page + 1)
 
 fetchLessonPages :: LingqToken -> Text -> String -> IO (Either LingqError [LingqRemoteLesson])
 fetchLessonPages token languageCode startUrl = go [] (Just startUrl) (0 :: Int)
-  where
-    go lessons Nothing _ = pure (Right (reverse lessons))
-    go lessons (Just url) page
-      | page >= 100 = pure (Right (reverse lessons))
-      | otherwise = do
-          request <- authorized token =<< parseRequest url
-          result <- httpJsonValue request
-          case result of
-            Left err -> pure (Left err)
-            Right value ->
-              case parseLessonPage languageCode value of
-                Left err -> pure (Left err)
-                Right (pageLessons, nextUrl) ->
-                  go (reverse pageLessons <> lessons) (fmap T.unpack nextUrl) (page + 1)
+ where
+  go lessons Nothing _ = pure (Right (reverse lessons))
+  go lessons (Just url) page
+    | page >= 100 = pure (Right (reverse lessons))
+    | otherwise = do
+        request <- authorized token =<< parseRequest url
+        result <- httpJsonValue request
+        case result of
+          Left err -> pure (Left err)
+          Right value ->
+            case parseLessonPage languageCode value of
+              Left err -> pure (Left err)
+              Right (pageLessons, nextUrl) ->
+                go (reverse pageLessons <> lessons) (fmap T.unpack nextUrl) (page + 1)
 
 normalizeLessonText :: Text -> Text
 normalizeLessonText =
@@ -202,26 +216,26 @@ parseLessonPage languageCode value =
   case parseEither lessonRowsParser value of
     Left err -> Left (LingqJsonError (T.pack err))
     Right lessons -> Right (lessons, parseNextUrl value)
-  where
-    lessonRowsParser rowsValue =
-      parseArray rowsValue <|> parseObjectRows rowsValue
-    parseArray = withArray "lessons" (traverse (parseRemoteLesson languageCode) . toList)
-    parseObjectRows = withObject "lessons response" $ \obj -> do
-      maybeResults <- obj .:? "results"
-      maybeItems <- obj .:? "items"
-      maybeLessons <- obj .:? "lessons"
-      case maybeResults <|> maybeItems <|> maybeLessons of
-        Just rows -> parseArray rows
-        Nothing -> fail "Expected lessons array, results, items, or lessons field."
+ where
+  lessonRowsParser rowsValue =
+    parseArray rowsValue <|> parseObjectRows rowsValue
+  parseArray = withArray "lessons" (traverse (parseRemoteLesson languageCode) . toList)
+  parseObjectRows = withObject "lessons response" $ \obj -> do
+    maybeResults <- obj .:? "results"
+    maybeItems <- obj .:? "items"
+    maybeLessons <- obj .:? "lessons"
+    case maybeResults <|> maybeItems <|> maybeLessons of
+      Just rows -> parseArray rows
+      Nothing -> fail "Expected lessons array, results, items, or lessons field."
 
 collectionsParser :: Value -> Parser [LingqCollection]
 collectionsParser value =
   parseArray value <|> parseObjectResults value
-  where
-    parseArray = withArray "collections" (traverse parseCollection . toList)
-    parseObjectResults = withObject "collections response" $ \obj -> do
-      results <- obj .: "results"
-      parseArray results
+ where
+  parseArray = withArray "collections" (traverse parseCollection . toList)
+  parseObjectResults = withObject "collections response" $ \obj -> do
+    results <- obj .: "results"
+    parseArray results
 
 parseCollection :: Value -> Parser LingqCollection
 parseCollection = withObject "LingqCollection" $ \obj -> do
@@ -239,14 +253,14 @@ parseCollectionId obj =
 languagesParser :: Value -> Parser [LingqLanguage]
 languagesParser value =
   parseArray value <|> parseObjectResults value
-  where
-    parseArray = withArray "languages" (traverse parseLanguage . toList)
-    parseObjectResults = withObject "languages response" $ \obj -> do
-      maybeResults <- obj .:? "results"
-      maybeLanguages <- obj .:? "languages"
-      case maybeResults <|> maybeLanguages of
-        Just languages -> parseArray languages
-        Nothing -> fail "Expected languages array, results, or languages field."
+ where
+  parseArray = withArray "languages" (traverse parseLanguage . toList)
+  parseObjectResults = withObject "languages response" $ \obj -> do
+    maybeResults <- obj .:? "results"
+    maybeLanguages <- obj .:? "languages"
+    case maybeResults <|> maybeLanguages of
+      Just languages -> parseArray languages
+      Nothing -> fail "Expected languages array, results, or languages field."
 
 parseLanguage :: Value -> Parser LingqLanguage
 parseLanguage = withObject "LingqLanguage" $ \obj -> do
@@ -277,11 +291,11 @@ parseKnownWordTerms value =
 knownWordsParser :: Value -> Parser [Text]
 knownWordsParser value =
   parseArray value <|> parseObjectResults value
-  where
-    parseArray = withArray "known words" (fmap concat . traverse parseTerm . toList)
-    parseObjectResults = withObject "known words response" $ \obj -> do
-      results <- obj .: "results"
-      parseArray results
+ where
+  parseArray = withArray "known words" (fmap concat . traverse parseTerm . toList)
+  parseObjectResults = withObject "known words response" $ \obj -> do
+    results <- obj .: "results"
+    parseArray results
 
 parseTerm :: Value -> Parser [Text]
 parseTerm =
@@ -297,21 +311,21 @@ parseNextUrl value =
   case parseMaybe parser value of
     Just (Just nextUrl) -> Just nextUrl
     _ -> Nothing
-  where
-    parser = withObject "pagination" $ \obj -> obj .:? "next"
+ where
+  parser = withObject "pagination" $ \obj -> obj .:? "next"
 
 lessonFromResponse :: Text -> Value -> Either LingqError LingqLesson
 lessonFromResponse languageCode =
   either (Left . LingqJsonError . T.pack) Right
     . parseEither parser
-  where
-    parser = withObject "lesson" $ \obj -> do
-      ident <- parseTextOrInt obj "id" <|> parseTextOrInt obj "pk"
-      pure
-        LingqLesson
-          { lessonId = ident
-          , lessonUrl = "https://www.lingq.com/" <> languageCode <> "/learn/lesson/" <> ident <> "/"
-          }
+ where
+  parser = withObject "lesson" $ \obj -> do
+    ident <- parseTextOrInt obj "id" <|> parseTextOrInt obj "pk"
+    pure
+      LingqLesson
+        { lessonId = ident
+        , lessonUrl = "https://www.lingq.com/" <> languageCode <> "/learn/lesson/" <> ident <> "/"
+        }
 
 authTokenFromResponse :: Either LingqError AuthTokenResponse -> Either LingqError LingqToken
 authTokenFromResponse = fmap (\(AuthTokenResponse token) -> LingqToken token)
@@ -321,7 +335,7 @@ newtype AuthTokenResponse = AuthTokenResponse Text
 instance FromJSON AuthTokenResponse where
   parseJSON = withObject "auth token" $ \obj -> AuthTokenResponse <$> obj .: "token"
 
-httpJson :: FromJSON a => Request -> IO (Either LingqError a)
+httpJson :: (FromJSON a) => Request -> IO (Either LingqError a)
 httpJson request = do
   response <- httpJSONEither request
   pure $
@@ -335,10 +349,10 @@ httpJsonValue = httpJson
 
 authorized :: LingqToken -> Request -> IO Request
 authorized (LingqToken token) request =
-  pure $
-    setRequestHeader "Authorization" [authHeader token]
+  pure
+    $ setRequestHeader "Authorization" [authHeader token]
       . setRequestHeader "User-Agent" ["ZeitToolHaskell/0.1"]
-      $ request
+    $ request
 
 authHeader :: Text -> ByteString
 authHeader token = "Token " <> encodeUtf8 token

@@ -1,18 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.Infrastructure.Settings
-  ( Settings(..)
-  , defaultSettings
-  , jsonSettingsPort
-  , loadSettings
-  , saveSettings
-  , rowDensityFromText
-  , rowDensityToText
-  , uiThemeFromText
-  , uiThemeToText
-  , viewFromText
-  , viewToText
-  ) where
+module ZeitLingq.Infrastructure.Settings (
+  Settings (..),
+  defaultSettings,
+  jsonSettingsPort,
+  loadSettings,
+  saveSettings,
+  rowDensityFromText,
+  rowDensityToText,
+  uiThemeFromText,
+  uiThemeToText,
+  viewFromText,
+  viewToText,
+) where
 
 import Data.Aeson
 import Data.Aeson.Types (Parser)
@@ -24,9 +24,9 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.FilePath (takeDirectory)
-import ZeitLingq.Domain.Types (RowDensity(..), UiTheme(..), View(..), WordFilter(..))
+import ZeitLingq.Domain.Types (RowDensity (..), UiTheme (..), View (..), WordFilter (..))
 import ZeitLingq.Infrastructure.Zeit (defaultZeitUserAgent, normalizeZeitUserAgent)
-import ZeitLingq.Ports (SettingsPort(..))
+import ZeitLingq.Ports (SettingsPort (..))
 
 data Settings = Settings
   { settingsCurrentView :: View
@@ -44,7 +44,8 @@ data Settings = Settings
   , settingsSectionCollections :: Map Text Text
   , settingsRowDensity :: RowDensity
   , settingsUiTheme :: UiTheme
-  } deriving (Eq, Show)
+  }
+  deriving (Eq, Show)
 
 defaultSettings :: Settings
 defaultSettings =
@@ -121,49 +122,49 @@ updateSettings path change = do
   saveSettings path (change settings)
 
 setCurrentView :: View -> Settings -> Settings
-setCurrentView value settings = settings {settingsCurrentView = value}
+setCurrentView value settings = settings{settingsCurrentView = value}
 
 setZeitCookie :: Text -> Settings -> Settings
-setZeitCookie value settings = settings {settingsZeitCookie = T.strip value}
+setZeitCookie value settings = settings{settingsZeitCookie = T.strip value}
 
 setZeitUserAgent :: Text -> Settings -> Settings
-setZeitUserAgent value settings = settings {settingsZeitUserAgent = normalizeZeitUserAgent value}
+setZeitUserAgent value settings = settings{settingsZeitUserAgent = normalizeZeitUserAgent value}
 
 setLingqApiKey :: Text -> Settings -> Settings
-setLingqApiKey value settings = settings {settingsLingqApiKey = T.strip value}
+setLingqApiKey value settings = settings{settingsLingqApiKey = T.strip value}
 
 setLingqLanguage :: Text -> Settings -> Settings
-setLingqLanguage value settings = settings {settingsLingqLanguage = normalizeLingqLanguage value}
+setLingqLanguage value settings = settings{settingsLingqLanguage = normalizeLingqLanguage value}
 
 setBrowseSection :: Text -> Settings -> Settings
-setBrowseSection value settings = settings {settingsBrowseSection = value}
+setBrowseSection value settings = settings{settingsBrowseSection = value}
 
 setBrowseFilter :: WordFilter -> Settings -> Settings
-setBrowseFilter value settings = settings {settingsBrowseFilter = value}
+setBrowseFilter value settings = settings{settingsBrowseFilter = value}
 
 setBrowseOnlyNew :: Bool -> Settings -> Settings
-setBrowseOnlyNew value settings = settings {settingsBrowseOnlyNew = value}
+setBrowseOnlyNew value settings = settings{settingsBrowseOnlyNew = value}
 
 setLingqFilter :: WordFilter -> Settings -> Settings
-setLingqFilter value settings = settings {settingsLingqFilter = value}
+setLingqFilter value settings = settings{settingsLingqFilter = value}
 
 setLingqOnlyNotUploaded :: Bool -> Settings -> Settings
-setLingqOnlyNotUploaded value settings = settings {settingsLingqOnlyNotUploaded = value}
+setLingqOnlyNotUploaded value settings = settings{settingsLingqOnlyNotUploaded = value}
 
 setDatePrefixEnabled :: Bool -> Settings -> Settings
-setDatePrefixEnabled value settings = settings {settingsDatePrefixEnabled = value}
+setDatePrefixEnabled value settings = settings{settingsDatePrefixEnabled = value}
 
 setLingqFallbackCollection :: Maybe Text -> Settings -> Settings
-setLingqFallbackCollection value settings = settings {settingsLingqFallbackCollection = value}
+setLingqFallbackCollection value settings = settings{settingsLingqFallbackCollection = value}
 
 setSectionCollections :: Map Text Text -> Settings -> Settings
-setSectionCollections value settings = settings {settingsSectionCollections = value}
+setSectionCollections value settings = settings{settingsSectionCollections = value}
 
 setRowDensity :: RowDensity -> Settings -> Settings
-setRowDensity value settings = settings {settingsRowDensity = value}
+setRowDensity value settings = settings{settingsRowDensity = value}
 
 setUiTheme :: UiTheme -> Settings -> Settings
-setUiTheme value settings = settings {settingsUiTheme = value}
+setUiTheme value settings = settings{settingsUiTheme = value}
 
 instance ToJSON Settings where
   toJSON settings =
@@ -204,16 +205,16 @@ instance FromJSON Settings where
         <*> obj .:? "sectionCollections" .!= settingsSectionCollections defaultSettings
         <*> parseRowDensity obj
         <*> parseUiTheme obj
-    where
-      parseView obj = do
-        value <- obj .:? "currentView" .!= viewToText (settingsCurrentView defaultSettings)
-        parseViewText value
-      parseRowDensity obj = do
-        value <- obj .:? "rowDensity" .!= rowDensityToText (settingsRowDensity defaultSettings)
-        parseRowDensityText value
-      parseUiTheme obj = do
-        value <- obj .:? "uiTheme" .!= uiThemeToText (settingsUiTheme defaultSettings)
-        parseUiThemeText value
+   where
+    parseView obj = do
+      value <- obj .:? "currentView" .!= viewToText (settingsCurrentView defaultSettings)
+      parseViewText value
+    parseRowDensity obj = do
+      value <- obj .:? "rowDensity" .!= rowDensityToText (settingsRowDensity defaultSettings)
+      parseRowDensityText value
+    parseUiTheme obj = do
+      value <- obj .:? "uiTheme" .!= uiThemeToText (settingsUiTheme defaultSettings)
+      parseUiThemeText value
 
 wordFilterToJson :: WordFilter -> Value
 wordFilterToJson filterValue =
@@ -286,5 +287,5 @@ normalizeLingqLanguage :: Text -> Text
 normalizeLingqLanguage value
   | T.null stripped = settingsLingqLanguage defaultSettings
   | otherwise = stripped
-  where
-    stripped = T.toLower (T.strip value)
+ where
+  stripped = T.toLower (T.strip value)

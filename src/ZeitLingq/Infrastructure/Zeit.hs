@@ -1,26 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ZeitLingq.Infrastructure.Zeit
-  ( ZeitError(..)
-  , ZeitSession(..)
-  , absoluteZeitUrl
-  , defaultZeitUserAgent
-  , extractArticleContent
-  , extractAdditionalArticlePageUrls
-  , extractArticleList
-  , fetchArticleContentZeit
-  , fetchArticleListZeit
-  , looksLikeArticleUrl
-  , normalizeZeitUserAgent
-  ) where
+module ZeitLingq.Infrastructure.Zeit (
+  ZeitError (..),
+  ZeitSession (..),
+  absoluteZeitUrl,
+  defaultZeitUserAgent,
+  extractArticleContent,
+  extractAdditionalArticlePageUrls,
+  extractArticleList,
+  fetchArticleContentZeit,
+  fetchArticleListZeit,
+  looksLikeArticleUrl,
+  normalizeZeitUserAgent,
+) where
 
-import Control.Applicative ((<|>), asum)
+import Control.Applicative (asum, (<|>))
 import Control.Concurrent (threadDelay)
-import Data.Aeson (Value(..), eitherDecodeStrict')
+import Data.Aeson (Value (..), eitherDecodeStrict')
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString (ByteString)
-import Data.Either (rights)
 import Data.ByteString.Lazy qualified as BL
+import Data.Either (rights)
 import Data.Foldable (toList)
 import Data.List (find)
 import Data.Maybe (fromMaybe)
@@ -38,7 +38,8 @@ import ZeitLingq.Domain.Types
 data ZeitSession = ZeitSession
   { zeitCookies :: Text
   , zeitUserAgent :: Text
-  } deriving (Eq, Show)
+  }
+  deriving (Eq, Show)
 
 data ZeitError
   = ZeitHttpError Int Text
@@ -79,11 +80,11 @@ fetchArticleContentWithPages session url = do
           let pageUrls = extractAdditionalArticlePageUrls url html
           pageResults <- traverse fetchAdditionalPage pageUrls
           pure (Right (mergeArticlePages article (rights pageResults)))
-  where
-    fetchAdditionalPage pageUrl = do
-      threadDelay 500000
-      pageHtml <- fetchHtml session pageUrl
-      pure (pageHtml >>= extractArticleContent pageUrl)
+ where
+  fetchAdditionalPage pageUrl = do
+    threadDelay 500000
+    pageHtml <- fetchHtml session pageUrl
+    pure (pageHtml >>= extractArticleContent pageUrl)
 
 fetchHtml :: ZeitSession -> Text -> IO (Either ZeitError Text)
 fetchHtml session url = do
@@ -99,15 +100,15 @@ extractArticleList :: Text -> Text -> [ArticleSummary]
 extractArticleList sectionLabelValue html =
   dedupeByUrl
     [ ArticleSummary
-        { summaryId = Nothing
-        , summaryUrl = url
-        , summaryTitle = title
-        , summarySection = sectionLabelValue
-        , summaryWordCount = 0
-        , summaryIgnored = False
-        , summaryUploaded = False
-        , summaryKnownPct = Nothing
-        }
+      { summaryId = Nothing
+      , summaryUrl = url
+      , summaryTitle = title
+      , summarySection = sectionLabelValue
+      , summaryWordCount = 0
+      , summaryIgnored = False
+      , summaryUploaded = False
+      , summaryKnownPct = Nothing
+      }
     | Anchor href title <- collectAnchors (parseTagsText html)
     , let url = absoluteZeitUrl href
     , looksLikeArticleUrl url
@@ -116,7 +117,8 @@ extractArticleList sectionLabelValue html =
 
 extractArticleContent :: Text -> Text -> Either ZeitError Article
 extractArticleContent url html
-  | looksPaywalled html && length paragraphs < 2 = Left (ZeitParseError "Article appears to be behind a paywall or the Zeit session expired.")
+  | looksPaywalled html && length paragraphs < 2 =
+      Left (ZeitParseError "Article appears to be behind a paywall or the Zeit session expired.")
   | T.null title = Left (ZeitParseError "Could not extract article title.")
   | null paragraphs = Left (ZeitParseError "Could not extract article paragraphs.")
   | otherwise =
@@ -137,10 +139,10 @@ extractArticleContent url html
           , articleAudioPath = Nothing
           , articleKnownPct = Nothing
           }
-  where
-    tags = parseTagsText html
-    title = cleanTitle (fromMaybe "" (firstBlockText "h1" tags <|> firstBlockText "title" tags))
-    paragraphs = extractBodyBlocks tags
+ where
+  tags = parseTagsText html
+  title = cleanTitle (fromMaybe "" (firstBlockText "h1" tags <|> firstBlockText "title" tags))
+  paragraphs = extractBodyBlocks tags
 
 extractAdditionalArticlePageUrls :: Text -> Text -> [Text]
 extractAdditionalArticlePageUrls articleUrl html =
@@ -153,8 +155,8 @@ extractAdditionalArticlePageUrls articleUrl html =
     , sameArticlePage cleanArticleUrl pageUrl
     , looksLikePagination title pageUrl
     ]
-  where
-    cleanArticleUrl = normalizeArticleBase articleUrl
+ where
+  cleanArticleUrl = normalizeArticleBase articleUrl
 
 mergeArticlePages :: Article -> [Article] -> Article
 mergeArticlePages article pages =
@@ -168,16 +170,16 @@ looksLikePagination title url =
   any (`T.isInfixOf` lowerTitle) ["seite", "weiter", "nächste", "naechste", "auf einer seite"]
     || "/seite-" `T.isInfixOf` lowerUrl
     || maybe False (T.all isDigitText) (lastMaybe (T.splitOn "/" lowerUrl))
-  where
-    lowerTitle = T.toLower title
-    lowerUrl = T.toLower url
+ where
+  lowerTitle = T.toLower title
+  lowerUrl = T.toLower url
 
 sameArticlePage :: Text -> Text -> Bool
 sameArticlePage cleanArticleUrl candidate =
   candidateBase == cleanArticleUrl
     || (cleanArticleUrl <> "/") `T.isPrefixOf` candidateBase
-  where
-    candidateBase = normalizeArticleBase candidate
+ where
+  candidateBase = normalizeArticleBase candidate
 
 normalizeArticleBase :: Text -> Text
 normalizeArticleBase =
@@ -185,13 +187,13 @@ normalizeArticleBase =
 
 dedupeTexts :: [Text] -> [Text]
 dedupeTexts = go Set.empty
-  where
-    go _ [] = []
-    go seen (value:rest)
-      | key `Set.member` seen = go seen rest
-      | otherwise = value : go (Set.insert key seen) rest
-      where
-        key = T.take 100 value
+ where
+  go _ [] = []
+  go seen (value : rest)
+    | key `Set.member` seen = go seen rest
+    | otherwise = value : go (Set.insert key seen) rest
+   where
+    key = T.take 100 value
 
 lastMaybe :: [a] -> Maybe a
 lastMaybe [] = Nothing
@@ -233,8 +235,8 @@ completeViewUrl url
   | "/komplettansicht" `T.isSuffixOf` clean = clean
   | "/" `T.isSuffixOf` clean = clean <> "komplettansicht"
   | otherwise = clean <> "/komplettansicht"
-  where
-    clean = stripQueryNoise url
+ where
+  clean = stripQueryNoise url
 
 data Anchor = Anchor Text Text
   deriving (Eq, Show)
@@ -312,10 +314,10 @@ audioFromValue (Object obj) =
     , KeyMap.lookup "audio" obj >>= audioFromValue
     , asum (map audioFromValue (KeyMap.elems obj))
     ]
-  where
-    textField key = do
-      String value <- KeyMap.lookup key obj
-      if looksLikeAudioUrl value then Just value else Nothing
+ where
+  textField key = do
+    String value <- KeyMap.lookup key obj
+    if looksLikeAudioUrl value then Just value else Nothing
 audioFromValue (Array values) =
   asum (map audioFromValue (toList values))
 audioFromValue (String value)
@@ -325,8 +327,8 @@ audioFromValue _ = Nothing
 looksLikeAudioUrl :: Text -> Bool
 looksLikeAudioUrl value =
   any (`T.isInfixOf` lower) [".mp3", ".m4a", ".ogg", ".aac", "audio"]
-  where
-    lower = T.toLower value
+ where
+  lower = T.toLower value
 
 attrFromFirst :: String -> [Tag String] -> Maybe Text
 attrFromFirst attrName tags = do
@@ -339,7 +341,7 @@ tagHasAttr attrName expected (TagOpen _ attrs) =
 tagHasAttr _ _ _ = False
 
 tagOpen :: Tag String -> Bool
-tagOpen TagOpen {} = True
+tagOpen TagOpen{} = True
 tagOpen _ = False
 
 tagOpenName :: String -> Tag String -> Bool
@@ -352,11 +354,11 @@ tagCloseName _ _ = False
 
 dedupeByUrl :: [ArticleSummary] -> [ArticleSummary]
 dedupeByUrl = go Set.empty
-  where
-    go _ [] = []
-    go seen (article:rest)
-      | summaryUrl article `Set.member` seen = go seen rest
-      | otherwise = article : go (Set.insert (summaryUrl article) seen) rest
+ where
+  go _ [] = []
+  go seen (article : rest)
+    | summaryUrl article `Set.member` seen = go seen rest
+    | otherwise = article : go (Set.insert (summaryUrl article) seen) rest
 
 sectionFromUrl :: Text -> Text
 sectionFromUrl url =
@@ -376,15 +378,15 @@ cleanText = T.unwords . T.words
 looksPaywalled :: Text -> Bool
 looksPaywalled html =
   any (`T.isInfixOf` lower) markers
-  where
-    lower = T.toLower html
-    markers =
-      [ "z+"
-      , "diesen artikel"
-      , "abonnenten"
-      , "einloggen"
-      , "session"
-      ]
+ where
+  lower = T.toLower html
+  markers =
+    [ "z+"
+    , "diesen artikel"
+    , "abonnenten"
+    , "einloggen"
+    , "session"
+    ]
 
 nonEmpty :: Text -> Maybe Text
 nonEmpty value
@@ -402,16 +404,18 @@ decodeUtf8Lazy = LT.toStrict . LTE.decodeUtf8
 
 addZeitHeaders :: ZeitSession -> Request -> IO Request
 addZeitHeaders session request =
-  pure $
-    maybe id (\cookie -> setRequestHeader "Cookie" [cookie]) (cookieHeader session)
+  pure
+    $ maybe id (\cookie -> setRequestHeader "Cookie" [cookie]) (cookieHeader session)
       . setRequestHeader "User-Agent" [encodeUtf8 (normalizeZeitUserAgent (zeitUserAgent session))]
-      . setRequestHeader "Accept" ["text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"]
+      . setRequestHeader
+        "Accept"
+        ["text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"]
       . setRequestHeader "Accept-Language" ["de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7"]
       . setRequestHeader "Upgrade-Insecure-Requests" ["1"]
       . setRequestHeader "Sec-Fetch-Dest" ["document"]
       . setRequestHeader "Sec-Fetch-Mode" ["navigate"]
       . setRequestHeader "Sec-Fetch-Site" ["none"]
-      $ request
+    $ request
 
 cookieHeader :: ZeitSession -> Maybe ByteString
 cookieHeader session
@@ -426,5 +430,5 @@ normalizeZeitUserAgent :: Text -> Text
 normalizeZeitUserAgent value
   | T.null stripped = defaultZeitUserAgent
   | otherwise = stripped
-  where
-    stripped = T.strip value
+ where
+  stripped = T.strip value

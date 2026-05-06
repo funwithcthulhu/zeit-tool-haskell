@@ -1,13 +1,13 @@
 {-# LANGUAGE RankNTypes #-}
 
-module ZeitLingq.Ports
-  ( AppPorts(..)
-  , AudioPort(..)
-  , LibraryPort(..)
-  , LingqPort(..)
-  , SettingsPort(..)
-  , ZeitPort(..)
-  ) where
+module ZeitLingq.Ports (
+  AppPorts (..),
+  AudioPort (..),
+  LibraryPort (..),
+  LingqPort (..),
+  SettingsPort (..),
+  ZeitPort (..),
+) where
 
 import Data.Map.Strict (Map)
 import Data.Set (Set)
