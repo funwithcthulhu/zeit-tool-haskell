@@ -8,15 +8,16 @@ module ZeitLingq.Gui.Error
 
 import Data.Text (Text)
 import Data.Text qualified as T
+import ZeitLingq.Domain.Types (ArticleFetchFailure(..))
 
 friendlyFailureMessage :: Text -> Text
 friendlyFailureMessage message
   | isZeitAuthFailureText message = message <> " " <> zeitAuthGuidance
   | otherwise = message
 
-fetchFailuresNeedZeitLogin :: [(Text, Text)] -> Bool
+fetchFailuresNeedZeitLogin :: [ArticleFetchFailure] -> Bool
 fetchFailuresNeedZeitLogin =
-  any (isZeitAuthFailureText . snd)
+  any (isZeitAuthFailureText . articleFetchFailureReason)
 
 isZeitAuthFailureText :: Text -> Bool
 isZeitAuthFailureText message =

@@ -62,8 +62,8 @@ data Model = Model
   , completedJobs :: [CompletedJob]
   , jobQueuePaused :: Bool
   , nextJobId :: Int
-  , failedFetches :: [(Text, Text)]
-  , failedUploads :: [(ArticleId, Text)]
+  , failedFetches :: [ArticleFetchFailure]
+  , failedUploads :: [ArticleUploadFailure]
   , pendingConfirmation :: Maybe PendingConfirmation
   , rowDensity :: RowDensity
   , uiTheme :: UiTheme

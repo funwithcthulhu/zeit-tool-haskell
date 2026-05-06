@@ -22,8 +22,8 @@ import System.IO (hClose)
 import System.Process (CreateProcess(std_in), StdStream(CreatePipe), callProcess, proc, readCreateProcessWithExitCode, waitForProcess, withCreateProcess)
 import Data.Text.IO qualified as TIO
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
-import ZeitLingq.Core.Batch (BatchFetchResult(..))
-import ZeitLingq.Core.Upload (BatchUploadConfig(..), BatchUploadResult(..), targetCollectionFor)
+import ZeitLingq.Core.Batch (BatchFetchResult(..), articleFetchFailures)
+import ZeitLingq.Core.Upload (BatchUploadConfig(..), BatchUploadResult(..), articleUploadFailures, targetCollectionFor)
 import ZeitLingq.Domain.Article (BatchDecision(..), applyWordFilter, lessonTitle, wordCount)
 import ZeitLingq.App.Driver (dispatchEvent, dispatchEvents)
 import ZeitLingq.App.Model (Model(..), PendingConfirmation(..))
@@ -51,7 +51,7 @@ data GuiEvent
   = GuiInit
   | GuiModelLoaded Model
   | GuiFailed Text
-  | GuiNavigate View
+  | GuiViewSelected View
   | GuiRefresh
   | GuiZeitCookieChanged Text
   | GuiOpenZeitLoginPage
@@ -65,7 +65,7 @@ data GuiEvent
   | GuiLingqApiKeyLogin
   | GuiLingqPasswordLogin
   | GuiLingqLogout
-  | GuiSectionSelected Text
+  | GuiBrowseSectionSelected Text
   | GuiBrowsePreviousPage
   | GuiBrowseNextPage
   | GuiBrowseMinWordsChanged Text
@@ -116,14 +116,14 @@ data GuiEvent
   | GuiClearKnownWords
   | GuiRefreshLanguages
   | GuiRefreshCollections
-  | GuiFallbackCollectionChanged Text
+  | GuiLingqFallbackCollectionChanged Text
   | GuiLingqMinWordsChanged Text
   | GuiLingqMaxWordsChanged Text
   | GuiLingqOnlyNotUploadedChanged Bool
   | GuiLingqKnownImportVisible Bool
   | GuiLingqMappingsVisible Bool
-  | GuiDatePrefixChanged Bool
-  | GuiSectionCollectionChanged Text Text
+  | GuiLingqDatePrefixChanged Bool
+  | GuiLingqSectionCollectionChanged Text Text
   | GuiLibrarySearchChanged Text
   | GuiLibrarySectionChanged Text
   | GuiLibraryMinWordsChanged Text
@@ -192,8 +192,8 @@ handleEvent runtime _ _ model event =
       modelLoadedResponses runtime model nextModel
     GuiFailed message ->
       [M.Model model {notification = Just (Notification ErrorNotice (friendlyFailureMessage message))}]
-    GuiNavigate view ->
-      [Task (runAppEvent ports model (Navigate view))]
+    GuiViewSelected view ->
+      [Task (runAppEvent ports model (ViewSelected view))]
     GuiRefresh ->
       withPendingNotice model "Refreshing current view..." (runAppEvent ports model RefreshCurrentView)
     GuiZeitCookieChanged cookie ->
@@ -220,16 +220,16 @@ handleEvent runtime _ _ model event =
       [Task (runAppEvent ports model (LingqPasswordLoginRequested (lingqUsernameText model) (lingqPasswordText model)))]
     GuiLingqLogout ->
       [Task (runAppEvent ports model LingqLogoutRequested)]
-    GuiSectionSelected sectionIdent ->
+    GuiBrowseSectionSelected sectionIdent ->
       [Task (runAppEvent ports model (BrowseSectionSelected sectionIdent))]
     GuiBrowsePreviousPage ->
       [Task (runAppEvent ports model (BrowsePageChanged (browsePage model - 1)))]
     GuiBrowseNextPage ->
       [Task (runAppEvent ports model (BrowsePageChanged (browsePage model + 1)))]
     GuiBrowseMinWordsChanged raw ->
-      [Task (runAppEvent ports model (BrowseFilterChanged ((browseFilter model) {minWords = parseOptionalInt raw})))]
+      [Task (runAppEvent ports model (BrowseFilterChanged ((browseFilter model) {minWords = parseWordLimit raw})))]
     GuiBrowseMaxWordsChanged raw ->
-      [Task (runAppEvent ports model (BrowseFilterChanged ((browseFilter model) {maxWords = parseOptionalInt raw})))]
+      [Task (runAppEvent ports model (BrowseFilterChanged ((browseFilter model) {maxWords = parseWordLimit raw})))]
     GuiBrowseShowHiddenChanged enabled ->
       [Task (runAppEvent ports model (BrowseShowHiddenChanged enabled))]
     GuiBrowseOnlyNewChanged enabled ->
@@ -267,7 +267,7 @@ handleEvent runtime _ _ model event =
     GuiLingqToggleSelection ident ->
       [Task (runAppEvent ports model (LingqSelectionToggled ident))]
     GuiLingqSelectNotUploaded articles ->
-      [Task (runAppEvent ports model (LingqSelectionChanged (Set.fromList (mapMaybeSummaryId (filter uploadableSummary articles)))))]
+      [Task (runAppEvent ports model (LingqSelectionChanged (Set.fromList (savedSummaryIds (filter uploadableSummary articles)))))]
     GuiLingqClearSelection ->
       [Task (runAppEvent ports model (LingqSelectionChanged Set.empty))]
     GuiUploadSelected articles ->
@@ -352,30 +352,30 @@ handleEvent runtime _ _ model event =
       withPendingNotice model "Refreshing LingQ languages..." (runAppEvent ports model LingqLanguagesRefreshRequested)
     GuiRefreshCollections ->
       withPendingNotice model "Refreshing LingQ collections..." (runAppEvent ports model (LingqCollectionsRefreshRequested (lingqLanguage model)))
-    GuiFallbackCollectionChanged collectionId ->
+    GuiLingqFallbackCollectionChanged collectionId ->
       [Task (runAppEvent ports model (LingqFallbackCollectionChanged collectionId))]
     GuiLingqMinWordsChanged raw ->
-      [Task (runAppEvent ports model (LingqFilterChanged ((lingqFilter model) {minWords = parseOptionalInt raw})))]
+      [Task (runAppEvent ports model (LingqFilterChanged ((lingqFilter model) {minWords = parseWordLimit raw})))]
     GuiLingqMaxWordsChanged raw ->
-      [Task (runAppEvent ports model (LingqFilterChanged ((lingqFilter model) {maxWords = parseOptionalInt raw})))]
+      [Task (runAppEvent ports model (LingqFilterChanged ((lingqFilter model) {maxWords = parseWordLimit raw})))]
     GuiLingqOnlyNotUploadedChanged enabled ->
       [Task (runAppEvent ports model (LingqOnlyNotUploadedChanged enabled))]
     GuiLingqKnownImportVisible enabled ->
       [Task (runAppEvent ports model (LingqKnownImportVisibilityChanged enabled))]
     GuiLingqMappingsVisible enabled ->
       [Task (runAppEvent ports model (LingqSectionMappingsVisibilityChanged enabled))]
-    GuiDatePrefixChanged enabled ->
+    GuiLingqDatePrefixChanged enabled ->
       [Task (runAppEvent ports model (DatePrefixToggled enabled))]
-    GuiSectionCollectionChanged sectionName collectionId ->
+    GuiLingqSectionCollectionChanged sectionName collectionId ->
       [Task (runAppEvent ports model (SectionCollectionsChanged (updateSectionCollection sectionName collectionId (sectionCollections model))))]
     GuiLibrarySearchChanged search ->
       [Task (runAppEvent ports model (LibrarySearchChanged search))]
     GuiLibrarySectionChanged sectionName ->
       [Task (runAppEvent ports model (LibrarySectionChanged sectionName))]
     GuiLibraryMinWordsChanged raw ->
-      [Task (runAppEvent ports model (LibraryFilterChanged ((libraryFilter model) {minWords = parseOptionalInt raw})))]
+      [Task (runAppEvent ports model (LibraryFilterChanged ((libraryFilter model) {minWords = parseWordLimit raw})))]
     GuiLibraryMaxWordsChanged raw ->
-      [Task (runAppEvent ports model (LibraryFilterChanged ((libraryFilter model) {maxWords = parseOptionalInt raw})))]
+      [Task (runAppEvent ports model (LibraryFilterChanged ((libraryFilter model) {maxWords = parseWordLimit raw})))]
     GuiLibraryIncludeIgnoredChanged enabled ->
       [Task (runAppEvent ports model (LibraryIncludeIgnoredChanged enabled))]
     GuiLibraryOnlyIgnoredChanged enabled ->
@@ -601,7 +601,7 @@ sidebarBlock model vm =
 
 sideNavButton :: Model -> NavItem -> WidgetNode Model GuiEvent
 sideNavButton model item =
-  button (navLabel item) (GuiNavigate (navView item))
+  button (navLabel item) (GuiViewSelected (navView item))
     `styleBasic`
       [ paddingH 10
       , paddingV 2
@@ -672,7 +672,7 @@ sidebarFailureBlock model
         [ mutedLabel model "Retry list"
         , failureCountLine model "Fetch" (length (failedFetches model))
         , failureCountLine model "Upload" (length (failedUploads model))
-        , vstack (map (failureLine model) (take 3 (map fst (failedFetches model) <> map (tshow . fst) (failedUploads model))))
+        , vstack (map (failureLine model) (take 3 (failureLabels model)))
         , hstack
             [ rowSecondaryButton model "Retry fetch" GuiRetryFailedFetches
             , rowSecondaryButton model "Retry upload" GuiRetryFailedUploads
@@ -697,6 +697,24 @@ failureLine :: Model -> Text -> WidgetNode Model GuiEvent
 failureLine model text =
   label_ text [ellipsis]
     `styleBasic` [textSize 10, textColor (mutedTextColor model), paddingT 3]
+
+failureLabels :: Model -> [Text]
+failureLabels model =
+  map articleFetchFailureUrl (failedFetches model)
+    <> map uploadRetryFailureLabel (failedUploads model)
+
+uploadRetryFailureLabel :: ArticleUploadFailure -> Text
+uploadRetryFailureLabel failure =
+  "article "
+    <> tshow (unArticleId (articleUploadFailureId failure))
+    <> titleText
+    <> ": "
+    <> articleUploadFailureReason failure
+  where
+    titleText =
+      case articleUploadFailureTitle failure of
+        Just title | not (T.null title) -> " (" <> title <> ")"
+        _ -> ""
 
 statusBlock :: Model -> AppViewModel -> WidgetNode Model GuiEvent
 statusBlock model vm =
@@ -1082,7 +1100,7 @@ diagnosticsFailurePanel model =
         , dangerButton model "Clear failures" GuiClearFailures
         ]
         `styleBasic` [paddingT 6]
-    , vstack (map (failureLine model) (take 5 (map fst (failedFetches model) <> map (tshow . fst) (failedUploads model))))
+    , vstack (map (failureLine model) (take 5 (failureLabels model)))
         `styleBasic` [paddingT 4]
     ]
     `styleBasic` [padding 8, radius 12, bgColor (panelBgColor model), border 1 (borderColor model), paddingB 8]
@@ -1137,7 +1155,7 @@ browseControls model =
                 `styleBasic` [paddingR 8, textColor (mutedTextColor model)]
             , textDropdownV_
                 (browseSectionId model)
-                GuiSectionSelected
+                GuiBrowseSectionSelected
                 (map sectionId allSections)
                 sectionLabelForId
                 [maxHeight 360]
@@ -1189,7 +1207,7 @@ browseSessionNotice model
             , mutedLabel model "Fetches for subscriber articles may fail until you import a real browser session."
             ]
         , filler
-        , primaryButton model "Connect Zeit" (GuiNavigate ZeitLoginView)
+        , primaryButton model "Connect Zeit" (GuiViewSelected ZeitLoginView)
         ]
         `styleBasic` [padding 10, radius 14, bgColor (panelAltColor model), border 1 (borderColor model), paddingB 8]
 
@@ -1408,7 +1426,7 @@ lingqControls model =
             [ secondaryButton model "Sync known words" GuiSyncKnownWords
             , secondaryButton model "Refresh %" GuiComputeKnownWords
             , secondaryButton model "Refresh collections" GuiRefreshCollections
-            , toggle model "Auto-date lesson titles" (datePrefixEnabled model) GuiDatePrefixChanged
+            , toggle model "Auto-date lesson titles" (datePrefixEnabled model) GuiLingqDatePrefixChanged
             ]
         , label ("Known stems (" <> lingqLanguage model <> "): " <> tshow (knownStemTotal model))
             `styleBasic` [paddingT 8, textColor (mutedTextColor model)]
@@ -1476,12 +1494,12 @@ collectionPicker model =
   if null (lingqCollections model)
     then textFieldV_
           (maybe "" id (lingqFallbackCollection model))
-          GuiFallbackCollectionChanged
+          GuiLingqFallbackCollectionChanged
           [placeholder "collection id or blank"]
           `styleBasic` (inputStyle model <> [width 230])
     else textDropdownV_
           (maybe "" id (lingqFallbackCollection model))
-          GuiFallbackCollectionChanged
+          GuiLingqFallbackCollectionChanged
           ("" : map collectionId (lingqCollections model))
           (collectionLabelFor model)
           [maxHeight 320]
@@ -1545,7 +1563,7 @@ sectionMappingsPanel model
             `styleBasic` [width 150, textColor (mutedTextColor model)]
         , textDropdownV_
             (Map.findWithDefault "" (sectionLabel section) (sectionCollections model))
-            (GuiSectionCollectionChanged (sectionLabel section))
+            (GuiLingqSectionCollectionChanged (sectionLabel section))
             ("" : map collectionId (lingqCollections model))
             (collectionLabelFor model)
             [maxHeight 260]
@@ -1926,7 +1944,7 @@ runFetchBatchProducer runtime model job send =
     writeIORef cancelFlag False
     (results, cancelled) <- fetchMany [] (zip [1 ..] articles)
     sendProgress (length articles) "Updating the local library..."
-    let failures = guiBatchFetchFailures results
+    let failures = articleFetchFailures results
         summary = withCancelSuffix cancelled (guiBatchFetchSummary results)
         finalSummary =
           if fetchFailuresNeedZeitLogin failures
@@ -1985,7 +2003,7 @@ runUploadBatchProducer runtime model job send =
     now <- getCurrentTime
     envFallback <- fmap T.pack <$> lookupEnv "LINGQ_COLLECTION_ID"
     let fallbackCollection = lingqFallbackCollection model <|> envFallback
-        uploadIds = mapMaybeSummaryId (filter uploadableSummary articles)
+        uploadIds = savedSummaryIds (filter uploadableSummary articles)
         config =
           uploadConfigFromPreferences
             (utctDay now)
@@ -2010,7 +2028,7 @@ runUploadBatchProducer runtime model job send =
             uploadArticles = [article | Right article <- loaded]
         sendProgress (ProgressStatus (queuedJobLabel job) 0 (length uploadArticles) "Uploading to LingQ...")
         (uploadResults, cancelled) <- uploadMany config (length uploadArticles) [] (zip [1 ..] uploadArticles)
-        let failures = loadFailures <> guiBatchUploadFailures uploadResults
+        let failures = loadFailures <> articleUploadFailures uploadResults
             summary = withCancelSuffix cancelled (guiBatchUploadSummary loadFailures uploadResults)
         finalModel <-
           dispatchEvents
@@ -2040,8 +2058,8 @@ runUploadBatchProducer runtime model job send =
       loaded <- tryText (loadArticle (libraryPort ports) ident)
       pure $
         case loaded of
-          Left err -> Left (ident, err)
-          Right Nothing -> Left (ident, "Article not found.")
+          Left err -> Left (ArticleUploadFailure ident Nothing err)
+          Right Nothing -> Left (ArticleUploadFailure ident Nothing "Article not found in local library.")
           Right (Just article) -> Right article
     uploadOne config total (index, article) = do
       let titledArticle =
@@ -2312,12 +2330,6 @@ batchFetchProgressDetail result =
     BatchSkipped url decision -> "Skipped " <> url <> " (" <> tshow decision <> ")"
     BatchFailed url err -> "Failed " <> url <> ": " <> err
 
-guiBatchFetchFailures :: [BatchFetchResult] -> [(Text, Text)]
-guiBatchFetchFailures results =
-  [ (url, err)
-  | BatchFailed url err <- results
-  ]
-
 guiBatchFetchLevel :: [BatchFetchResult] -> NotificationLevel
 guiBatchFetchLevel results
   | any isFailed results = ErrorNotice
@@ -2326,7 +2338,7 @@ guiBatchFetchLevel results
     isFailed BatchFailed {} = True
     isFailed _ = False
 
-guiBatchUploadResultEvents :: Bool -> [(ArticleId, Text)] -> [BatchUploadResult] -> [Event]
+guiBatchUploadResultEvents :: Bool -> [ArticleUploadFailure] -> [BatchUploadResult] -> [Event]
 guiBatchUploadResultEvents cancelled loadFailures results =
   [ Notify level
       (withCancelSuffix cancelled (guiBatchUploadSummary loadFailures results))
@@ -2338,7 +2350,7 @@ guiBatchUploadResultEvents cancelled loadFailures results =
       | failed > 0 = ErrorNotice
       | otherwise = SuccessNotice
 
-guiBatchUploadSummary :: [(ArticleId, Text)] -> [BatchUploadResult] -> Text
+guiBatchUploadSummary :: [ArticleUploadFailure] -> [BatchUploadResult] -> Text
 guiBatchUploadSummary loadFailures results =
   "Batch upload: uploaded "
     <> tshow uploaded
@@ -2353,12 +2365,6 @@ withCancelSuffix :: Bool -> Text -> Text
 withCancelSuffix cancelled message
   | cancelled = message <> " Cancelled before processing the remaining items."
   | otherwise = message
-
-guiBatchUploadFailures :: [BatchUploadResult] -> [(ArticleId, Text)]
-guiBatchUploadFailures results =
-  [ (ident, title <> ": " <> err)
-  | UploadFailed (Just ident) title err <- results
-  ]
 
 batchUploadProgressDetail :: BatchUploadResult -> Text
 batchUploadProgressDetail result =
@@ -2564,8 +2570,8 @@ guiLibraryPort =
 failWithShow :: Show err => err -> IO a
 failWithShow = fail . show
 
-parseOptionalInt :: Text -> Maybe Int
-parseOptionalInt raw =
+parseWordLimit :: Text -> Maybe Int
+parseWordLimit raw =
   case T.unpack (T.strip raw) of
     "" -> Nothing
     value ->
@@ -2604,19 +2610,19 @@ uploadableSummary :: ArticleSummary -> Bool
 uploadableSummary article =
   not (summaryUploaded article) && not (summaryIgnored article)
 
-mapMaybeSummaryId :: [ArticleSummary] -> [ArticleId]
-mapMaybeSummaryId articles =
+savedSummaryIds :: [ArticleSummary] -> [ArticleId]
+savedSummaryIds articles =
   [ ident
   | article <- articles
   , Just ident <- [summaryId article]
   ]
 
-failedFetchSummary :: (Text, Text) -> ArticleSummary
-failedFetchSummary (url, _) =
+failedFetchSummary :: ArticleFetchFailure -> ArticleSummary
+failedFetchSummary failure =
   ArticleSummary
     { summaryId = Nothing
-    , summaryUrl = url
-    , summaryTitle = url
+    , summaryUrl = articleFetchFailureUrl failure
+    , summaryTitle = articleFetchFailureUrl failure
     , summarySection = ""
     , summaryWordCount = 0
     , summaryIgnored = False
@@ -2624,12 +2630,12 @@ failedFetchSummary (url, _) =
     , summaryKnownPct = Nothing
     }
 
-failedUploadSummary :: (ArticleId, Text) -> ArticleSummary
-failedUploadSummary (ident, labelText) =
+failedUploadSummary :: ArticleUploadFailure -> ArticleSummary
+failedUploadSummary failure =
   ArticleSummary
-    { summaryId = Just ident
+    { summaryId = Just (articleUploadFailureId failure)
     , summaryUrl = ""
-    , summaryTitle = labelText
+    , summaryTitle = uploadRetryFailureLabel failure
     , summarySection = ""
     , summaryWordCount = 0
     , summaryIgnored = False

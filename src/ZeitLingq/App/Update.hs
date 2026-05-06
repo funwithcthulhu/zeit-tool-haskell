@@ -17,7 +17,7 @@ import ZeitLingq.App.Model (Model(..))
 import ZeitLingq.Domain.Types
 
 data Event
-  = Navigate View
+  = ViewSelected View
   | ZeitStatusChanged AuthStatus
   | LingqStatusChanged AuthStatus
   | ZeitCookieChanged Text
@@ -73,8 +73,8 @@ data Event
   | LibraryPageLoaded LibraryPage
   | LibraryStatsLoaded LibraryStats
   | LingqArticlesLoaded [ArticleSummary]
-  | BatchFetchFinished [(Text, Text)]
-  | BatchUploadFinished [(ArticleId, Text)]
+  | BatchFetchFinished [ArticleFetchFailure]
+  | BatchUploadFinished [ArticleUploadFailure]
   | FetchJobQueued Text [ArticleSummary]
   | UploadJobQueued Text [ArticleSummary]
   | QueuedJobStarted QueuedJob
@@ -162,7 +162,7 @@ data Command
 update :: Event -> Model -> (Model, [Command])
 update event model =
   case event of
-    Navigate nextView ->
+    ViewSelected nextView ->
       let nextModel = model {currentView = nextView}
        in ( nextModel
           , PersistCurrentView nextView : refreshCommands nextModel

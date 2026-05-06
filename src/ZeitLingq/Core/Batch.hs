@@ -2,6 +2,7 @@
 
 module ZeitLingq.Core.Batch
   ( BatchFetchResult(..)
+  , articleFetchFailures
   , batchFetchArticles
   ) where
 
@@ -14,6 +15,12 @@ data BatchFetchResult
   | BatchSkipped Text BatchDecision
   | BatchFailed Text Text
   deriving (Eq, Show)
+
+articleFetchFailures :: [BatchFetchResult] -> [ArticleFetchFailure]
+articleFetchFailures results =
+  [ ArticleFetchFailure url reason
+  | BatchFailed url reason <- results
+  ]
 
 batchFetchArticles
   :: Monad m

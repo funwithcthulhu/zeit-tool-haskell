@@ -958,6 +958,7 @@ main = hspec $ do
                    , BatchSkipped "short" (SkipBelowMinimum 2 3)
                    , BatchFailed "bad" "network"
                    ]
+      articleFetchFailures results `shouldBe` [ArticleFetchFailure "bad" "network"]
 
   describe "Batch upload use case" $ do
     it "derives upload config from persisted preferences" $ do
@@ -1047,6 +1048,7 @@ main = hspec $ do
           marker _ _ = expectationFailure "marker should not be called"
       results <- batchUploadArticles uploader updater marker config [demoArticle {articleId = Just (ArticleId 4)}]
       results `shouldBe` [UploadFailed (Just (ArticleId 4)) "Demo" "upload failed"]
+      articleUploadFailures results `shouldBe` [ArticleUploadFailure (ArticleId 4) (Just "Demo") "upload failed"]
 
   describe "SQLite library adapter" $ do
     it "saves and reloads articles with summaries and stats" $ do

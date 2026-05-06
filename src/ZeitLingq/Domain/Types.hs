@@ -7,6 +7,7 @@ module ZeitLingq.Domain.Types
   , ArticleSummary(..)
   , AuthStatus(..)
   , CompletedJob(..)
+  , ArticleFetchFailure(..)
   , JobKind(..)
   , LibraryPage(..)
   , LibraryPreset(..)
@@ -24,6 +25,7 @@ module ZeitLingq.Domain.Types
   , RowDensity(..)
   , Section(..)
   , UiTheme(..)
+  , ArticleUploadFailure(..)
   , View(..)
   , WordFilter(..)
   , defaultLibraryQuery
@@ -89,6 +91,17 @@ data CompletedJob = CompletedJob
   , completedJobLabel :: Text
   , completedJobSummary :: Text
   , completedJobSucceeded :: Bool
+  } deriving (Eq, Show, Generic)
+
+data ArticleFetchFailure = ArticleFetchFailure
+  { articleFetchFailureUrl :: Text
+  , articleFetchFailureReason :: Text
+  } deriving (Eq, Show, Generic)
+
+data ArticleUploadFailure = ArticleUploadFailure
+  { articleUploadFailureId :: ArticleId
+  , articleUploadFailureTitle :: Maybe Text
+  , articleUploadFailureReason :: Text
   } deriving (Eq, Show, Generic)
 
 data AuthStatus = AuthStatus

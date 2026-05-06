@@ -6,7 +6,7 @@ description:     Personal desktop utility for saving Die Zeit articles locally a
 license:         BSD-3-Clause
 license-file:    LICENSE
 category:        Application
-author:          Zeit Tool Haskell contributors
+author:          funwithcthulhu
 maintainer:      funwithcthulhu
 build-type:      Simple
 extra-doc-files:

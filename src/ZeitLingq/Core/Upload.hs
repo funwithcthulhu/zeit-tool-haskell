@@ -4,6 +4,7 @@
 module ZeitLingq.Core.Upload
   ( BatchUploadConfig(..)
   , BatchUploadResult(..)
+  , articleUploadFailures
   , batchUploadArticles
   , targetCollectionFor
   ) where
@@ -28,6 +29,12 @@ data BatchUploadResult
   | UploadSucceededUntracked Text LingqLesson
   | UploadFailed (Maybe ArticleId) Text Text
   deriving (Eq, Show)
+
+articleUploadFailures :: [BatchUploadResult] -> [ArticleUploadFailure]
+articleUploadFailures results =
+  [ ArticleUploadFailure ident (Just title) reason
+  | UploadFailed (Just ident) title reason <- results
+  ]
 
 batchUploadArticles
   :: Monad m

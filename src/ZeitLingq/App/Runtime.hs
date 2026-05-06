@@ -12,10 +12,10 @@ import Data.Map.Strict qualified as Map
 import Data.Foldable (traverse_)
 import ZeitLingq.App.Update (Command(..), Event(..))
 import ZeitLingq.App.UploadConfig (uploadConfigFromPreferences)
-import ZeitLingq.Core.Batch (BatchFetchResult(..), batchFetchArticles)
+import ZeitLingq.Core.Batch (BatchFetchResult(..), articleFetchFailures, batchFetchArticles)
 import ZeitLingq.Core.Browse (hideIgnoredSummaries, markIgnoredSummaries)
 import ZeitLingq.Core.KnownWords (importKnownWordStems)
-import ZeitLingq.Core.Upload (BatchUploadResult(..), batchUploadArticles)
+import ZeitLingq.Core.Upload (BatchUploadResult(..), articleUploadFailures, batchUploadArticles)
 import ZeitLingq.Domain.Article (wordCount)
 import ZeitLingq.Domain.Types
 import ZeitLingq.Ports
@@ -170,7 +170,7 @@ runCommand ports command =
               (markArticleUploaded library)
               (uploadConfigFromPreferences day languageCode fallbackCollection datePrefix sectionCollections)
               articles
-          pure (BatchUploadFinished (batchUploadFailures results) : batchUploadResultEvents results <> [RefreshCurrentView])
+          pure (BatchUploadFinished (articleUploadFailures results) : batchUploadResultEvents results <> [RefreshCurrentView])
     SyncLingqStatus languageCode collectionId -> do
       remoteLessons <- fetchCollectionLessons lingq languageCode collectionId
       page <-
@@ -206,7 +206,7 @@ runCommand ports command =
           filters
           (map summaryUrl summaries)
       pure
-        [ BatchFetchFinished (batchFetchFailures results)
+        [ BatchFetchFinished (articleFetchFailures results)
         , Notify SuccessNotice (batchFetchSummary results)
         , RefreshCurrentView
         ]
@@ -322,12 +322,6 @@ batchUploadResultEvents results =
       | failed > 0 = ErrorNotice
       | otherwise = SuccessNotice
 
-batchUploadFailures :: [BatchUploadResult] -> [(ArticleId, Text)]
-batchUploadFailures results =
-  [ (ident, title <> ": " <> err)
-  | UploadFailed (Just ident) title err <- results
-  ]
-
 data LingqStatusSyncResult = LingqStatusSyncResult
   { syncScanned :: Int
   , syncMatches :: [(ArticleId, LingqLesson)]
@@ -433,12 +427,6 @@ batchFetchSummary results =
     saved = length [() | BatchSaved {} <- results]
     skipped = length [() | BatchSkipped {} <- results]
     failed = length [() | BatchFailed {} <- results]
-
-batchFetchFailures :: [BatchFetchResult] -> [(Text, Text)]
-batchFetchFailures results =
-  [ (url, err)
-  | BatchFailed url err <- results
-  ]
 
 tshow :: Show a => a -> Text
 tshow = T.pack . show
