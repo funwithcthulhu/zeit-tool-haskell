@@ -65,6 +65,12 @@ main = hspec $ do
       lessonTitle (fromGregorian 2026 5 2) True "Titel" `shouldBe` "2026-05-02 - Titel"
       lessonTitle (fromGregorian 2026 5 2) True "2026-05-01 - Titel" `shouldBe` "2026-05-01 - Titel"
 
+    it "keeps saved article paragraphs separated by blank lines" $ do
+      articleBodyText demoArticle `shouldBe` "eins zwei\n\ndrei vier"
+
+    it "keeps the saved clean text shell even when the body is empty" $ do
+      composeCleanText demoArticle{articleParagraphs = []} `shouldBe` "Demo\n\n---\n\n"
+
     it "applies fetch filters" $ do
       applyWordFilter (WordFilter (Just 5) (Just 10)) demoArticle `shouldBe` SkipBelowMinimum 4 5
 
@@ -1464,6 +1470,14 @@ main = hspec $ do
     it "normalizes lesson text without flattening paragraphs" $ do
       normalizeLessonText " eins   zwei\nnoch \n\n  drei\tvier " `shouldBe` "eins zwei noch\n\ndrei vier"
 
+    it "returns empty upload text for empty or whitespace-only article text" $ do
+      normalizeLessonText "" `shouldBe` ""
+      normalizeLessonText " \n\t \n " `shouldBe` ""
+
+    it "keeps German punctuation and quotes while trimming upload text" $ do
+      normalizeLessonText "  „Hallo“,  sagte sie:  »Ja!«\n\n Fußball – Größe?  "
+        `shouldBe` "„Hallo“, sagte sie: »Ja!«\n\nFußball – Größe?"
+
     it "parses collection responses with numeric ids" $ do
       let value = decodeValue "{\"results\":[{\"id\":12,\"title\":\"Wissen\",\"lessons_count\":3}]}"
       parseCollectionsValue value `shouldBe` Right [LingqCollection "12" "Wissen" 3]
@@ -1534,6 +1548,22 @@ main = hspec $ do
             `shouldBe` [ "## Abschnitt"
                        , "Das ist ein Absatz mit genug Worten fuer den Parser."
                        , "Noch ein Absatz mit sauberem Text und Inhalt."
+                       ]
+
+    it "removes Zeit title boilerplate and collapses article whitespace" $ do
+      let html =
+            "<html><head><title>  „Titel“   mit   Abstand | ZEIT ONLINE</title></head>"
+              <> "<body><article>"
+              <> "<p>  Erster   Absatz mit   genug Worten und »Zitat«. </p>"
+              <> "<p> Zweiter Absatz – mit Fußball, Größe und Frage? </p>"
+              <> "</article></body></html>"
+      case extractArticleContent "https://www.zeit.de/wissen/2026-05/cleanup" html of
+        Left err -> expectationFailure (show err)
+        Right article -> do
+          articleTitle article `shouldBe` "„Titel“ mit Abstand"
+          articleParagraphs article
+            `shouldBe` [ "Erster Absatz mit genug Worten und »Zitat«."
+                       , "Zweiter Absatz – mit Fußball, Größe und Frage?"
                        ]
 
     it "extracts article audio from source tags and JSON-LD" $ do
