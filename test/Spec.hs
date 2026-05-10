@@ -5,7 +5,7 @@ module Main (main) where
 import Control.Monad (when)
 import Data.Aeson (Value, eitherDecode)
 import Data.ByteString.Lazy qualified as BL
-import Data.Either (isLeft)
+import Data.Either (isLeft, isRight)
 import Data.Functor.Identity (Identity (..), runIdentity)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -884,6 +884,13 @@ main = hspec $ do
       parseArgs ["--help"] `shouldBe` Right ShowHelp
       parseArgs ["demo"] `shouldSatisfy` isLeft
 
+    it "reports the unknown command in parser errors" $ do
+      parseArgs ["demo"] `shouldFailWith` "I could not understand `demo`."
+
+    it "reports the current usage help when a required URL is missing" $ do
+      parseArgs ["r"] `shouldFailWith` "I could not understand `r`."
+      parseArgs ["r"] `shouldFailWith` "zt r <url>"
+
     it "parses browse, fetch and library commands" $ do
       parseArgs ["browse", "wissen", "2"] `shouldBe` Right (BrowseZeit "wissen" 2 defaultDbPath)
       parseArgs ["browse", "wissen", "2", "custom.db"]
@@ -1017,6 +1024,12 @@ main = hspec $ do
     it "rejects invalid settings values" $ do
       parseArgs ["settings", "set-view", "nope"] `shouldSatisfy` isLeft
       parseArgs ["settings", "set-date-prefix", "maybe"] `shouldSatisfy` isLeft
+
+    it "keeps COMMANDS.md command examples parseable" $ do
+      docs <- readFile "COMMANDS.md"
+      let examples = commandExamplesFromDocs docs
+      examples `shouldSatisfy` not . null
+      mapM_ (\args -> parseArgs args `shouldSatisfy` isRight) examples
 
   describe "Browse use case" $ do
     it "hides browse summaries whose URLs were ignored before fetching" $ do
@@ -1666,6 +1679,37 @@ removeIfExists :: FilePath -> IO ()
 removeIfExists path = do
   exists <- doesFileExist path
   when exists (removeFile path)
+
+shouldFailWith :: (Show a) => Either String a -> String -> Expectation
+shouldFailWith result expected =
+  case result of
+    Left message -> message `shouldContain` expected
+    Right value -> expectationFailure ("Expected parser failure, got " <> show value)
+
+commandExamplesFromDocs :: String -> [[String]]
+commandExamplesFromDocs =
+  foldr collect []
+    . lines
+ where
+  collect line examples =
+    case commandArgsFromDocLine line of
+      Just args -> args : examples
+      Nothing -> examples
+
+commandArgsFromDocLine :: String -> Maybe [String]
+commandArgsFromDocLine line =
+  case words (takeWhile (/= '#') line) of
+    ".\\zt" : args -> Just (map substituteDocToken args)
+    "zt.exe" : args -> Just (map substituteDocToken args)
+    "zt" : args -> Just (map substituteDocToken args)
+    "zeit-lingq-tool" : args -> Just (map substituteDocToken args)
+    _ -> Nothing
+
+substituteDocToken :: String -> String
+substituteDocToken token =
+  case token of
+    "<url>" -> "https://www.zeit.de/wissen/2026-05/beispiel"
+    _ -> token
 
 decodeValue :: BL.ByteString -> Value
 decodeValue raw =
